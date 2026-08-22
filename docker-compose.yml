@@ -1,0 +1,114 @@
+name: shelfeye
+
+# Host ports are deliberately shifted off the defaults so this stack cannot
+# collide with anything already running on the machine (e.g. postgres-hrm on 5432).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shelfeye-postgres
+    environment:
+      POSTGRES_USER: shelfeye
+      POSTGRES_PASSWORD: shelfeye
+      POSTGRES_DB: shelfeye
+    ports: ["5433:5432"]
+    volumes: [shelfeye-pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shelfeye"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: shelfeye-redis
+    ports: ["6380:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: shelfeye-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: shelfeye
+      MINIO_ROOT_PASSWORD: shelfeye123
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [shelfeye-miniodata:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    container_name: shelfeye-minio-init
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 shelfeye shelfeye123 &&
+      mc mb --ignore-existing local/shelfeye-raw &&
+      mc anonymous set download local/shelfeye-raw &&
+      echo 'bucket ready'
+      "
+
+  # ── Application services ───────────────────────────────────────────────
+  # Started with a profile so `docker compose up -d postgres redis minio`
+  # stays the lightweight default for local development against host processes.
+
+  api:
+    profiles: [app]
+    build: {context: ., dockerfile: backend/Dockerfile}
+    container_name: shelfeye-api
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shelfeye:shelfeye@postgres:5432/shelfeye
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
+      ML_CLIENT: ${ML_CLIENT:-mock}
+      ML_SERVICE_URL: http://ml:8001
+    ports: ["8000:8000"]
+
+  worker:
+    profiles: [app]
+    build: {context: ., dockerfile: backend/Dockerfile}
+    container_name: shelfeye-worker
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shelfeye:shelfeye@postgres:5432/shelfeye
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      ML_CLIENT: ${ML_CLIENT:-mock}
+      ML_SERVICE_URL: http://ml:8001
+    command: celery -A app.workers.celery_app worker --loglevel=info -c 2
+
+  # The real model. Not started by the `app` profile: the whole point of the
+  # separation is that the backend runs and demos without it.
+  ml:
+    profiles: [real-ml]
+    build: {context: ., dockerfile: model/Dockerfile}
+    container_name: shelfeye-ml
+    depends_on:
+      minio: {condition: service_healthy}
+    environment:
+      S3_ENDPOINT_URL: http://minio:9000
+      MODEL_ARTIFACT_DIR: /srv/model/artifacts/shelf-product-v1
+      MODEL_VERSION: shelf-product-v1
+    volumes:
+      - ./model/artifacts:/srv/model/artifacts:ro
+    ports: ["8001:8001"]
+
+volumes:
+  shelfeye-pgdata:
+  shelfeye-miniodata:

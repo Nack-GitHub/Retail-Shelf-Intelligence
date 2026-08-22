@@ -1,0 +1,10 @@
+# Production-shaped run. imgsz 960 because shelf photos are dense with small
+# objects and 640 loses the thin gap regions between facings.
+run_name: shelf-product-v1
+model: yolo11n.pt
+imgsz: 960
+epochs: 60
+batch: 8          # M2 16GB unified memory
+patience: 20
+workers: 4
+seed: 42

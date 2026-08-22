@@ -1,1 +1,33 @@
 .claude
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env
+.env
+.env.local
+
+# ML — large, regenerable
+model/data/
+model/artifacts/
+model/runs/
+model/*.pt
+
+# The 108MB source archive stays out of git history — committing it is
+# effectively irreversible without a history rewrite, and it is reproducible
+# from the pinned Roboflow version recorded in model/class_map.yaml
+# (roboflow-ngkro/shelf-product v1, sha256 d6378c1ce6d6…f8f1e9).
+model/*.zip
+
+# Node
+node_modules/
+.next/

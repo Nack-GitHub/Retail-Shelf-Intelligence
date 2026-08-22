@@ -1,0 +1,10 @@
+# Smoke config — proves the pipeline runs and MEASURES seconds/epoch on this
+# machine so the real run's epoch count is chosen from data, not guessed.
+run_name: smoke
+model: yolo11n.pt
+imgsz: 320
+epochs: 2
+batch: 8
+patience: 100
+workers: 4
+seed: 42

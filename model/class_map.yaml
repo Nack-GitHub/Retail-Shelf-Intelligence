@@ -1,0 +1,56 @@
+# class_map.yaml — ships INSIDE the model artifact, never in the backend.
+#
+# Maps every raw model class to the stable semantic_type the backend consumes.
+# When the SKU list changes, only this file and the weights change; the backend
+# does not redeploy. The backend must never see the names on the left.
+
+dataset: roboflow-ngkro/shelf-product
+dataset_version: 1
+num_classes: 45
+
+classes:
+  0: {name: 'AB Bohne', semantic_type: PRODUCT}
+  1: {name: 'AB Gemahlen', semantic_type: PRODUCT}
+  2: {name: 'Athiopien Bohne', semantic_type: PRODUCT}
+  3: {name: 'Athiopien Gemahlen', semantic_type: PRODUCT}
+  4: {name: 'BM Bohne', semantic_type: PRODUCT}
+  5: {name: 'BM Gemahlen', semantic_type: PRODUCT}
+  6: {name: 'BW Bohne', semantic_type: PRODUCT}
+  7: {name: 'BW Gemahlen', semantic_type: PRODUCT}
+  8: {name: 'Barista CB', semantic_type: PRODUCT}
+  9: {name: 'Barista CC', semantic_type: PRODUCT}
+  10: {name: 'Barista Espresso', semantic_type: PRODUCT}
+  11: {name: 'Barista Kolumbien', semantic_type: PRODUCT}
+  12: {name: 'CC Mild', semantic_type: PRODUCT}
+  13: {name: 'CC Vollmundig', semantic_type: PRODUCT}
+  14: {name: 'CC Vollmundig 36Pads', semantic_type: PRODUCT}
+  15: {name: 'CFino Bohne', semantic_type: PRODUCT}
+  16: {name: 'Colombia BBBohne', semantic_type: PRODUCT}
+  17: {name: 'Colombia BBGemahlen', semantic_type: PRODUCT}
+  18: {name: 'Discount Price', semantic_type: PROMO_TAG}
+  19: {name: 'Empty Shelf', semantic_type: GAP}
+  20: {name: 'Espresso Aromatisch', semantic_type: PRODUCT}
+  21: {name: 'Espresso Kraftig', semantic_type: PRODUCT}
+  22: {name: 'Espresso MArt', semantic_type: PRODUCT}
+  23: {name: 'Espresso SArt', semantic_type: PRODUCT}
+  24: {name: 'FM 36Pads', semantic_type: PRODUCT}
+  25: {name: 'FM Bohne', semantic_type: PRODUCT}
+  26: {name: 'FM Gemahlen', semantic_type: PRODUCT}
+  27: {name: 'FM Instant', semantic_type: PRODUCT}
+  28: {name: 'Herzhatfe Mundig', semantic_type: PRODUCT}
+  29: {name: 'LG Bohne', semantic_type: PRODUCT}
+  30: {name: 'LG Gemahlen', semantic_type: PRODUCT}
+  31: {name: 'Price', semantic_type: PRICE_TAG}
+  32: {name: 'SM Bohne', semantic_type: PRODUCT}
+  33: {name: 'SM Gemahlen', semantic_type: PRODUCT}
+  34: {name: 'Simo CCColombia', semantic_type: PRODUCT}
+  35: {name: 'Simo CCMild', semantic_type: PRODUCT}
+  36: {name: 'Simo CCMild bigpack', semantic_type: PRODUCT}
+  37: {name: 'Simo CCVollmundig', semantic_type: PRODUCT}
+  38: {name: 'Simo CCVollmundig bigpack', semantic_type: PRODUCT}
+  39: {name: 'Simo Decaff', semantic_type: PRODUCT}
+  40: {name: 'Simo EsElegant', semantic_type: PRODUCT}
+  41: {name: 'Simo EsKraft', semantic_type: PRODUCT}
+  42: {name: 'Simo KaffeeBW', semantic_type: PRODUCT}
+  43: {name: 'Simo KaffeeKraft', semantic_type: PRODUCT}
+  44: {name: 'Simo KaffeeMild', semantic_type: PRODUCT}

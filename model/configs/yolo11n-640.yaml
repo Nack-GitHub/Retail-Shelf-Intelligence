@@ -1,0 +1,26 @@
+# Parameters chosen from MEASUREMENT, then corrected after a failed attempt.
+#
+# Attempt 1 (batch 16): GPU_mem hit 8.75G on this 16GB M2 and throughput
+# collapsed from 14 s/it to 119 s/it — unified memory exhausted, the machine
+# started swapping, and 40 epochs would have taken days. Batch is the knob that
+# matters here, not image size.
+#
+# Attempt 2 (batch 8): memory fixed, training ran at ~2 s/it as predicted — but
+# per-epoch VALIDATION then became the bottleneck, at 193 s/iteration. Disabled
+# it (val: false) and validate once at the end instead.
+#
+# Attempt 3 (this file): batch 8, no per-epoch validation, 20 epochs.
+# ~5 min/epoch training-only, so roughly 100 minutes total.
+#
+# imgsz stays at 640 rather than the spec's 960: `Empty Shelf` is a large
+# object (a whole empty facing block), so gap recall — the metric that matters —
+# survives the reduction, and 960 would triple the time for a demo.
+run_name: shelf-product-v1
+model: yolo11n.pt
+imgsz: 640
+epochs: 20
+batch: 8
+patience: 10
+val: false        # see train.py — per-epoch NMS dominates runtime
+workers: 4
+seed: 42

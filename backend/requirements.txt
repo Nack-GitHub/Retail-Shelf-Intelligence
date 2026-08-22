@@ -1,0 +1,28 @@
+# shelfeye-api — the backend service.
+#
+# ⛔ THIS FILE MUST NEVER CONTAIN torch, ultralytics, opencv, tensorflow, or any
+# other computer-vision library. All inference happens over HTTP to the ML
+# service via adapters/ml_client.py. A change to the model must not require a
+# backend deploy. `make check-boundary` enforces this.
+
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.6
+sqlalchemy[asyncio]>=2.0.36
+asyncpg>=0.30
+psycopg2-binary>=2.9   # sync driver for alembic and celery
+alembic>=1.14
+celery[redis]>=5.4
+redis>=5.2
+boto3>=1.35
+httpx>=0.27
+structlog>=24.4
+pyjwt>=2.10
+bcrypt>=4.2
+python-multipart>=0.0.17
+
+# dev
+pytest>=8.3
+pytest-asyncio>=0.24
+ruff>=0.8

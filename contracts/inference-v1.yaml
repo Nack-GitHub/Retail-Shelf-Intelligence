@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: ShelfEye Inference Contract
+  version: 1.0.0
+  description: |
+    The single coupling point between `shelfeye-api` (backend) and
+    `shelfeye-ml` (model serving).
+
+    ## Two rules that must never be broken
+
+    1. **`semantic_type` is the only field the backend may branch on.**
+       Raw `class_name` values ("Empty Shelf", "FM Bohne", ...) change on
+       every retrain. The ML service owns the class_name -> semantic_type
+       mapping and ships it inside the model artifact.
+
+    2. **All bounding boxes are ABSOLUTE PIXELS in the original image
+       coordinate space, top-left origin.** Never normalised. Never YOLO
+       centre-form. The ML service reverses letterbox padding before
+       responding.
+
+servers:
+  - url: http://localhost:8001
+    description: Local ML service
+
+paths:
+  /internal/v1/infer:
+    post:
+      operationId: infer
+      summary: Detect products, gaps and price tags in one shelf photograph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InferRequest'}
+      responses:
+        '200':
+          description: |
+            Inference succeeded. An empty `detections` array means the model
+            ran and found no objects on a shelf it could see — it does NOT
+            mean a full shelf. When no shelf structure is visible at all the
+            service returns 422 instead.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InferResponse'}
+        '422':
+          description: |
+            The image itself is the problem — unreadable, missing, or
+            containing no detectable shelf structure. NOT retryable. The
+            backend must fail the job and tell the rep to retake the photo.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InferError'}
+        '501':
+          description: A specific `model_version` was requested but is not loadable in this build.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InferError'}
+        '503':
+          description: Model not loaded or still warming up. Transient — retry with backoff.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InferError'}
+
+  /internal/v1/models:
+    get:
+      operationId: listModels
+      summary: List loadable model versions and which one is active
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ModelsResponse'}
+
+  /internal/v1/healthz:
+    get:
+      operationId: healthz
+      summary: Liveness — the process is up, regardless of model state
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthResponse'}
+
+  /internal/v1/readyz:
+    get:
+      operationId: readyz
+      summary: Readiness — the model is loaded AND a warm-up pass has completed
+      responses:
+        '200':
+          description: Warm and ready to serve
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthResponse'}
+        '503':
+          description: Not yet warm. The first request from a waiting rep must not pay the JIT cost.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HealthResponse'}
+
+components:
+  schemas:
+    SemanticType:
+      type: string
+      description: Stable operational meaning. The ONLY field backend logic may branch on.
+      enum: [PRODUCT, GAP, PRICE_TAG, PROMO_TAG]
+
+    InferErrorCode:
+      type: string
+      enum:
+        - UNREADABLE_IMAGE
+        - NO_SHELF_DETECTED
+        - IMAGE_NOT_FOUND
+        - MODEL_NOT_LOADED
+        - MODEL_WARMING_UP
+        - VERSION_NOT_AVAILABLE
+
+    BBox:
+      type: object
+      description: >
+        Axis-aligned box in ABSOLUTE PIXELS of the original image, top-left
+        origin. Never normalised, never centre-form.
+      required: [x, y, w, h]
+      properties:
+        x: {type: number, minimum: 0, description: Left edge in absolute pixels.}
+        y: {type: number, minimum: 0, description: Top edge in absolute pixels.}
+        w: {type: number, exclusiveMinimum: 0, description: Width in absolute pixels.}
+        h: {type: number, exclusiveMinimum: 0, description: Height in absolute pixels.}
+
+    Detection:
+      type: object
+      required: [detection_id, class_id, class_name, semantic_type, bbox, confidence]
+      properties:
+        detection_id: {type: string, format: uuid}
+        class_id: {type: integer, minimum: 0, description: Raw model class index. Audit only.}
+        class_name: {type: string, description: Raw model class name. Audit only — never branch on this.}
+        semantic_type: {$ref: '#/components/schemas/SemanticType'}
+        bbox: {$ref: '#/components/schemas/BBox'}
+        confidence: {type: number, minimum: 0, maximum: 1}
+
+    InferRequest:
+      type: object
+      required: [image_uri, request_id]
+      properties:
+        image_uri:
+          type: string
+          description: Object-store URI read directly by the ML service. Image bytes never travel in this body.
+        request_id: {type: string, format: uuid}
+        model_version:
+          type: [string, 'null']
+          description: Pin a version to reproduce an old finding. Omit to use the active model.
+
+    InferResponse:
+      type: object
+      required: [request_id, model_version, model_sha, inference_ms, image_width, image_height, detections]
+      properties:
+        request_id: {type: string, format: uuid}
+        model_version: {type: string}
+        model_sha: {type: string}
+        inference_ms: {type: integer, minimum: 0}
+        image_width: {type: integer, exclusiveMinimum: 0}
+        image_height: {type: integer, exclusiveMinimum: 0}
+        detections:
+          type: array
+          items: {$ref: '#/components/schemas/Detection'}
+
+    InferError:
+      type: object
+      required: [error_code, detail]
+      properties:
+        request_id: {type: [string, 'null'], format: uuid}
+        error_code: {$ref: '#/components/schemas/InferErrorCode'}
+        detail: {type: string}
+
+    ModelInfo:
+      type: object
+      required: [version, sha, is_active, loaded]
+      properties:
+        version: {type: string}
+        sha: {type: string}
+        is_active: {type: boolean}
+        loaded: {type: boolean}
+
+    ModelsResponse:
+      type: object
+      required: [active_version, models]
+      properties:
+        active_version: {type: [string, 'null']}
+        models:
+          type: array
+          items: {$ref: '#/components/schemas/ModelInfo'}
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string}
+        detail: {type: [string, 'null']}

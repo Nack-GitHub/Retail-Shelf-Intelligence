@@ -1,0 +1,11 @@
+# Serving-only dependencies. No torch, no ultralytics — the deployed inference
+# service runs ONNX Runtime against an exported artifact, which keeps the image
+# roughly an order of magnitude smaller than a training image.
+onnxruntime>=1.20
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pillow>=11.0
+numpy>=1.26,<2.2
+pyyaml>=6.0
+boto3>=1.35
+httpx>=0.27

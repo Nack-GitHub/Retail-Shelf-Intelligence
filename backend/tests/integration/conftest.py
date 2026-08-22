@@ -1,0 +1,116 @@
+"""Integration fixtures.
+
+Runs against the compose stack (postgres + redis + minio) with Celery in eager
+mode, so a full check-in-to-checkout path executes inline in the test process.
+No broker, no worker, no running API server needed — `make test` is one command.
+"""
+
+from __future__ import annotations
+
+import os
+import uuid
+from collections.abc import Iterator
+
+import pytest
+
+os.environ.setdefault("ML_CLIENT", "mock")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.adapters.storage_client import get_storage  # noqa: E402
+from app.db.seed import seed  # noqa: E402
+from app.workers.celery_app import celery_app  # noqa: E402
+from app.workers.session import SyncSessionFactory  # noqa: E402
+
+# Eager mode: .delay() runs the task inline and propagates exceptions.
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _prepare_environment() -> Iterator[None]:
+    with SyncSessionFactory() as session:
+        seed(session)
+    get_storage().ensure_bucket()
+    yield
+
+
+@pytest.fixture(scope="session")
+def client() -> Iterator[TestClient]:
+    from app.main import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def _token(client: TestClient, email: str) -> str:
+    response = client.post("/v1/auth/login", json={"email": email, "password": "demo1234"})
+    response.raise_for_status()
+    return response.json()["accessToken"]
+
+
+@pytest.fixture(scope="session")
+def rep_auth(client: TestClient) -> dict[str, str]:
+    return {"Authorization": f"Bearer {_token(client, 'rep@shelfeye.demo')}"}
+
+
+@pytest.fixture(scope="session")
+def manager_auth(client: TestClient) -> dict[str, str]:
+    return {"Authorization": f"Bearer {_token(client, 'manager@shelfeye.demo')}"}
+
+
+@pytest.fixture
+def idempotency_key() -> str:
+    return f"test-{uuid.uuid4()}"
+
+
+@pytest.fixture
+def visit(client: TestClient, rep_auth: dict[str, str]) -> dict:
+    stores = client.get("/v1/routes/today", headers=rep_auth).json()
+    response = client.post(
+        "/v1/visits",
+        headers=rep_auth,
+        json={
+            "storeId": stores[0]["id"],
+            "gpsLat": stores[0]["lat"],
+            "gpsLng": stores[0]["lng"],
+            "photoConsentConfirmed": True,
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def upload_capture(
+    client: TestClient,
+    auth: dict[str, str],
+    visit_id: str,
+    *,
+    bay: str = "BAY-01",
+    phase: str = "BEFORE",
+    idem: str | None = None,
+) -> dict:
+    """presign -> PUT -> commit. Returns the job payload.
+
+    `bay` selects the MockMLClient scenario, because the bay label is carried
+    into the object key and the mock reads its scenario from the URI.
+    """
+    import httpx
+
+    presign = client.post(
+        "/v1/captures/presign",
+        headers=auth,
+        json={"visitId": visit_id, "category": "coffee", "shelfBayLabel": bay, "phase": phase},
+    ).json()
+
+    httpx.put(
+        presign["uploadUrl"], content=b"fake-jpeg-bytes", headers={"Content-Type": "image/jpeg"}
+    ).raise_for_status()
+
+    response = client.post(
+        f"/v1/captures/{presign['captureId']}/commit",
+        headers={**auth, "Idempotency-Key": idem or f"test-{uuid.uuid4()}"},
+        json={"imageWidth": 1920, "imageHeight": 1080, "faceBlurApplied": True, "faceBlurCount": 0},
+    )
+    assert response.status_code == 202, response.text
+    return {**response.json(), "captureId": presign["captureId"], "objectKey": presign["objectKey"]}
