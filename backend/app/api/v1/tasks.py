@@ -64,16 +64,13 @@ async def update_task(
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบงาน")
 
-    new_status = body.status.upper()
-    if new_status not in {s.value for s in TaskStatus}:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "สถานะไม่ถูกต้อง")
+    # status and blocked_reason are Literal-typed on the schema.
+    new_status = body.status
 
     if new_status == TaskStatus.BLOCKED:
         if not body.blocked_reason:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "ต้องระบุเหตุผลที่ทำไม่ได้")
-        reason = body.blocked_reason.upper()
-        if reason not in {r.value for r in BlockedReason}:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "เหตุผลไม่ถูกต้อง")
+        reason = body.blocked_reason
         task.blocked_reason = reason
 
         if reason == BlockedReason.OUT_OF_BACKSTOCK:

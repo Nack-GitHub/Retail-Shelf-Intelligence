@@ -9,6 +9,7 @@ stays snake_case.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -98,11 +99,18 @@ class VisitOut(ApiModel):
 
 
 class PresignRequest(ApiModel):
+    """A presign response is a write grant to object storage.
+
+    The constraints below are the grant's limits: only image types, only a real
+    phase, and a bounded label — which is slugified into the object key, so an
+    unbounded or path-shaped value would end up in the storage layout.
+    """
+
     visit_id: UUID
-    category: str
-    shelf_bay_label: str = ""
-    phase: str = "BEFORE"
-    content_type: str = "image/jpeg"
+    category: str = Field(min_length=1, max_length=64)
+    shelf_bay_label: str = Field(default="", max_length=64)
+    phase: Literal["BEFORE", "AFTER"] = "BEFORE"
+    content_type: Literal["image/jpeg", "image/png", "image/webp"] = "image/jpeg"
 
 
 class PresignResponse(ApiModel):
@@ -113,8 +121,8 @@ class PresignResponse(ApiModel):
 
 
 class CaptureCommit(ApiModel):
-    image_width: int
-    image_height: int
+    image_width: int = Field(gt=0, le=20000)
+    image_height: int = Field(gt=0, le=20000)
     captured_at: datetime | None = None
     device_info: dict | None = None
     face_blur_applied: bool | None = None
@@ -192,8 +200,8 @@ class ShelfAnalysisOut(ApiModel):
 
 
 class VerifyRequest(ApiModel):
-    verdict: str
-    reason: str | None = None
+    verdict: Literal["CONFIRMED", "REJECTED"]
+    reason: Literal["OCCLUDED", "NOT_OUR_SKU", "NORMAL_EMPTY", "OTHER"] | None = None
 
 
 class TaskOut(ApiModel):
@@ -210,8 +218,8 @@ class TaskOut(ApiModel):
 
 
 class TaskPatch(ApiModel):
-    status: str
-    blocked_reason: str | None = None
+    status: Literal["OPEN", "FIXED", "BLOCKED"]
+    blocked_reason: Literal["OUT_OF_BACKSTOCK", "STORE_REFUSED", "DELISTED"] | None = None
     after_capture_id: UUID | None = None
 
 
@@ -229,13 +237,17 @@ class CheckoutResponse(ApiModel):
 
 
 class SyncOperationIn(ApiModel):
-    idempotency_key: str
-    kind: str
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    kind: Literal["CAPTURE", "VERIFY", "TASK", "CHECKOUT"]
     payload: dict
 
 
 class SyncBatchRequest(ApiModel):
-    operations: list[SyncOperationIn]
+    # Bounded because the client controls the size and drains unattended after
+    # a day offline. A rep's whole day is well under 200 operations; anything
+    # larger is a bug or an attack, and either way should not be processed
+    # one-by-one inside a single request.
+    operations: list[SyncOperationIn] = Field(max_length=200)
 
 
 class SyncItemResult(ApiModel):

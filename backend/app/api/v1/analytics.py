@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import current_user, get_db
+from app.api.v1.deps import get_db, require_roles
 from app.db.models import (
     Capture,
     GapFindingRow,
@@ -33,9 +33,14 @@ from app.db.models import (
     User,
     Visit,
 )
+from app.domain.enums import Role
 from app.services.risk import risk_band, risk_score
 
 router = APIRouter(tags=["analytics"])
+
+# Analytics is management reporting, not part of a rep's job. Guarding at the
+# router keeps a future endpoint from being added without a role check.
+manager_only = require_roles(Role.MANAGER, Role.ADMIN, Role.DATA)
 
 
 @router.get("/analytics/osa")
@@ -45,7 +50,7 @@ async def osa_trend(
     store_id: UUID | None = None,
     days: int = Query(84, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(manager_only),
 ) -> dict:
     """OSA over time, bucketed by week. Store or area scope only."""
     since = datetime.now(UTC) - timedelta(days=days)
@@ -89,7 +94,7 @@ async def risk_ranking(
     area_id: str | None = None,
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(manager_only),
 ) -> dict:
     """Stores ranked by risk. Stores — never people."""
     query = select(Store)
@@ -144,7 +149,7 @@ async def store_history(
     store_id: UUID,
     limit: int = Query(30, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(manager_only),
 ) -> dict:
     """Visit timeline for one store, with before/after OSA per visit."""
     visits = (

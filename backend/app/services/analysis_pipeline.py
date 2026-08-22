@@ -121,8 +121,15 @@ def _fail(session: Session, job: InferenceJob, exc: ShelfEyeError) -> None:
 def _persist(
     session: Session, capture: Capture, job: InferenceJob, response: InferResponse
 ) -> None:
-    """Write detections, the analysis, and the findings. All append-only."""
+    """Write detections, the analysis, and the findings. All append-only.
+
+    Every row written here carries the same `run_id`, so a later reader can ask
+    for exactly one run's output. Re-running the same model on the same capture
+    appends a second, independently addressable set rather than corrupting the
+    first — which is the whole point of append-only.
+    """
     config = analysis_config()
+    run_id = uuid4()
 
     domain_detections = [
         Detection(
@@ -149,10 +156,13 @@ def _persist(
         capture.image_width = response.image_width
         capture.image_height = response.image_height
 
+    # Keyed by the ML service's id so findings can be resolved back to the row
+    # we actually persisted; the row's own primary key is generated here.
     detection_rows = {
         d.detection_id: DetectionRow(
-            id=d.detection_id,
             capture_id=capture.id,
+            run_id=run_id,
+            source_detection_id=d.detection_id,
             model_version=response.model_version,
             class_id=d.class_id,
             class_name=d.class_name,
@@ -167,10 +177,12 @@ def _persist(
         for d in domain_detections
     }
     session.add_all(detection_rows.values())
+    session.flush()  # assign primary keys before findings reference them
 
     session.add(
         ShelfAnalysisRow(
             capture_id=capture.id,
+            run_id=run_id,
             model_version=response.model_version,
             row_count=result.row_count,
             total_shelf_area=result.total_shelf_area,
@@ -190,7 +202,8 @@ def _persist(
         session.add(
             GapFindingRow(
                 capture_id=capture.id,
-                detection_id=finding.detection_id,
+                run_id=run_id,
+                detection_id=detection_rows[finding.detection_id].id,
                 shelf_row_index=finding.shelf_row_index,
                 position_label=finding.position_label,
                 confidence=finding.confidence,

@@ -13,7 +13,7 @@ from app.adapters.storage_client import get_storage
 from app.api.v1.deps import current_user, get_db
 from app.api.v1.schemas import VerifyRequest
 from app.db.models import AuditLog, Capture, GapFindingRow, TaskRow, User
-from app.domain.enums import RejectReason, TaskStatus, VerificationStatus
+from app.domain.enums import TaskStatus, VerificationStatus
 
 router = APIRouter(tags=["findings"])
 
@@ -39,9 +39,9 @@ async def verify_finding(
     if finding is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบรายการที่ต้องตรวจสอบ")
 
-    verdict = body.verdict.upper()
-    if verdict not in {VerificationStatus.CONFIRMED, VerificationStatus.REJECTED}:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "verdict ไม่ถูกต้อง")
+    # verdict and reason are Literal-typed on the schema, so an invalid
+    # value is rejected as a 422 before this function runs.
+    verdict = body.verdict
 
     if finding.verification_status == verdict:
         existing = (
@@ -54,16 +54,23 @@ async def verify_finding(
             "idempotent": True,
         }
 
-    if body.reason and body.reason.upper() not in {r.value for r in RejectReason}:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "เหตุผลไม่ถูกต้อง")
-
     before = {"verification_status": finding.verification_status}
     finding.verification_status = verdict
-    finding.rejected_reason = body.reason.upper() if body.reason else None
+    finding.rejected_reason = body.reason
     finding.verified_by = user.id
     finding.verified_at = datetime.now(UTC)
 
     task_id: UUID | None = None
+    if verdict == VerificationStatus.REJECTED:
+        # A rep who confirms and then corrects themselves must not leave work
+        # behind for a gap they have just said is not a gap. Without this the
+        # task list shows phantom work and checkout counts it.
+        existing_task = (
+            await db.execute(select(TaskRow).where(TaskRow.gap_finding_id == finding.id))
+        ).scalar_one_or_none()
+        if existing_task is not None:
+            await db.delete(existing_task)
+
     if verdict == VerificationStatus.CONFIRMED:
         capture = (
             await db.execute(select(Capture).where(Capture.id == finding.capture_id))

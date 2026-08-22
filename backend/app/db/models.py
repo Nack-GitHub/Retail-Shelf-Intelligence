@@ -152,15 +152,25 @@ class InferenceJob(Base):
 class DetectionRow(Base):
     """APPEND-ONLY. Never updated, never deleted.
 
+    `run_id` identifies the single inference run that produced this row.
+    model_version alone is not enough: re-running the SAME model on a capture
+    appends a second set of rows, and a reader filtering only by model_version
+    would return both and draw every box twice.
+
     Kept as a plain table rather than partitioned by month: this is a demo, and
-    partitioning buys storage management we do not need at this volume. The
-    (capture_id) index is what actually matters for reads.
+    partitioning buys storage management we do not need at this volume.
     """
 
     __tablename__ = "detections"
 
     id: Mapped[uuid.UUID] = mapped_column(_UUID, primary_key=True, default=uuid.uuid4)
     capture_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("captures.id"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(_UUID, nullable=False)
+    # The id the ML service assigned within its response. Kept for tracing a
+    # row back to one inference call, but NOT used as the primary key: it is
+    # only unique within a response, and a deterministic service reuses it
+    # across runs. Owning our own key is what makes re-inference safe.
+    source_detection_id: Mapped[uuid.UUID] = mapped_column(_UUID, nullable=False)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
     class_id: Mapped[int] = mapped_column(Integer, nullable=False)
     class_name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -175,7 +185,11 @@ class DetectionRow(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    __table_args__ = (Index("ix_detections_capture", "capture_id"),)
+    __table_args__ = (
+        Index("ix_detections_capture", "capture_id"),
+        Index("ix_detections_run", "run_id"),
+        Index("ix_detections_source", "source_detection_id"),
+    )
 
 
 class ShelfAnalysisRow(Base):
@@ -185,6 +199,7 @@ class ShelfAnalysisRow(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(_UUID, primary_key=True, default=uuid.uuid4)
     capture_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("captures.id"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(_UUID, nullable=False)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
     row_count: Mapped[int] = mapped_column(Integer, nullable=False)
     total_shelf_area: Mapped[float] = mapped_column(Float, nullable=False)
@@ -206,6 +221,7 @@ class GapFindingRow(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(_UUID, primary_key=True, default=uuid.uuid4)
     capture_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("captures.id"), nullable=False)
+    run_id: Mapped[uuid.UUID] = mapped_column(_UUID, nullable=False)
     detection_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("detections.id"), nullable=False)
     shelf_row_index: Mapped[int] = mapped_column(Integer, nullable=False)
     position_label: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -226,6 +242,7 @@ class GapFindingRow(Base):
 
     __table_args__ = (
         Index("ix_findings_capture", "capture_id"),
+        Index("ix_findings_run", "run_id"),
         # Partial index: the pending queue is the only hot read on this table.
         Index(
             "ix_findings_pending",

@@ -213,10 +213,10 @@ async def get_result(
     detections = (
         (
             await db.execute(
-                select(DetectionRow).where(
-                    DetectionRow.capture_id == capture_id,
-                    DetectionRow.model_version == analysis.model_version,
-                )
+                # Scope to the analysis's OWN run. Filtering by model_version
+                # would merge every run of that version — re-inference appends
+                # rather than replaces, so the overlay would draw each box twice.
+                select(DetectionRow).where(DetectionRow.run_id == analysis.run_id)
             )
         )
         .scalars()
@@ -227,7 +227,7 @@ async def get_result(
         (
             await db.execute(
                 select(GapFindingRow)
-                .where(GapFindingRow.capture_id == capture_id)
+                .where(GapFindingRow.run_id == analysis.run_id)
                 .order_by(GapFindingRow.shelf_row_index, GapFindingRow.position_label)
             )
         )
