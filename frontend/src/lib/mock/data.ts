@@ -1,0 +1,186 @@
+import type { ShelfCategory, Store, SyncItem } from "@/types";
+
+export const CURRENT_USER = {
+  name: "ณัฐพงษ์ ศรีวิไล",
+  employeeCode: "REP-2418",
+  role: "REP" as const,
+  areaName: "กรุงเทพฯ ตะวันออก",
+};
+
+export const MANAGER_USER = {
+  name: "พิมพ์ชนก วัฒนกิจ",
+  role: "MANAGER" as const,
+  areaName: "กรุงเทพฯ ตะวันออก",
+};
+
+export const STORES: Store[] = [
+  {
+    id: "st-101",
+    externalCode: "QS-1042",
+    name: "ควิกช้อป อ่อนนุช 17",
+    chain: "ควิกช้อป",
+    storeFormat: "CVS",
+    address: "ถ.สุขุมวิท 77 แขวงสวนหลวง",
+    distanceKm: 0.4,
+    lastOsa: 74,
+    daysSinceLastVisit: 8,
+    riskBand: "HIGH",
+    riskScore: 87,
+    repeatGapSkus: 5,
+    lat: 13.7051,
+    lng: 100.6012,
+    photoPolicy: "ALLOWED",
+    visitWindow: "09:00 – 11:00",
+  },
+  {
+    id: "st-102",
+    externalCode: "FM-2210",
+    name: "เฟรชมาร์ท ทองหล่อ 25",
+    chain: "เฟรชมาร์ท",
+    storeFormat: "SUPER",
+    address: "ซ.ทองหล่อ 25 แขวงคลองตันเหนือ",
+    distanceKm: 1.9,
+    lastOsa: 81,
+    daysSinceLastVisit: 5,
+    riskBand: "MEDIUM",
+    riskScore: 61,
+    repeatGapSkus: 3,
+    lat: 13.7368,
+    lng: 100.5847,
+    photoPolicy: "ALLOWED",
+    visitWindow: "11:00 – 13:00",
+  },
+  {
+    id: "st-103",
+    externalCode: "MB-0788",
+    name: "มินิบิ๊ก พระราม 9 ซอย 41",
+    chain: "มินิบิ๊ก",
+    storeFormat: "CVS",
+    address: "ถ.พระราม 9 แขวงสวนหลวง",
+    distanceKm: 3.2,
+    lastOsa: 68,
+    daysSinceLastVisit: 12,
+    riskBand: "HIGH",
+    riskScore: 92,
+    repeatGapSkus: 7,
+    lat: 13.7539,
+    lng: 100.6221,
+    photoPolicy: "RESTRICTED",
+    visitWindow: "13:30 – 15:00",
+  },
+  {
+    id: "st-104",
+    externalCode: "TD-3391",
+    name: "ร้านลุงสมชาย ซอยรามคำแหง 24",
+    chain: "ร้านค้าดั้งเดิม",
+    storeFormat: "TRAD",
+    address: "ซ.รามคำแหง 24 แขวงหัวหมาก",
+    distanceKm: 4.6,
+    lastOsa: 89,
+    daysSinceLastVisit: 6,
+    riskBand: "LOW",
+    riskScore: 34,
+    repeatGapSkus: 1,
+    lat: 13.7644,
+    lng: 100.6293,
+    photoPolicy: "ALLOWED",
+    visitWindow: "15:00 – 16:30",
+  },
+  {
+    id: "st-105",
+    externalCode: "QS-1119",
+    name: "ควิกช้อป ศรีนครินทร์ 42",
+    chain: "ควิกช้อป",
+    storeFormat: "CVS",
+    address: "ถ.ศรีนครินทร์ แขวงหนองบอน",
+    distanceKm: 6.1,
+    lastOsa: 85,
+    daysSinceLastVisit: 9,
+    riskBand: "MEDIUM",
+    riskScore: 55,
+    repeatGapSkus: 2,
+    lat: 13.6889,
+    lng: 100.6455,
+    photoPolicy: "ALLOWED",
+    visitWindow: "16:30 – 18:00",
+  },
+];
+
+export function getStore(id: string): Store {
+  return STORES.find((s) => s.id === id) ?? STORES[0];
+}
+
+export const CATEGORIES: ShelfCategory[] = [
+  { id: "cat-coffee", name: "กาแฟ", bays: ["A1", "A2", "A3"], skuCount: 42, lastOsa: 74 },
+  { id: "cat-milk", name: "นมและผลิตภัณฑ์นม", bays: ["B1", "B2"], skuCount: 31, lastOsa: 88 },
+  { id: "cat-snack", name: "ขนมขบเคี้ยว", bays: ["C1", "C2", "C3", "C4"], skuCount: 56, lastOsa: 91 },
+  { id: "cat-drink", name: "เครื่องดื่มไม่มีแอลกอฮอล์", bays: ["D1", "D2"], skuCount: 38, lastOsa: 79 },
+  { id: "cat-instant", name: "อาหารสำเร็จรูป", bays: ["E1"], skuCount: 24, lastOsa: null },
+];
+
+export const SYNC_ITEMS: SyncItem[] = [
+  {
+    id: "sq-1",
+    storeName: "มินิบิ๊ก พระราม 9 ซอย 41",
+    kind: "CAPTURE",
+    label: "ภาพชั้นวาง กาแฟ · ชั้น A2",
+    sizeKb: 1840,
+    queuedAt: "09:12",
+    status: "PENDING",
+    attempts: 0,
+  },
+  {
+    id: "sq-2",
+    storeName: "มินิบิ๊ก พระราม 9 ซอย 41",
+    kind: "VERIFY",
+    label: "ผลการตรวจสอบ 6 จุด",
+    sizeKb: 12,
+    queuedAt: "09:14",
+    status: "PENDING",
+    attempts: 0,
+  },
+  {
+    id: "sq-3",
+    storeName: "ร้านลุงสมชาย ซอยรามคำแหง 24",
+    kind: "CAPTURE",
+    label: "ภาพหลังเติมของ · ชั้น A1",
+    sizeKb: 2110,
+    queuedAt: "08:47",
+    status: "FAILED",
+    attempts: 3,
+    errorCode: "NETWORK_TIMEOUT",
+  },
+  {
+    id: "sq-4",
+    storeName: "ร้านลุงสมชาย ซอยรามคำแหง 24",
+    kind: "TASK",
+    label: "ปิดงานเติมของ 4 รายการ",
+    sizeKb: 8,
+    queuedAt: "08:49",
+    status: "PENDING",
+    attempts: 0,
+  },
+  {
+    id: "sq-5",
+    storeName: "เฟรชมาร์ท ทองหล่อ 25",
+    kind: "CHECKOUT",
+    label: "สรุปการเข้าร้าน",
+    sizeKb: 6,
+    queuedAt: "08:31",
+    status: "DONE",
+    attempts: 1,
+  },
+];
+
+export const REJECT_REASONS = [
+  { id: "OCCLUDED", label: "มีของแต่ถูกบัง", hint: "มีสินค้าอยู่ แต่ถูกป้าย/กล่อง/คนบัง" },
+  { id: "NOT_OUR_SKU", label: "ไม่ใช่สินค้าของเรา", hint: "พื้นที่ของแบรนด์อื่นหรือสินค้าคู่แข่ง" },
+  { id: "NORMAL_EMPTY", label: "เป็นพื้นที่ว่างปกติ", hint: "ช่องว่างที่ไม่ได้จัดวางสินค้าอยู่แล้ว" },
+  { id: "OTHER", label: "อื่น ๆ", hint: "ระบุเหตุผลเพิ่มเติม" },
+] as const;
+
+export const BLOCKED_REASONS = [
+  { id: "OUT_OF_BACKSTOCK", label: "ของหมดหลังร้าน", hint: "จะส่งคำขอเติมสินค้าให้อัตโนมัติ" },
+  { id: "STORE_REFUSED", label: "ร้านไม่อนุญาตให้เติม", hint: "ร้านขอจัดของเอง หรือปิดพื้นที่" },
+  { id: "DELISTED", label: "ร้านเลิกขายสินค้านี้", hint: "แจ้งทีมการค้าเพื่อทบทวนรายการ" },
+] as const;

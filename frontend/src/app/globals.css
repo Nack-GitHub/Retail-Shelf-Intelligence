@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ShelfEye design tokens
+   Utility software, not consumer-playful.
+   High contrast for bright store lighting. No gradients,
+   no glassmorphism, subtle shadows only, radius 12.
+   ============================================================ */
+@theme {
+  /* light surfaces */
+  --color-bg: #ffffff;
+  --color-surface: #f5f7fa;
+  --color-surface-2: #eceff4;
+  --color-line: #e2e7ee;
+  --color-line-strong: #cfd7e2;
+
+  /* text */
+  --color-text: #101828;
+  --color-muted: #667085;
+  --color-faint: #98a2b3;
+
+  /* brand + semantic */
+  --color-primary: #1b6fe8;
+  --color-primary-ink: #14539f;
+  --color-primary-soft: #e9f1fd;
+  --color-ok: #12b76a;
+  --color-ok-soft: #e4f7ee;
+  --color-warn: #f79009;
+  --color-warn-soft: #fef2e0;
+  --color-danger: #d92d20;
+  --color-danger-soft: #fceae8;
+  --color-uncertain: #667085;
+  --color-uncertain-soft: #eef0f3;
+
+  /* dark chrome — camera, processing, result viewer */
+  --color-ink: #0a0e14;
+  --color-ink-2: #131922;
+  --color-ink-3: #1d2531;
+  --color-ink-line: #2b3543;
+  --color-ink-text: #f2f5f9;
+  --color-ink-muted: #93a0b3;
+
+  /* radii — 12 is the system value; others are deliberate exceptions */
+  --radius-card: 12px;
+  --radius-btn: 12px;
+  --radius-chip: 10px;
+  --radius-inset: 8px;
+  --radius-pill: 999px;
+
+  /* elevation — subtle only */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-lift: 0 4px 12px rgba(16, 24, 40, 0.1), 0 2px 4px rgba(16, 24, 40, 0.04);
+  --shadow-sheet: 0 -8px 32px rgba(16, 24, 40, 0.16);
+
+  /* motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-soft: cubic-bezier(0.55, 0, 1, 0.45);
+
+  --font-sans: var(--font-thai), "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  /* Thai text runs 15-20% wider than English: never clamp container heights */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers must line up in tables, KPI rows and OSA readouts */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Visible, consistent keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.on-dark :focus-visible {
+  outline-color: #7fb0ff;
+}
+
+/* Scrollbars: quiet, present only where content scrolls */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+.scroll-y-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  70%, 100% { transform: scale(1.7); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .skeleton::after { animation: none; }
+}
