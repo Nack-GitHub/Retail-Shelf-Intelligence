@@ -129,3 +129,39 @@ Carried from SPEC.md §12, resolved by defaulting so the build is not blocked:
 3. **Store master data** → generated to match [frontend/src/lib/mock/data.ts](../frontend/src/lib/mock/data.ts) so the real API and the current UI line up.
 4. **Push notification** → no-op adapter behind an interface; the frontend polls anyway.
 5. **MLflow** → cut (see table above).
+
+
+---
+
+## Outcome (2026-08-23)
+
+All 18 tasks complete. 110 tests green, lint clean, boundary check passing.
+
+### Trained model — the gates fail, and that is the correct result
+
+| Gate | Threshold | Measured | |
+| :-- | --: | --: | :-- |
+| Recall `Empty Shelf` | 0.90 | 0.4113 | ❌ |
+| Precision `Empty Shelf` | 0.85 | 0.4655 | ❌ |
+| Overall mAP@50 | 0.85 | 0.3729 | ❌ |
+
+20 epochs of YOLO11n at imgsz 640 on an M2, against a published baseline of
+90.5% mAP@50 that used far more compute. **The pipeline is correct; the model
+is under-trained.** Verified concretely: on a test photograph with two
+ground-truth `Empty Shelf` boxes the model found none at conf 0.25 and one at
+conf 0.05, so the API reported OSA 1.0 for a shelf that genuinely has gaps.
+Lowering the operating point does not rescue it — recall must come from
+training.
+
+The promotion gate catching this is the system working as designed.
+
+### What to do next
+
+1. **Train longer on better hardware.** 100+ epochs on a CUDA GPU at imgsz 960,
+   which is what the spec originally called for and what this M2 could not
+   afford. Oversample gap-containing images to address the class imbalance.
+2. **Then re-run `make evaluate`.** Promotion should be gated on the result,
+   not on a human deciding the number looks good enough.
+3. **Only then trust the OSA figure from the real model.** Until the gates
+   pass, `ML_CLIENT=mock` is the honest way to demo the product, because a
+   deterministic mock does not silently claim a shelf is full when it is not.

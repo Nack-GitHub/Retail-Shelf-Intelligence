@@ -31,3 +31,6 @@ model/*.zip
 # Node
 node_modules/
 .next/
+
+# ultralytics writes validation runs here
+runs/

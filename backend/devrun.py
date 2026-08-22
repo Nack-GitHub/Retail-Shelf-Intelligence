@@ -39,7 +39,13 @@ def start(name: str) -> None:
 
 
 def stop() -> None:
-    for pid_file in SCRATCH.glob("*.pid"):
+    # Only this script's own services. Globbing *.pid would also kill the ML
+    # service when both write their pid files into a shared log directory —
+    # which is exactly how a "restart the backend" turned into an ML outage.
+    for name in COMMANDS:
+        pid_file = SCRATCH / f"{name}.pid"
+        if not pid_file.exists():
+            continue
         try:
             pid = int(pid_file.read_text())
             os.killpg(os.getpgid(pid), signal.SIGTERM)
