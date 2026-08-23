@@ -37,6 +37,10 @@ export default function SyncQueueScreen() {
 
   const refresh = useCallback(async () => {
     if (!(await queue.isAvailable())) return;
+    // Tidy on the way in, not only after a drain: a queue holding nothing but
+    // already-sent rows never drains again, so their photo bytes would sit in
+    // IndexedDB forever waiting for a send that has no reason to happen.
+    await queue.purgeCompleted();
     setItems(await queue.list());
   }, []);
 
