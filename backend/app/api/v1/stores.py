@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +44,7 @@ def _to_out(store: Store, risk: store_risk.StoreRisk) -> StoreRiskOut:
 
 @router.get("/stores", response_model=list[StoreRiskOut])
 async def list_stores(
-    area_id: str | None = None,
+    area_id: str | None = Query(None, alias="areaId"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(current_user),
 ) -> list[StoreRiskOut]:

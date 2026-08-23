@@ -1,26 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
-import { CATEGORIES, getStore } from "@/lib/mock/data";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { fetchStore } from "@/lib/api/routes";
+import { fetchCategories } from "@/lib/api/catalog";
+import { useResource } from "@/lib/api/useResource";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, springSnappy, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import type { ShelfCategory, Store } from "@/types";
 
 export default function CategoryScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
   const selectShelf = useDemo((s) => s.selectShelf);
 
-  const [catId, setCatId] = useState<string | null>("cat-coffee");
-  const [bay, setBay] = useState<string | null>("A2");
+  const storeResource = useResource<Store>(() => fetchStore(id), [id]);
+  const catalog = useResource<ShelfCategory[]>(() => fetchCategories(id), [id]);
+  const categories = useMemo(() => catalog.data ?? [], [catalog.data]);
 
-  const cat = CATEGORIES.find((c) => c.id === catId) ?? null;
+  const [catId, setCatId] = useState<string | null>(null);
+  const [bay, setBay] = useState<string | null>(null);
+
+  // Preselect the first shelf once the catalogue arrives, so the rep taps
+  // "open camera" rather than choosing before there is anything to choose.
+  useEffect(() => {
+    if (catId || categories.length === 0) return;
+    setCatId(categories[0].id);
+    setBay(categories[0].bays[0] ?? null);
+  }, [categories, catId]);
+
+  const cat = categories.find((c) => c.id === catId) ?? null;
   const ready = !!cat && !!bay;
 
   function next() {
@@ -29,13 +44,32 @@ export default function CategoryScreen() {
     router.push(`/m/store/${id}/capture`);
   }
 
+  if (catalog.state !== "READY") {
+    return (
+      <>
+        <MobileHeader title="เลือกชั้นวางที่จะตรวจ" progress={0.24} />
+        {catalog.state === "ERROR" ? (
+          <Scroll className="px-4 pt-4">
+            <ErrorBlock message={catalog.error ?? ""} onRetry={catalog.reload} />
+          </Scroll>
+        ) : (
+          <LoadingBlock label="กำลังโหลดหมวดสินค้า…" />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
-      <MobileHeader title="เลือกชั้นวางที่จะตรวจ" subtitle={store.name} progress={0.24} />
+      <MobileHeader
+        title="เลือกชั้นวางที่จะตรวจ"
+        subtitle={storeResource.data?.name}
+        progress={0.24}
+      />
 
       <Scroll className="px-4 pt-4 pb-6">
         <motion.ul variants={stagger(0.05)} initial="hidden" animate="show" className="flex flex-col gap-2.5">
-          {CATEGORIES.map((c) => {
+          {categories.map((c) => {
             const active = c.id === catId;
             return (
               <motion.li key={c.id} variants={listItem}>

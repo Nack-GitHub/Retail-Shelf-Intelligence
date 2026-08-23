@@ -10,7 +10,9 @@ import { Checkbox } from "@/components/ui/Controls";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
-import { fetchStore } from "@/lib/api/routes";
+import { currentPosition, fetchStore } from "@/lib/api/routes";
+import { checkIn as apiCheckIn } from "@/lib/api/visits";
+import { messageOf } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/useResource";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSnappy } from "@/lib/motion";
@@ -31,16 +33,41 @@ export default function CheckInScreen() {
   const storeId = useDemo((s) => s.storeId);
 
   const [view, setView] = useState<View>("BEFORE");
-  const gpsMatch = view !== "GPS_OFF";
+  const [busy, setBusy] = useState(false);
+  const [checkInError, setCheckInError] = useState<string | null>(null);
+  // The demo switcher can force the "GPS ไม่ตรง" view; otherwise the banner
+  // shows what the server actually decided from the coordinates we sent.
+  const [serverGpsMatch, setServerGpsMatch] = useState<boolean | null>(null);
+  const gpsMatch = view === "GPS_OFF" ? false : (serverGpsMatch ?? true);
 
   useEffect(() => {
     if (storeId !== id) beginVisit(id);
   }, [id, storeId, beginVisit]);
 
-  function start() {
-    checkIn();
-    setView("DONE");
-    window.setTimeout(() => router.push(`/m/store/${id}/category`), 700);
+  async function start() {
+    if (busy) return;
+    setBusy(true);
+    setCheckInError(null);
+    try {
+      // GPS is sent for the evidence trail. A mismatch is flagged, never
+      // blocking: reps legitimately stand outside a shop to check in.
+      const position = await currentPosition();
+      const visit = await apiCheckIn({
+        storeId: id,
+        gpsLat: position?.lat,
+        gpsLng: position?.lng,
+        photoConsentConfirmed: consent,
+      });
+      checkIn(visit.id, visit.gpsMatch);
+      setServerGpsMatch(visit.gpsMatch);
+      setView("DONE");
+      window.setTimeout(() => router.push(`/m/store/${id}/category`), 700);
+    } catch (err) {
+      // A FORBIDDEN store comes back as the API's own Thai 403 — the camera
+      // must never open on the strength of a failed check-in.
+      setCheckInError(messageOf(err));
+      setBusy(false);
+    }
   }
 
   if (resource.state === "LOADING" || !store) {
@@ -142,6 +169,20 @@ export default function CheckInScreen() {
             </AnimatePresence>
           </motion.div>
 
+          <AnimatePresence>
+            {checkInError && (
+              <motion.p
+                role="alert"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden rounded-card bg-danger/10 px-3.5 py-3 text-[13px] leading-relaxed text-danger"
+              >
+                {checkInError}
+              </motion.p>
+            )}
+          </AnimatePresence>
+
           <motion.div variants={listItem}>
             <StateSwitcher
               value={view}
@@ -177,8 +218,8 @@ export default function CheckInScreen() {
             </motion.div>
           ) : (
             <motion.div key="cta" variants={fadeUp} initial="hidden" animate="show">
-              <Button size="lg" full disabled={!consent} onClick={start}>
-                เริ่มตรวจชั้นวาง
+              <Button size="lg" full disabled={!consent || busy} onClick={start}>
+                {busy ? "กำลังเช็คอิน…" : "เริ่มตรวจชั้นวาง"}
               </Button>
             </motion.div>
           )}

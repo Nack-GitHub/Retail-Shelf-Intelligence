@@ -46,8 +46,8 @@ manager_only = require_roles(Role.MANAGER, Role.ADMIN, Role.DATA)
 @router.get("/analytics/osa")
 async def osa_trend(
     scope: str = Query("area", pattern="^(area|store)$"),
-    area_id: str | None = None,
-    store_id: UUID | None = None,
+    area_id: str | None = Query(None, alias="areaId"),
+    store_id: UUID | None = Query(None, alias="storeId"),
     days: int = Query(84, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(manager_only),
@@ -91,7 +91,7 @@ async def osa_trend(
 
 @router.get("/analytics/risk-ranking")
 async def risk_ranking(
-    area_id: str | None = None,
+    area_id: str | None = Query(None, alias="areaId"),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(manager_only),

@@ -88,6 +88,7 @@ def upload_capture(
     *,
     bay: str = "BAY-01",
     phase: str = "BEFORE",
+    category: str = "coffee",
     idem: str | None = None,
 ) -> dict:
     """presign -> PUT -> commit. Returns the job payload.
@@ -100,7 +101,7 @@ def upload_capture(
     presign = client.post(
         "/v1/captures/presign",
         headers=auth,
-        json={"visitId": visit_id, "category": "coffee", "shelfBayLabel": bay, "phase": phase},
+        json={"visitId": visit_id, "category": category, "shelfBayLabel": bay, "phase": phase},
     ).json()
 
     httpx.put(

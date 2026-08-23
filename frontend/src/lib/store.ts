@@ -22,6 +22,8 @@ interface DemoState {
   setOnline: (v: boolean) => void;
 
   storeId: string | null;
+  /** the server's visit id — every capture, verification and task hangs off it */
+  visitId: string | null;
   consent: boolean;
   gpsMatch: boolean;
   checkedInAt: number | null;
@@ -49,7 +51,8 @@ interface DemoState {
   beginVisit: (storeId: string) => void;
   setConsent: (v: boolean) => void;
   setGpsMatch: (v: boolean) => void;
-  checkIn: () => void;
+  /** records the visit the server just opened */
+  checkIn: (visitId: string, gpsMatch: boolean) => void;
   closeVisit: () => void;
   selectShelf: (categoryId: string, bay: string) => void;
   /** records a photo the moment intake finishes, before the rep decides
@@ -75,6 +78,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   setOnline: (online) => set({ online }),
 
   storeId: null,
+  visitId: null,
   consent: false,
   gpsMatch: true,
   checkedInAt: null,
@@ -102,6 +106,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       if (s.afterPhoto && !s.photoLog.includes(s.afterPhoto)) revokePhoto(s.afterPhoto);
       return {
       storeId,
+      visitId: null,
       consent: false,
       checkedInAt: null,
       checkedOutAt: null,
@@ -120,7 +125,8 @@ export const useDemo = create<DemoState>((set, get) => ({
 
   setConsent: (consent) => set({ consent }),
   setGpsMatch: (gpsMatch) => set({ gpsMatch }),
-  checkIn: () => set({ checkedInAt: Date.now(), checkedOutAt: null }),
+  checkIn: (visitId, gpsMatch) =>
+    set({ visitId, gpsMatch, checkedInAt: Date.now(), checkedOutAt: null }),
   /** Stamps the moment the rep reached the check-out summary. Doing this in
    *  a store action keeps the clock out of the render path. */
   closeVisit: () =>
@@ -210,6 +216,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   resetVisit: () =>
     set({
       storeId: null,
+      visitId: null,
       consent: false,
       checkedInAt: null,
       checkedOutAt: null,

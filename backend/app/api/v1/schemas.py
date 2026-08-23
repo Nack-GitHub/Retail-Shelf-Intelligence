@@ -82,6 +82,20 @@ class RouteStopOut(StoreRiskOut):
     distance_km: float
 
 
+class ShelfCategoryOut(ApiModel):
+    """A shelf a rep can choose to photograph.
+
+    `last_osa` is null when this store has no analysed capture in the
+    category — "never measured" is not "measured as empty".
+    """
+
+    id: str
+    name: str
+    bays: list[str]
+    sku_count: int
+    last_osa: float | None
+
+
 # ── Visits ───────────────────────────────────────────────────────────────────
 
 

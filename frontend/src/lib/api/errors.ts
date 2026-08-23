@@ -28,6 +28,17 @@ const FALLBACK: Record<ApiErrorCode, string> = {
   TIMEOUT: "เซิร์ฟเวอร์ตอบกลับช้าเกินไป กรุณาลองใหม่อีกครั้ง",
 };
 
+/** Is this `detail` a sentence written for a user, or framework noise?
+ *
+ *  Our own handlers always write Thai — "ไม่พบร้านค้า", "ต้องระบุเหตุผลที่ทำไม่ได้".
+ *  FastAPI's built-in errors write English: "Not Found", "Method Not Allowed",
+ *  and a Pydantic 422 sends an array of field objects. Since every word this
+ *  app shows a user is Thai, "contains no Thai" is a reliable signal that the
+ *  string was meant for a developer, and the Thai fallback should win. */
+function isForTheUser(detail: string | undefined): boolean {
+  return !!detail && /[฀-๿]/.test(detail);
+}
+
 function codeFor(status: number): ApiErrorCode {
   if (status === 401) return "UNAUTHORIZED";
   if (status === 403) return "FORBIDDEN";
@@ -62,7 +73,7 @@ export class ApiError extends Error {
       const body = await res.json();
       serverCode = typeof body?.errorCode === "string" ? body.errorCode : undefined;
       const detail = typeof body?.detail === "string" ? body.detail : undefined;
-      userMessage = body?.userMessage || detail || userMessage;
+      userMessage = body?.userMessage || (isForTheUser(detail) ? detail : "") || userMessage;
     } catch {
       // A response with no JSON body — a gateway error page, most likely.
       // The fallback message is already correct for that case.

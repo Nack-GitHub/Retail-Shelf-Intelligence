@@ -50,13 +50,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `backend/app/api/v1/stores.py` · `backend/app/main.py` · `lib/api/routes.ts` · `app/m/page.tsx` · `app/m/store/[id]/checkin/page.tsx`
 **Depends on:** T1 · **Scope:** M
 
-### - [ ] T3: Categories + real check-in
+### - [x] T3: Categories + real check-in
 **Description:** New `catalog.py` serving `GET /v1/categories?storeId=` with `lastOsa` computed from real analyses, and check-in creating a real `visits` row.
 
 **Acceptance:**
-- [ ] Check-in inserts a `visits` row with the real `gpsMatch`
-- [ ] GPS 5 km off is flagged, **not** blocked
-- [ ] A `FORBIDDEN` store shows the API's Thai 403 instead of opening the camera
+- [x] Check-in inserts a `visits` row with the real `gpsMatch`
+- [x] GPS 5 km off is flagged, **not** blocked (browser check-in wrote `gps_match=f`, still OPEN)
+- [x] A `FORBIDDEN` store shows the API's Thai 403 instead of opening the camera
+- [x] Fixed en route: FastAPI's English `detail` ("Not Found") was reaching users; only Thai detail is shown now
+- [x] Public query params standardised on camelCase to match the responses
 
 **Verify:** backend pytest · check in from the browser, confirm the row in `psql`
 **Files:** `backend/app/api/v1/catalog.py` · `lib/api/{catalog,visits}.ts` · `lib/store.ts` · `app/m/store/[id]/{checkin,category}/page.tsx`
