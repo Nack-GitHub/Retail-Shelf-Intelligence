@@ -38,6 +38,7 @@ export default function ResultScreen() {
   const [expanded, setExpanded] = useState(false);
 
   const gapCount = findings.length;
+  // The server's own verdict, not a threshold guessed on this side.
   const lowConf = findings.filter((f) => f.isLowConfidence).length;
 
   const chips = useMemo(
@@ -108,6 +109,7 @@ export default function ResultScreen() {
             fit="contain"
             imageWidth={analysis.imageWidth}
             imageHeight={analysis.imageHeight}
+            lowConfidenceThreshold={analysis.lowConfidenceThreshold}
           />
         </div>
 

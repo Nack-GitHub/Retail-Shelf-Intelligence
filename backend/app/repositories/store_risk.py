@@ -50,7 +50,10 @@ async def load(db: AsyncSession, store_ids: list[UUID] | None = None) -> dict[UU
     to `NEVER_MEASURED`, which scores high on purpose — the point of the route
     is to find out, and "no data" is not "fine".
     """
-    scope = store_ids if store_ids else None
+    # `[]` means "no stores", not "all stores". Treating an empty list as
+    # unscoped made GET /v1/stores?areaId=unknown run three unfiltered
+    # aggregates over every store in the system before returning nothing.
+    scope = store_ids
 
     # The LATEST analysis, not the best one. MAX(osa_score) answers "how good
     # has this shelf ever looked", which is 1.0 for any store that was ever
@@ -79,7 +82,7 @@ async def load(db: AsyncSession, store_ids: list[UUID] | None = None) -> dict[UU
         .group_by(Visit.store_id)
     )
 
-    if scope:
+    if scope is not None:
         osa_query = osa_query.where(Visit.store_id.in_(scope))
         visit_query = visit_query.where(Visit.store_id.in_(scope))
         repeat_query = repeat_query.where(Visit.store_id.in_(scope))

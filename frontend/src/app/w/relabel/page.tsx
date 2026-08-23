@@ -81,7 +81,7 @@ export default function RelabelQueue() {
         >
           <Tile label="รอตรวจทั้งหมด" value={items.length} tone="neutral" />
           <Tile label="ถูกพนักงานตีกลับ" value={rejectedCount} tone="warn" />
-          <Tile label="โมเดลไม่มั่นใจ (< 60%)" value={lowConfCount} tone="uncertain" />
+          <Tile label="โมเดลไม่มั่นใจ" value={lowConfCount} tone="uncertain" />
         </motion.div>
 
         {items.length === 0 ? (

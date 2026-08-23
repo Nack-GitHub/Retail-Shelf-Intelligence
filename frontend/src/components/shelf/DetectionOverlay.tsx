@@ -30,13 +30,13 @@ function kindOf(d: Detection): "PRODUCT" | "GAP" | "TAG" {
   return "PRODUCT";
 }
 
-function matches(d: Detection, f: OverlayFilter) {
+function matches(d: Detection, f: OverlayFilter, lowConfidence: number) {
   const k = kindOf(d);
   switch (f) {
     case "ALL": return k !== "TAG";
     case "GAP": return k === "GAP";
     case "PRODUCT": return k === "PRODUCT";
-    case "LOW_CONF": return d.confidence < 0.6;
+    case "LOW_CONF": return d.confidence < lowConfidence;
     case "TAG": return k === "TAG";
   }
 }
@@ -49,6 +49,7 @@ export function DetectionOverlay({
   animate: shouldAnimate = true,
   showLabels = true,
   fit = "cover",
+  lowConfidenceThreshold = 0.55,
   imageWidth,
   imageHeight,
 }: {
@@ -59,6 +60,11 @@ export function DetectionOverlay({
   animate?: boolean;
   showLabels?: boolean;
   fit?: "cover" | "contain";
+  /** The value the SERVER used to decide `isLowConfidence`. Hardcoding a
+   *  different one here made the overlay and the verify screen disagree about
+   *  the same detection. The default matches config.py only as a fallback for
+   *  callers with no analysis to hand. */
+  lowConfidenceThreshold?: number;
   /** pixel space the bounding boxes are expressed in — required, because a
    *  wrong guess here draws every box in the wrong place */
   imageWidth: number;
@@ -77,9 +83,9 @@ export function DetectionOverlay({
       aria-hidden
     >
       {detections.map((d, i) => {
-        const on = matches(d, filter);
+        const on = matches(d, filter, lowConfidenceThreshold);
         const kind = kindOf(d);
-        const low = d.confidence < 0.6;
+        const low = d.confidence < lowConfidenceThreshold;
         const verdict = verdictOf.get(d.detectionId);
         const focused = focusDetectionId === d.detectionId;
         const stroke = low ? COLORS.LOW : COLORS[kind];

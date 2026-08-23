@@ -63,6 +63,19 @@ async function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => I
   });
 }
 
+/** Drops any queued operation whose id starts with `prefix`.
+ *
+ *  Used when a newer decision supersedes an older one: a rep who confirms a
+ *  gap offline and then corrects themselves to REJECTED must not have the
+ *  stale CONFIRM replayed afterwards, which would resurrect the task they
+ *  just retracted — and raise the store's risk band off a gap they said was
+ *  not a gap. */
+export async function removeByPrefix(prefix: string): Promise<void> {
+  for (const row of await list()) {
+    if (row.id.startsWith(prefix) && row.status !== "DONE") await remove(row.id);
+  }
+}
+
 export async function enqueue(
   operation: Omit<QueuedOperation, "queuedAt" | "attempts" | "status">,
 ): Promise<QueuedOperation> {

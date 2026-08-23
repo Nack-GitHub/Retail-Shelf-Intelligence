@@ -47,13 +47,29 @@ async function replay(operation: QueuedOperation): Promise<void> {
   switch (operation.kind) {
     case "CAPTURE": {
       if (!operation.blob) throw new Error("queued capture has no image");
-      const grant = await presign({
-        visitId: String(p.visitId),
-        category: String(p.category),
-        shelfBayLabel: String(p.shelfBayLabel ?? ""),
-        phase: p.phase === "AFTER" ? "AFTER" : "BEFORE",
-        contentType: String(p.contentType ?? "image/jpeg"),
+
+      // Reuse the capture this operation already claimed, if a previous
+      // attempt got that far. Presigning again would mint a SECOND capture
+      // row; commit would then match the Idempotency-Key to the first and
+      // return its job, leaving the new row orphaned — the manager's timeline
+      // shows two captures for one photograph, one of them with no score.
+      const grant =
+        typeof p.captureId === "string" && typeof p.uploadUrl === "string"
+          ? { captureId: p.captureId, uploadUrl: p.uploadUrl }
+          : await presign({
+              visitId: String(p.visitId),
+              category: String(p.category),
+              shelfBayLabel: String(p.shelfBayLabel ?? ""),
+              phase: p.phase === "AFTER" ? "AFTER" : "BEFORE",
+              contentType: String(p.contentType ?? "image/jpeg"),
+            });
+
+      // Remember it before uploading, so a failure between here and commit
+      // does not cost a second row on the next attempt.
+      await queue.update(operation.id, {
+        payload: { ...p, captureId: grant.captureId, uploadUrl: grant.uploadUrl },
       });
+
       await uploadToStorage(
         grant.uploadUrl,
         operation.blob,

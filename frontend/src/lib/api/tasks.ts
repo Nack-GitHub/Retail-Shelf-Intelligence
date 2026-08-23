@@ -20,7 +20,7 @@ function toTask(wire: TaskWire): Task {
  *  never invents one. That is what keeps the task list and the findings from
  *  drifting apart when a verification is retried on a flaky connection. */
 export async function fetchTasks(visitId: string): Promise<Task[]> {
-  const wire = await request<TaskWire[]>(`/v1/visits/${visitId}/tasks`);
+  const wire = await request<TaskWire[]>(`/v1/visits/${encodeURIComponent(visitId)}/tasks`);
   return wire.map(toTask);
 }
 
@@ -35,7 +35,7 @@ export async function updateTask(
   blockedReason?: BlockedReason,
 ): Promise<Task> {
   return toTask(
-    await request<TaskWire>(`/v1/tasks/${taskId}`, {
+    await request<TaskWire>(`/v1/tasks/${encodeURIComponent(taskId)}`, {
       method: "PATCH",
       body: { status, blockedReason: blockedReason ?? null },
     }),

@@ -86,8 +86,14 @@ export default function AreaDashboard() {
             {(kpis.data ?? []).map((k) => {
               // delta is null when there is no earlier window to compare
               // against — no chip at all beats a "0" that reads as "steady".
+              // A delta of exactly 0 is "held steady" — rendering it as a red
+              // downward arrow reports a regression that did not happen.
               const positive =
-                k.delta === null ? null : k.good === "up" ? k.delta > 0 : k.delta < 0;
+                k.delta === null || k.delta === 0
+                  ? null
+                  : k.good === "up"
+                    ? k.delta > 0
+                    : k.delta < 0;
               const progress =
                 k.target === null
                   ? null
@@ -114,16 +120,22 @@ export default function AreaDashboard() {
                       <span
                         className={cn(
                           "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[12px] font-semibold",
-                          positive ? "bg-ok-soft text-[#07794a]" : "bg-danger-soft text-[#a52218]",
+                          positive === null
+                            ? "bg-surface-2 text-muted"
+                            : positive
+                              ? "bg-ok-soft text-[#07794a]"
+                              : "bg-danger-soft text-[#a52218]",
                         )}
                       >
-                        <svg
-                          width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          className={k.delta > 0 ? "" : "rotate-180"}
-                          aria-hidden
-                        >
-                          <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        {k.delta !== 0 && (
+                          <svg
+                            width="12" height="12" viewBox="0 0 24 24" fill="none"
+                            className={k.delta > 0 ? "" : "rotate-180"}
+                            aria-hidden
+                          >
+                            <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
                         <span className="tnum">
                           {Math.abs(k.delta)}
                           {k.unit === "%" ? " จุด" : ""}

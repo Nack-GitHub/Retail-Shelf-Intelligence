@@ -10,7 +10,10 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_JWT_SECRET = "dev-secret-change-me-in-any-real-deployment"
 
 
 class Settings(BaseSettings):
@@ -43,7 +46,7 @@ class Settings(BaseSettings):
     ml_retry_backoff_seconds: tuple[int, ...] = (2, 8, 32)
 
     # ── Auth ─────────────────────────────────────────────────────────────
-    jwt_secret: str = "dev-secret-change-me-in-any-real-deployment"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 8
 
@@ -63,6 +66,21 @@ class Settings(BaseSettings):
 
     # ── Retention (columns exist; enforcement deferred) ──────────────────
     retention_days: int = 90
+
+    @model_validator(mode="after")
+    def _refuse_the_default_secret_outside_local(self) -> Settings:
+        """Boot loudly rather than insecurely.
+
+        The default is committed to the repository, so anyone holding a clone
+        can mint a valid ADMIN token against an instance that started without
+        JWT_SECRET set. Silently accepting it is how that happens.
+        """
+        if self.environment != "local" and self.jwt_secret == DEFAULT_JWT_SECRET:
+            raise ValueError(
+                "JWT_SECRET is still the committed default. Set a real one "
+                f"before running with ENVIRONMENT={self.environment}."
+            )
+        return self
 
     @property
     def sync_database_url(self) -> str:

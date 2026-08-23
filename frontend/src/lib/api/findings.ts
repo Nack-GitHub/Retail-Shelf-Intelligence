@@ -21,7 +21,7 @@ export function verifyFinding(
   verdict: "CONFIRMED" | "REJECTED",
   reason?: RejectReason,
 ): Promise<VerifyResult> {
-  return request<VerifyResult>(`/v1/findings/${findingId}/verify`, {
+  return request<VerifyResult>(`/v1/findings/${encodeURIComponent(findingId)}/verify`, {
     method: "POST",
     body: { verdict, reason: reason ?? null },
   });
@@ -47,5 +47,5 @@ export interface Evidence {
  *  ⛔ Deliberately carries no identity: who verified it is not part of the
  *  evidence a manager reviews. */
 export function fetchEvidence(findingId: string): Promise<Evidence> {
-  return request<Evidence>(`/v1/evidence/${findingId}`);
+  return request<Evidence>(`/v1/evidence/${encodeURIComponent(findingId)}`);
 }

@@ -89,6 +89,8 @@ export interface ShelfAnalysis {
   status: OsaStatus;
   inferenceMs: number;
   lowConfidenceCount: number;
+  /** the confidence below which the SERVER flagged a finding for review */
+  lowConfidenceThreshold: number;
   detections: Detection[];
   gapFindings: GapFinding[];
 }

@@ -138,7 +138,7 @@ export interface StoreVisit {
  *  part of what a manager reviews. */
 export async function fetchStoreHistory(storeId: string, limit = 30): Promise<StoreVisit[]> {
   const payload = await request<{ visits: StoreVisit[] }>(
-    `/v1/stores/${storeId}/history?limit=${limit}`,
+    `/v1/stores/${encodeURIComponent(storeId)}/history?limit=${limit}`,
   );
   return payload.visits.map((v) => ({
     ...v,

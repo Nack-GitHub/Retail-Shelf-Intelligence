@@ -253,6 +253,7 @@ async def get_result(
         status=analysis.status,
         inference_ms=job.inference_ms if job and job.inference_ms else 0,
         low_confidence_count=analysis.low_confidence_count,
+        low_confidence_threshold=settings.low_confidence_threshold,
         detections=[
             DetectionOut(
                 detection_id=d.id,

@@ -57,7 +57,7 @@ export async function checkIn(input: {
 }
 
 export async function fetchVisit(visitId: string): Promise<Visit> {
-  return toVisit(await request<VisitWire>(`/v1/visits/${visitId}`));
+  return toVisit(await request<VisitWire>(`/v1/visits/${encodeURIComponent(visitId)}`));
 }
 
 export interface CheckoutSummary {
@@ -71,7 +71,7 @@ export interface CheckoutSummary {
 }
 
 export async function checkOut(visitId: string): Promise<CheckoutSummary> {
-  const wire = await request<CheckoutSummary>(`/v1/visits/${visitId}/checkout`, {
+  const wire = await request<CheckoutSummary>(`/v1/visits/${encodeURIComponent(visitId)}/checkout`, {
     method: "POST",
   });
   return {

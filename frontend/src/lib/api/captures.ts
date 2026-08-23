@@ -114,7 +114,7 @@ export function commitDetailsOf(photo: CapturedPhoto): CommitDetails {
  *  and that must not produce two jobs — or two OSA scores — for one photo. */
 export async function commit(captureId: string, photo: CommitDetails): Promise<Job> {
   const accepted = await request<{ jobId: string; captureId: string; status: string }>(
-    `/v1/captures/${captureId}/commit`,
+    `/v1/captures/${encodeURIComponent(captureId)}/commit`,
     {
       method: "POST",
       headers: { "Idempotency-Key": photo.idempotencyKey },
@@ -142,7 +142,7 @@ export async function commit(captureId: string, photo: CommitDetails): Promise<J
 }
 
 export function fetchJob(jobId: string): Promise<Job> {
-  return request<Job>(`/v1/jobs/${jobId}`);
+  return request<Job>(`/v1/jobs/${encodeURIComponent(jobId)}`);
 }
 
 /** Polls until the job finishes, fails, or the deadline passes.
@@ -192,6 +192,7 @@ interface AnalysisWire {
   status: ShelfAnalysis["status"];
   inferenceMs: number;
   lowConfidenceCount: number;
+  lowConfidenceThreshold: number;
   detections: Detection[];
   gapFindings: (Omit<GapFinding, "priority"> & { priority: number })[];
 }
@@ -202,7 +203,7 @@ export interface AnalysisResult extends ShelfAnalysis {
 }
 
 export async function fetchResult(captureId: string): Promise<AnalysisResult> {
-  const wire = await request<AnalysisWire>(`/v1/captures/${captureId}/result`);
+  const wire = await request<AnalysisWire>(`/v1/captures/${encodeURIComponent(captureId)}/result`);
   return {
     ...wire,
     // 0.875 → 88, the same conversion every other screen's numbers get.

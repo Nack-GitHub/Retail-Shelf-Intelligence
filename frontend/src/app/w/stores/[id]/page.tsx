@@ -16,6 +16,13 @@ import { useResource } from "@/lib/api/useResource";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
+const STORE_FORMATS: Record<string, string> = {
+  HYPER: "ไฮเปอร์มาร์เก็ต",
+  SUPER: "ซูเปอร์มาร์เก็ต",
+  CVS: "ร้านสะดวกซื้อ",
+  TRAD: "ร้านค้าดั้งเดิม",
+};
+
 const POLICY_LABELS: Record<string, string> = {
   ALLOWED: "อนุญาต",
   RESTRICTED: "มีเงื่อนไข",
@@ -111,7 +118,7 @@ export default function StoreDetail() {
                     : `${s.daysSinceLastVisit} วันก่อน`
                 }
               />
-              <Fact label="รูปแบบร้าน" value={s.chain} />
+              <Fact label="รูปแบบร้าน" value={STORE_FORMATS[s.storeFormat] ?? s.storeFormat} />
               <Fact label="นโยบายการถ่ายภาพ" value={POLICY_LABELS[s.photoPolicy] ?? s.photoPolicy} />
             </dl>
           </motion.section>
@@ -181,7 +188,6 @@ export default function StoreDetail() {
           ) : (
             <ol className="divide-y divide-line">
               {visits.map((v, i) => {
-                const before = v.captures.find((c) => c.phase === "BEFORE") ?? v.captures[0];
                 const when = new Date(v.checkedInAt);
                 return (
                   <motion.li
@@ -204,7 +210,7 @@ export default function StoreDetail() {
                       <p className="text-[14px]">
                         {v.captures.length === 0
                           ? "ไม่มีภาพในการเข้าร้านครั้งนี้"
-                          : `${v.captures.length} ภาพ · ${before?.shelfBayLabel || "ไม่ระบุชั้น"}`}
+                          : `${v.captures.length} ภาพ`}
                       </p>
                       <div className="mt-1.5 flex items-center gap-2">
                         <span className="tnum text-[13px] text-muted">{v.osaBefore ?? "—"}%</span>
@@ -239,23 +245,33 @@ export default function StoreDetail() {
                       )}
                     </div>
 
-                    <div className="ml-auto flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={!before}
-                        onClick={() =>
-                          before &&
-                          setEvidence({
-                            capture: before,
-                            visitedAt: v.checkedInAt,
-                            gapsFound: v.gapsFound,
-                            gapsFixed: v.gapsFixed,
-                          })
-                        }
-                      >
-                        {before ? "ดูภาพหลักฐาน" : "ไม่มีภาพ"}
-                      </Button>
+                    {/* One button per photograph. Picking a single capture
+                        left the other shelves of a multi-shelf visit
+                        unreachable, under a heading promising every result
+                        could be opened. */}
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                      {v.captures.length === 0 ? (
+                        <span className="text-[13px] text-faint">ไม่มีภาพ</span>
+                      ) : (
+                        v.captures.map((c) => (
+                          <Button
+                            key={c.captureId}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() =>
+                              setEvidence({
+                                capture: c,
+                                visitedAt: v.checkedInAt,
+                                gapsFound: v.gapsFound,
+                                gapsFixed: v.gapsFixed,
+                              })
+                            }
+                          >
+                            {c.shelfBayLabel || c.category}
+                            {c.phase === "AFTER" ? " · หลัง" : ""}
+                          </Button>
+                        ))
+                      )}
                     </div>
                   </motion.li>
                 );

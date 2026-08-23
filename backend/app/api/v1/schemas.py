@@ -235,6 +235,11 @@ class ShelfAnalysisOut(ApiModel):
     status: str
     inference_ms: int
     low_confidence_count: int
+    # The threshold the SERVER used to set `is_low_confidence`. The overlay
+    # was hardcoding 0.6 while the engine used 0.55, so a detection at 0.57
+    # was drawn as "needs review" on one screen and a confident gap on the
+    # next — two screens disagreeing about one detection.
+    low_confidence_threshold: float
     detections: list[DetectionOut]
     gap_findings: list[GapFindingOut]
 

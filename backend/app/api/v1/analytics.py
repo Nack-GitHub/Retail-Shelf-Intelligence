@@ -202,12 +202,18 @@ async def store_history(
             .outerjoin(ShelfAnalysisRow, ShelfAnalysisRow.capture_id == Capture.id)
             .where(Capture.visit_id.in_(visit_ids))
             .distinct(Capture.id)
+            # DISTINCT ON needs Capture.id leading; the caller re-sorts by
+            # captured_at below. Ordering the RESPONSE by a random UUID meant
+            # the timeline's single "open evidence" button pointed at whichever
+            # photograph happened to sort first.
             .order_by(Capture.id, ShelfAnalysisRow.computed_at.desc())
         )
     ).all()
 
     captures_by_visit: dict[UUID, list[dict]] = {}
-    for visit_id, capture_id, category, bay, phase, captured_at, osa, model_version in capture_rows:
+    for visit_id, capture_id, category, bay, phase, captured_at, osa, model_version in sorted(
+        capture_rows, key=lambda r: (r[5] is None, r[5])
+    ):
         captures_by_visit.setdefault(visit_id, []).append(
             {
                 "captureId": str(capture_id),

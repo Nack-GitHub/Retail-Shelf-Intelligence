@@ -9,7 +9,7 @@ import { verifyFinding } from "@/lib/api/findings";
 import { fetchTasks, updateTask } from "@/lib/api/tasks";
 import { checkOut, type CheckoutSummary } from "@/lib/api/visits";
 import { ApiError } from "@/lib/api/errors";
-import { tryEnqueue } from "@/lib/offline/queue";
+import { removeByPrefix, tryEnqueue } from "@/lib/offline/queue";
 
 /** Was this failure "no signal"? Those are the ones worth queueing; a 403 or
  *  a 422 will fail again just as hard in ten minutes. */
@@ -198,6 +198,8 @@ export const useDemo = create<DemoState>((set, get) => ({
       // back would make the rep decide the same gap twice, and the decision
       // is theirs — the network's opinion of it is not.
       if (isOffline(err)) {
+        // This verdict replaces any earlier one still waiting to be sent.
+        await removeByPrefix(`verify-${findingId}-`);
         const queued = await tryEnqueue({
           id: `verify-${findingId}-${verdict}`,
           kind: "VERIFY",
@@ -231,6 +233,7 @@ export const useDemo = create<DemoState>((set, get) => ({
     } catch (err) {
       if (isOffline(err)) {
         const task = get().tasks.find((t) => t.id === taskId);
+        await removeByPrefix(`task-${taskId}-`);
         const queued = await tryEnqueue({
           id: `task-${taskId}-${status}`,
           kind: "TASK",

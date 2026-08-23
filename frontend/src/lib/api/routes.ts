@@ -49,7 +49,7 @@ export async function fetchTodaysRoute(position?: {
 }
 
 export async function fetchStore(storeId: string): Promise<Store> {
-  return toStore(await request<StoreWire>(`/v1/stores/${storeId}`));
+  return toStore(await request<StoreWire>(`/v1/stores/${encodeURIComponent(storeId)}`));
 }
 
 export async function fetchStores(areaId?: string): Promise<Store[]> {

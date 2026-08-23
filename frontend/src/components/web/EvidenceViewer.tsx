@@ -114,8 +114,12 @@ export function EvidenceViewer({
                   <ErrorBlock message={analysis.error ?? ""} onRetry={analysis.reload} />
                 </div>
               ) : !result?.imageUrl ? (
+                /* "We have no URL" is all we actually know — it could be a
+                   missing object key, a presign failure, or an analysis that
+                   has not landed. Naming retention as the cause is a specific
+                   claim standing in for an unknown one. */
                 <p className="w-full px-6 py-16 text-center text-[14px] text-ink-muted">
-                  ภาพนี้ถูกลบตามกำหนดการเก็บรักษาข้อมูลแล้ว
+                  ไม่มีภาพสำหรับรายการนี้
                 </p>
               ) : (
                 <>
@@ -144,6 +148,7 @@ export function EvidenceViewer({
                             fit="contain"
                             imageWidth={result.imageWidth}
                             imageHeight={result.imageHeight}
+                            lowConfidenceThreshold={result.lowConfidenceThreshold}
                           />
                         </motion.div>
                       )}
