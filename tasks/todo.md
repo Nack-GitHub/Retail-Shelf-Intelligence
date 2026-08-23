@@ -16,22 +16,22 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 
 ## Phase 1 — Foundation: real auth
 
-### - [ ] T1: `lib/api/` core + real login
+### - [x] T1: `lib/api/` core + real login
 **Description:** The fetch wrapper every request passes through — base URL, JWT attach, 401 handling, Thai error mapping — plus the login screen wired to `POST /v1/auth/login` and a route guard that bounces an expired session back to login.
 
 **Acceptance:**
-- [ ] `rep@shelfeye.demo` / `demo1234` returns a real JWT and lands on `/m`
-- [ ] Wrong password shows the API's Thai message, not a generic failure
-- [ ] Clearing the token and reloading `/m` redirects to `/m/login`
-- [ ] Token lives in `sessionStorage` with an `expiresAt`; never written to the console (⛔5)
+- [x] `rep@shelfeye.demo` / `demo1234` returns a real JWT and lands on `/m`
+- [x] Wrong password shows the API's Thai message ("อีเมลหรือรหัสผ่านไม่ถูกต้อง"), not a generic failure
+- [x] Clearing the token and reloading `/m` redirects to `/m/login`
+- [x] Token lives in `sessionStorage` with an `expiresAt`; never written to the console (⛔5)
 
 **Verify:** `npx tsc --noEmit` · `npx next lint` · browser network panel shows `Authorization: Bearer` on `/v1/me`
 **Files:** `lib/api/{client,errors,auth}.ts` · `components/auth/AuthGate.tsx` · `app/m/login/page.tsx` · `app/{m,w}/layout.tsx`
 **Depends on:** None · **Scope:** M
 
 ### ▣ Checkpoint A
-- [ ] `tsc --noEmit`, `next lint`, `npm run build` clean
-- [ ] Login works against the real API; 401 redirects
+- [x] `tsc --noEmit`, `next lint`, `npm run build` clean
+- [x] Login works against the real API; 401 redirects
 
 ---
 

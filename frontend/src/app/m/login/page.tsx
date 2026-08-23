@@ -8,31 +8,42 @@ import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Controls";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
-import { CURRENT_USER } from "@/lib/mock/data";
+import { login } from "@/lib/api/auth";
+import { messageOf } from "@/lib/api/errors";
 
 export default function LoginScreen() {
   const router = useRouter();
   const online = useDemo((s) => s.online);
   const setOnline = useDemo((s) => s.setOnline);
 
-  const [code, setCode] = useState(CURRENT_USER.employeeCode);
-  const [pin, setPin] = useState("");
+  // Prefilled with the seeded demo rep so a reviewer is one field from the
+  // route screen — the password is still typed, and still checked by the API.
+  const [email, setEmail] = useState("rep@shelfeye.demo");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) {
-      setError("กรุณากรอกรหัสพนักงาน");
+    if (!email.trim()) {
+      setError("กรุณากรอกอีเมล");
       return;
     }
-    if (pin.length > 0 && pin.length < 4) {
-      setError("รหัสผ่านต้องมีอย่างน้อย 4 ตัว");
+    if (!password) {
+      setError("กรุณากรอกรหัสผ่าน");
       return;
     }
     setError(null);
     setBusy(true);
-    window.setTimeout(() => router.push("/m"), 620);
+    try {
+      const user = await login(email, password);
+      // A manager sent to the field-rep route screen would see an empty day,
+      // so each role lands on the surface built for it.
+      router.push(user.role === "REP" ? "/m" : "/w");
+    } catch (err) {
+      setError(messageOf(err));
+      setBusy(false);
+    }
   }
 
   return (
@@ -78,27 +89,29 @@ export default function LoginScreen() {
         className="mt-7 flex flex-col gap-3.5"
       >
         <motion.div variants={listItem}>
-          <label htmlFor="code" className="mb-1.5 block text-[13px] font-medium text-muted">
-            รหัสพนักงาน
+          <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-muted">
+            อีเมล
           </label>
           <input
-            id="code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
+            id="email"
+            type="email"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             autoComplete="username"
             className="h-12 w-full rounded-btn border border-line-strong bg-bg px-3.5 text-[16px] outline-none transition-colors focus:border-primary"
           />
         </motion.div>
 
         <motion.div variants={listItem}>
-          <label htmlFor="pin" className="mb-1.5 block text-[13px] font-medium text-muted">
+          <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-muted">
             รหัสผ่าน
           </label>
           <input
-            id="pin"
+            id="password"
             type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••"
             autoComplete="current-password"
             aria-describedby={error ? "login-error" : undefined}
@@ -140,7 +153,7 @@ export default function LoginScreen() {
         </motion.div>
 
         <motion.p variants={listItem} className="text-center text-[13px] text-faint">
-          โหมดสาธิต — กดปุ่มเข้าสู่ระบบได้ทันที
+          บัญชีสาธิต rep@shelfeye.demo · รหัสผ่าน demo1234
         </motion.p>
       </motion.form>
 
