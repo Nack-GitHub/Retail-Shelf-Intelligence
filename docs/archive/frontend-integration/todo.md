@@ -1,6 +1,9 @@
 # Task List: Frontend ↔ Backend Integration
 
-> Plan: [plan.md](plan.md) · Spec: [SPEC.md](../SPEC.md)
+> **ส่งมอบแล้ว** — เอกสารนี้เก็บไว้เป็นบันทึกว่าทำไมระบบถึงเป็นรูปนี้ ไม่ใช่งานที่ค้างอยู่
+> วิธีรันระบบดูที่ [docs/running.md](../../running.md)
+
+> Plan: [plan.md](plan.md) · Spec: [SPEC.md](SPEC.md)
 > Mode: **DEMO** · ⛔ no `git push` · ⛔ no deleting other containers (`stop` only)
 
 Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8

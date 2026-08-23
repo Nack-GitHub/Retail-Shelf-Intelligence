@@ -1,8 +1,11 @@
 # SPEC: เชื่อม Frontend เข้ากับ Backend API
 
-> งานที่เสร็จแล้ว: [docs/archive/SPEC.md](docs/archive/SPEC.md) (backend + ML)
-> Requirement เดิม: [docs/backend.md](docs/backend.md) · [docs/ui.md](docs/ui.md)
-> สถานะ: **ร่าง — รออนุมัติ** · 2026-08-23
+> **ส่งมอบแล้ว** — เอกสารนี้เก็บไว้เป็นบันทึกว่าทำไมระบบถึงเป็นรูปนี้ ไม่ใช่งานที่ค้างอยู่
+> วิธีรันระบบดูที่ [docs/running.md](../../running.md)
+
+> งานที่เสร็จแล้ว: [รอบก่อนหน้า](../backend-and-ml/SPEC.md) (backend + ML)
+> Requirement เดิม: [docs/backend.md](../../backend.md) · [docs/ui.md](../../ui.md)
+> สถานะ: **ส่งมอบแล้ว** · 2026-08-23
 
 ---
 
@@ -66,7 +69,7 @@
 
 | เลื่อน | เหตุผล |
 | :-- | :-- |
-| เทรนโมเดลใหม่ให้ผ่าน gate | งานฝั่ง ML ต้องใช้ GPU — ดู [docs/archive/plan.md](docs/archive/plan.md) |
+| เทรนโมเดลใหม่ให้ผ่าน gate | งานฝั่ง ML ต้องใช้ GPU — ดู [plan รอบก่อนหน้า](../backend-and-ml/plan.md) |
 | PDPA (retention, blur, audit) | เลื่อนไว้ตั้งแต่รอบก่อน คอลัมน์ยังอยู่ครบ |
 | Evidence PDF export | Sprint 5 |
 | Push notification | หน้าจอ poll ทุก 500ms อยู่แล้ว |
@@ -249,7 +252,7 @@ export async function request<T>(
 3. **ห้ามให้ผลว่างกลายเป็นชั้นเต็ม** — job `FAILED` ต้องขึ้นข้อความให้ถ่ายใหม่ ห้ามแสดง OSA
 4. **ห้ามส่งรูปผ่าน API** ต้อง PUT ตรงเข้า object storage ด้วย presigned URL
 5. **ห้ามเก็บ JWT ใน localStorage แบบไม่มีวันหมดอายุ** และห้าม log token ลง console
-6. **ห้ามมีปุ่มที่ระบบส่งข้อความหรือทำอะไรกับร้านค้าอัตโนมัติ** (ข้อ 6 ใน [docs/ui.md](docs/ui.md))
+6. **ห้ามมีปุ่มที่ระบบส่งข้อความหรือทำอะไรกับร้านค้าอัตโนมัติ** (ข้อ 6 ใน [docs/ui.md](../../ui.md))
 7. **ห้ามเอาข้อมูลราคาคู่แข่งออกทาง endpoint ใดๆ ที่ไม่ใช่ค่ารวม**
 
 ---

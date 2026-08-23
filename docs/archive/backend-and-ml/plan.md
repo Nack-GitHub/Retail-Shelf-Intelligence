@@ -1,6 +1,6 @@
 # Implementation Plan: ShelfEye Backend API + ML Model
 
-> Spec: [SPEC.md](SPEC.md) · Requirements: [backend.md](../backend.md)
+> Spec: [SPEC.md](SPEC.md) · Requirements: [backend.md](../../backend.md)
 > Mode: **DEMO** — working end-to-end over polished. Created 2026-08-22.
 
 ## Overview
@@ -126,7 +126,7 @@ Carried from SPEC.md §12, resolved by defaulting so the build is not blocked:
 
 1. **Beat mAP@50 90.5%?** → Treated as *not* a gate for the demo. The eval script reports against the thresholds; falling short is recorded in the model card, not a build failure.
 2. **First admin user** → seed script (`make seed`), credentials in `.env.example`.
-3. **Store master data** → generated to match [frontend/src/lib/mock/data.ts](../../frontend/src/lib/mock/data.ts) so the real API and the current UI line up.
+3. **Store master data** → generated to match `frontend/src/lib/mock/data.ts` (deleted in the frontend-integration round) so the real API and the current UI line up.
 4. **Push notification** → no-op adapter behind an interface; the frontend polls anyway.
 5. **MLflow** → cut (see table above).
 

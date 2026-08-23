@@ -1,7 +1,7 @@
 # ShelfEye — Frontend
 
 Front end for the shelf gap detection & replenishment flow described in
-[`../ui.md`](../ui.md). Two surfaces, one design system, all copy in Thai.
+[`docs/ui.md`](../docs/ui.md). Two surfaces, one design system, all copy in Thai.
 
 **Demo only — no API calls.** Every screen runs on local mock data so the
 whole flow is clickable end to end. The backend is a separate piece of work.
@@ -152,7 +152,7 @@ is a gap. `ShelfPhoto` draws the array as a photo-like SVG and
 overlay box can never drift away from the thing it points at. `CaptureFrame`
 picks between a real photo and this stand-in.
 
-Coordinates follow the inference contract in [`../backend.md`](../backend.md):
+Coordinates follow the inference contract in [`docs/backend.md`](../docs/backend.md):
 absolute pixels, top-left origin, never normalised. When a real photo is
 present, `buildAnalysis({width, height})` rescales the mock boxes into that
 photo's pixel space, so the overlay maths is already what the model will need.

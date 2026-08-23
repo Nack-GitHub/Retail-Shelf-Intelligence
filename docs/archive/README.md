@@ -1,18 +1,54 @@
 # Archive
 
-Planning documents for work that is **finished**. They are kept because they
-record *why* the system is shaped the way it is — decisions that the code
-itself cannot explain — not because anything here is still an open task.
+Planning documents for work that is **finished**, one directory per round of
+work. They are kept because they record *why* the system is shaped the way it
+is — decisions the code itself cannot explain — not because anything here is
+still an open task.
 
-| Document | What it is |
+Each round holds the same three documents: the specification it was delivered
+against, the implementation plan, and the task list with its acceptance
+criteria.
+
+## Rounds, oldest first
+
+### [backend-and-ml/](backend-and-ml/) — the two services
+
+The FastAPI backend and the ML training/inference pipeline, joined only by
+`contracts/`. 18 tasks.
+
+Still the reference for the inference contract, the append-only rules on
+`detections` and `shelf_analyses`, and the three standing prohibitions. Also
+records the promotion gates the trained model **fails**, which is why
+`ML_CLIENT` stays on `mock`.
+
+### [frontend-integration/](frontend-integration/) — connecting the app to the API
+
+Replacing `lib/mock/` with real HTTP calls, and the 7 endpoints that turned
+out to be missing. 17 tasks, plus two rounds of review.
+
+Worth reading for the decisions that shaped the data layer: one client module
+owns the base URL and the token, the ratio→percent conversion happens once per
+resource at the boundary, and **a card with no query behind it is omitted
+rather than estimated** — which is why there is no cost KPI, no drift chart,
+and no SKU×day heatmap.
+
+The `todo.md` also lists what the two review rounds found. The instructive
+ones are the failures that were invisible to a per-file check: identity that
+was reachable only by *composing* two endpoints that were each clean on their
+own, and an offline message that promised storage for operations that never
+queued.
+
+---
+
+**Still live, not archived:**
+
+| | |
 | :-- | :-- |
-| [SPEC.md](SPEC.md) | The specification the backend and ML work was delivered against. Still the reference for the inference contract, the append-only rules, and the three standing prohibitions. |
-| [plan.md](plan.md) | The 6-phase implementation plan, the dependency graph, the demo-grade simplifications that were deliberately taken, and the recorded outcome — including the promotion gates that fail. |
-| [todo.md](todo.md) | The 18 tasks with acceptance criteria. All complete. |
+| [README.md](../../README.md) | Entry point |
+| [running.md](../running.md) | How to run everything |
+| [contracts/inference-v1.yaml](../../contracts/inference-v1.yaml) | The normative contract between the services |
+| [backend.md](../backend.md) · [ui.md](../ui.md) | The original requirements both rounds were driven from |
 
-**Still live, not archived:** [README.md](../../README.md) is the entry point,
-and [contracts/inference-v1.yaml](../../contracts/inference-v1.yaml) is the
-normative contract between the two services. The prohibitions described in
-SPEC.md are enforced by
+The prohibitions described in these specs are enforced by
 [test_prohibitions.py](../../backend/tests/integration/test_prohibitions.py),
-so they hold whether or not anyone reads the spec.
+so they hold whether or not anyone reads them.

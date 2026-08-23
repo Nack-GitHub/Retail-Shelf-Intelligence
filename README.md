@@ -5,7 +5,7 @@ score back **while still standing in front of it**, with each gap boxed,
 labelled in Thai, and turned into a replenishment task.
 
 > **Demo build.** Working end-to-end over production-hardened — see
-> [docs/archive/plan.md](docs/archive/plan.md) for what was deliberately left out and why.
+> [docs/archive/](docs/archive/) for what was deliberately left out and why.
 
 ## Architecture
 
@@ -192,10 +192,9 @@ v1 — 1,349 images, 45 classes, pinned by version and archive SHA.
 
 | Document | Contents |
 | :-- | :-- |
-| **[SPEC.md](SPEC.md)** | The frontend↔API integration, delivered — every screen now reads from the database |
-| [tasks/plan.md](tasks/plan.md) · [tasks/todo.md](tasks/todo.md) | How that work was sliced, and the 14 tasks it became |
-| [docs/archive/SPEC.md](docs/archive/SPEC.md) | Specification the build was delivered against — contract rules, schema, boundaries |
-| [docs/archive/plan.md](docs/archive/plan.md) | Implementation plan, dependency graph, demo simplifications, outcome |
-| [docs/archive/todo.md](docs/archive/todo.md) | The 18 tasks, all complete |
+| **[docs/running.md](docs/running.md)** | **How to run everything** — setup, daily use, phone testing, troubleshooting |
+| [docs/archive/](docs/archive/) | Planning documents for both finished rounds, and why the system is shaped this way |
+| [docs/archive/backend-and-ml/](docs/archive/backend-and-ml/) | Round 1 — contract rules, schema, boundaries, the failing promotion gates |
+| [docs/archive/frontend-integration/](docs/archive/frontend-integration/) | Round 2 — the data layer, the 7 new endpoints, and what two review rounds found |
 | [contracts/inference-v1.yaml](contracts/inference-v1.yaml) | The inference contract |
 | [docs/backend.md](docs/backend.md) · [docs/ui.md](docs/ui.md) | Original requirements |

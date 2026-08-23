@@ -1,6 +1,9 @@
 # Implementation Plan: เชื่อม Frontend เข้ากับ Backend API
 
-> Spec: [SPEC.md](../SPEC.md) · Tasks: [todo.md](todo.md) · Mode: **DEMO** · ⛔ no `git push` · ⛔ never delete another project's containers (`docker compose stop` only)
+> **ส่งมอบแล้ว** — เอกสารนี้เก็บไว้เป็นบันทึกว่าทำไมระบบถึงเป็นรูปนี้ ไม่ใช่งานที่ค้างอยู่
+> วิธีรันระบบดูที่ [docs/running.md](../../running.md)
+
+> Spec: [SPEC.md](SPEC.md) · Tasks: [todo.md](todo.md) · Mode: **DEMO** · ⛔ no `git push` · ⛔ never delete another project's containers (`docker compose stop` only)
 
 ## Context
 
@@ -14,7 +17,7 @@ Survey during planning confirmed SPEC §2: the mobile screens are nearly covered
 
 ## Architecture Decisions
 
-1. **`lib/api/client.ts` is the only file that knows the base URL or the token.** It mirrors [ml_client.py](../backend/app/adapters/ml_client.py) being the only file that knows the ML service exists. Components never call `fetch`.
+1. **`lib/api/client.ts` is the only file that knows the base URL or the token.** It mirrors [ml_client.py](../../../backend/app/adapters/ml_client.py) being the only file that knows the ML service exists. Components never call `fetch`.
 
 2. **Unit conversion happens once, in the API mappers.** The API speaks ratios (`osaScore: 0.875`, `riskScore: 0.575`); the existing components render percentages (`74`, `87`). Rather than touch 20 screens, each `lib/api/*.ts` mapper converts ratio → percent at the boundary and returns the exact `types/index.ts` shapes the components already consume. **This is the single largest source of silent breakage in this work** — a missed conversion renders "OSA 0%" on a healthy shelf.
 
@@ -22,9 +25,9 @@ Survey during planning confirmed SPEC §2: the mobile screens are nearly covered
 
 4. **What the database cannot produce is not rendered.** Drift series, the SKU×day-of-week heatmap, and "ต้นทุนต่อการตรวจ" have no backing data. The API omits them; the UI omits the cards. `GET /v1/analytics/kpis` returns an array of only the KPIs it can compute, and `/w` renders whatever arrives. Two replacements *are* honestly computable and are used: weekly **rep-override rate** in place of drift, and **average in-store minutes** from closed visits in place of the invented `estMinutes`.
 
-5. **No new tables.** Categories and areas follow the pattern already set by [sku_catalog.py](../backend/app/services/sku_catalog.py) — a documented demo stand-in constant, with the live numbers (`lastOsa`) computed from real `captures`/`shelf_analyses` rows. This keeps us clear of SPEC §10's "ask before changing the database schema".
+5. **No new tables.** Categories and areas follow the pattern already set by [sku_catalog.py](../../../backend/app/services/sku_catalog.py) — a documented demo stand-in constant, with the live numbers (`lastOsa`) computed from real `captures`/`shelf_analyses` rows. This keeps us clear of SPEC §10's "ask before changing the database schema".
 
-6. **`model_versions` is seeded from the real artifact.** [model/artifacts/shelf-product-v1/metrics.json](../model/artifacts/shelf-product-v1/metrics.json) holds genuine numbers (gap-class recall **0.4113**, below the promotion gate). The model-health screen shows those, red. A demo that admits its model failed its gate is more credible than one showing invented 0.914.
+6. **`model_versions` is seeded from the real artifact.** [model/artifacts/shelf-product-v1/metrics.json](../../../model/artifacts/shelf-product-v1/metrics.json) holds genuine numbers (gap-class recall **0.4113**, below the promotion gate). The model-health screen shows those, red. A demo that admits its model failed its gate is more credible than one showing invented 0.914.
 
 7. **`ML_CLIENT=mock` stays the demo default** (SPEC §13 Q2) — the real model has not passed its gate. The flip remains one env var.
 
@@ -70,7 +73,7 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 
 ### Phase 0 — Plan artifacts
 
-**T0** — Write `tasks/plan.md` (this document) and `tasks/todo.md` (the checklist below), matching the format of the archived [docs/archive/plan.md](../docs/archive/plan.md). **XS**
+**T0** — Write `tasks/plan.md` (this document) and `tasks/todo.md` (the checklist below), matching the format of the archived [plan รอบก่อนหน้า](../backend-and-ml/plan.md). **XS**
 
 ---
 
@@ -112,7 +115,7 @@ Backend: new `app/api/v1/catalog.py` — `GET /v1/categories?storeId=` returning
 
 **T4: The capture flow — presign → PUT → commit → poll** · **M** · depends: T3 · **highest risk**
 
-`lib/api/captures.ts`: `presign()`, `uploadToStorage()` (raw `PUT` to the presigned URL — **not** through `client.ts`, since that would attach our JWT to S3 and force `Content-Type: application/json`), `commit()` with the `Idempotency-Key` already minted by [capture.ts](../frontend/src/lib/capture.ts), and `pollJob()` at 500ms with a hard timeout.
+`lib/api/captures.ts`: `presign()`, `uploadToStorage()` (raw `PUT` to the presigned URL — **not** through `client.ts`, since that would attach our JWT to S3 and force `Content-Type: application/json`), `commit()` with the `Idempotency-Key` already minted by [capture.ts](../../../frontend/src/lib/capture.ts), and `pollJob()` at 500ms with a hard timeout.
 
 `/processing` replaces its fake timer with real job polling. `FAILED` renders `job.userMessage` from the API and routes to retake — **never** an OSA number (⛔3).
 
