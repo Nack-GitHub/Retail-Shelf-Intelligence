@@ -9,16 +9,20 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Controls";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { getStore } from "@/lib/mock/data";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { fetchStore } from "@/lib/api/routes";
+import { useResource } from "@/lib/api/useResource";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSnappy } from "@/lib/motion";
+import type { Store } from "@/types";
 
 type View = "BEFORE" | "GPS_OFF" | "DONE";
 
 export default function CheckInScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
+  const resource = useResource<Store>(() => fetchStore(id), [id]);
+  const store = resource.data;
 
   const consent = useDemo((s) => s.consent);
   const setConsent = useDemo((s) => s.setConsent);
@@ -37,6 +41,21 @@ export default function CheckInScreen() {
     checkIn();
     setView("DONE");
     window.setTimeout(() => router.push(`/m/store/${id}/category`), 700);
+  }
+
+  if (resource.state === "LOADING" || !store) {
+    return (
+      <>
+        <MobileHeader title="เช็คอินที่ร้าน" progress={0.12} />
+        {resource.state === "ERROR" ? (
+          <Scroll className="px-4 pt-4">
+            <ErrorBlock message={resource.error ?? ""} onRetry={resource.reload} />
+          </Scroll>
+        ) : (
+          <LoadingBlock label="กำลังโหลดข้อมูลร้าน…" />
+        )}
+      </>
+    );
   }
 
   return (

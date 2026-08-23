@@ -8,7 +8,17 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import analytics, auth, captures, findings, routes, sync, tasks, visits
+from app.api.v1 import (
+    analytics,
+    auth,
+    captures,
+    findings,
+    routes,
+    stores,
+    sync,
+    tasks,
+    visits,
+)
 from app.core.config import settings
 from app.core.exceptions import ShelfEyeError
 from app.core.logging import configure_logging, get_logger, set_request_id
@@ -83,6 +93,7 @@ async def healthz() -> dict:
 for router in (
     auth.router,
     routes.router,
+    stores.router,
     visits.router,
     captures.router,
     findings.router,

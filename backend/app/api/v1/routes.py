@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import current_user, get_db
 from app.api.v1.schemas import RouteStopOut
-from app.db.models import Capture, ShelfAnalysisRow, Store, User, Visit
-from app.services.risk import haversine_km, risk_band, risk_score
+from app.db.models import Store, User
+from app.repositories import store_risk
+from app.services.risk import haversine_km
 
 router = APIRouter(tags=["routes"])
 
@@ -34,33 +33,11 @@ async def todays_route(
         .all()
     )
 
-    # Latest OSA and last visit date per store, in two aggregate queries rather
-    # than one per store.
-    last_visit_rows = (
-        await db.execute(
-            select(Visit.store_id, func.max(Visit.checked_in_at)).group_by(Visit.store_id)
-        )
-    ).all()
-    last_visit_at = dict(last_visit_rows)
+    facts = await store_risk.load(db, [s.id for s in stores])
 
-    osa_rows = (
-        await db.execute(
-            select(Visit.store_id, func.max(ShelfAnalysisRow.osa_score))
-            .join(Capture, Capture.visit_id == Visit.id)
-            .join(ShelfAnalysisRow, ShelfAnalysisRow.capture_id == Capture.id)
-            .group_by(Visit.store_id)
-        )
-    ).all()
-    last_osa = dict(osa_rows)
-
-    now = datetime.now(UTC)
     stops: list[RouteStopOut] = []
     for store in stores:
-        seen_at = last_visit_at.get(store.id)
-        days = (now - seen_at).days if seen_at else None
-        osa = last_osa.get(store.id)
-        score = risk_score(osa, days, repeat_gap_skus=0)
-
+        risk = store_risk.for_store(facts, store.id)
         stops.append(
             RouteStopOut(
                 id=store.id,
@@ -68,17 +45,18 @@ async def todays_route(
                 name=store.name,
                 chain=store.chain,
                 store_format=store.store_format,
+                area_id=store.area_id,
                 address=store.address,
                 lat=store.lat,
                 lng=store.lng,
                 photo_policy=store.photo_policy,
                 visit_window=store.visit_window,
                 distance_km=round(haversine_km(lat, lng, store.lat, store.lng), 2),
-                last_osa=round(osa, 4) if osa is not None else None,
-                days_since_last_visit=days,
-                risk_band=risk_band(score).value,
-                risk_score=score,
-                repeat_gap_skus=0,
+                last_osa=risk.last_osa,
+                days_since_last_visit=risk.days_since_last_visit,
+                risk_band=risk.band,
+                risk_score=risk.score,
+                repeat_gap_skus=risk.repeat_gap_skus,
             )
         )
 

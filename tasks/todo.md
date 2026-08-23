@@ -37,13 +37,14 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 
 ## Phase 2 — Mobile golden path
 
-### - [ ] T2: Today's route + store detail
+### - [x] T2: Today's route + store detail
 **Description:** New backend `stores.py` (`GET /v1/stores`, `GET /v1/stores/{id}`), and `/m` + check-in driven by `GET /v1/routes/today`. First screen to cross the ratio→percent boundary, so the conversion is proven here before 19 screens depend on it.
 
 **Acceptance:**
-- [ ] `/m` lists the 5 seeded stores ordered by real risk DESC, distance ASC
-- [ ] A never-visited store renders "ยังไม่เคยตรวจ", **not** `0%`
-- [ ] Loading / error / empty states all reachable
+- [x] `/m` lists the 5 seeded stores ordered by real risk DESC, distance ASC
+- [x] A never-visited store renders "ยังไม่เคยตรวจ", **not** `0%` (backend test uses its own fixture store)
+- [x] Loading / error / empty states all reachable via `useResource` + `AsyncState`
+- [x] Fixed en route: `last_osa` used `MAX(osa_score)` — the best score ever, not the latest — so every store read 100%
 
 **Verify:** backend pytest for both new endpoints · `/m` ordering matches `make demo` step 2
 **Files:** `backend/app/api/v1/stores.py` · `backend/app/main.py` · `lib/api/routes.ts` · `app/m/page.tsx` · `app/m/store/[id]/checkin/page.tsx`

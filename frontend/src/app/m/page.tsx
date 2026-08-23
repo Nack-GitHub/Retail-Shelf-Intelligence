@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -10,22 +10,54 @@ import { Bar } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
 import { Scroll } from "@/components/mobile/Chrome";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { STORES, CURRENT_USER } from "@/lib/mock/data";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, fadeUp } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { useSession } from "@/components/auth/AuthGate";
+import { areaName } from "@/lib/api/auth";
+import { currentPosition, fetchTodaysRoute } from "@/lib/api/routes";
+import { useResource } from "@/lib/api/useResource";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import type { Store } from "@/types";
 
 type View = "LIST" | "EMPTY" | "SYNCING";
 
-const TODAY = "22 สิงหาคม 2569";
+/** Minutes per store, used only for the "roughly this long" header estimate.
+ *  A real per-store duration arrives with visit history; until a store has
+ *  been visited there is nothing to average, so one honest constant beats a
+ *  fabricated per-store number. */
+const MINUTES_PER_STORE = 22;
 
 export default function TodayRouteScreen() {
   const router = useRouter();
   const [view, setView] = useState<View>("LIST");
   const beginVisit = useDemo((s) => s.beginVisit);
   const pendingSync = useDemo((s) => s.sync.filter((i) => i.status !== "DONE").length);
+  const { user } = useSession();
 
-  const totalMinutes = STORES.length * 22;
+  const route = useResource<Store[]>(async () => {
+    // Location is asked for, never required: the API falls back to the area
+    // centroid, so a rep who declines still gets a route ordered by risk.
+    const position = await currentPosition();
+    return fetchTodaysRoute(position ?? undefined);
+  }, []);
+
+  const stores = useMemo(() => route.data ?? [], [route.data]);
+  const totalMinutes = stores.length * MINUTES_PER_STORE;
+  const totalDistanceKm = useMemo(
+    () => stores.reduce((sum, s) => sum + (s.distanceKm ?? 0), 0),
+    [stores],
+  );
+
+  const today = useMemo(
+    () =>
+      new Date().toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    [],
+  );
 
   function open(storeId: string) {
     beginVisit(storeId);
@@ -42,7 +74,7 @@ export default function TodayRouteScreen() {
               เส้นทางวันนี้
             </p>
             <p className="truncate text-[13px] leading-tight text-muted">
-              {TODAY} · {CURRENT_USER.areaName}
+              {today} · {areaName(user?.areaId)}
             </p>
           </div>
           <SyncChip count={pendingSync} />
@@ -71,7 +103,11 @@ export default function TodayRouteScreen() {
       </header>
 
       <Scroll className="px-4 pt-4 pb-6">
-        {view === "EMPTY" ? (
+        {route.state === "LOADING" ? (
+          <LoadingBlock label="กำลังโหลดเส้นทางวันนี้…" />
+        ) : route.state === "ERROR" ? (
+          <ErrorBlock message={route.error ?? ""} onRetry={route.reload} />
+        ) : view === "EMPTY" || stores.length === 0 ? (
           <EmptyRoute />
         ) : (
           <>
@@ -84,13 +120,15 @@ export default function TodayRouteScreen() {
               <div>
                 <p className="text-[13px] text-muted">แผนวันนี้</p>
                 <p className="text-[15px] font-semibold">
-                  <span className="tnum">{STORES.length}</span> ร้าน ·{" "}
+                  <span className="tnum">{stores.length}</span> ร้าน ·{" "}
                   <span className="tnum">{Math.round(totalMinutes / 60)}</span> ชม. โดยประมาณ
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-[13px] text-muted">ระยะทางรวม</p>
-                <p className="tnum text-[15px] font-semibold">16.2 กม.</p>
+                <p className="tnum text-[15px] font-semibold">
+                  {totalDistanceKm.toFixed(1)} กม.
+                </p>
               </div>
             </motion.div>
 
@@ -100,7 +138,7 @@ export default function TodayRouteScreen() {
               animate="show"
               className="flex flex-col gap-3"
             >
-              {(view === "SYNCING" ? STORES.slice(0, 3) : STORES).map((s, i) => (
+              {(view === "SYNCING" ? stores.slice(0, 3) : stores).map((s, i) => (
                 <motion.li key={s.id} variants={listItem}>
                   <motion.button
                     type="button"
@@ -127,22 +165,37 @@ export default function TodayRouteScreen() {
                         </p>
 
                         <div className="mt-3 flex items-center gap-4">
-                          <Meta icon={<PinIcon />} label={`${s.distanceKm} กม.`} />
-                          <Meta icon={<ClockIcon />} label={`เข้าล่าสุด ${s.daysSinceLastVisit} วันก่อน`} />
+                          {s.distanceKm !== null && (
+                            <Meta icon={<PinIcon />} label={`${s.distanceKm} กม.`} />
+                          )}
+                          <Meta
+                            icon={<ClockIcon />}
+                            label={
+                              s.daysSinceLastVisit === null
+                                ? "ยังไม่เคยเข้า"
+                                : `เข้าล่าสุด ${s.daysSinceLastVisit} วันก่อน`
+                            }
+                          />
                         </div>
 
-                        <div className="mt-3 flex items-center gap-3">
-                          <span className="text-[13px] text-muted">OSA ครั้งก่อน</span>
-                          <Bar
-                            value={s.lastOsa}
-                            tone={s.lastOsa >= 90 ? "ok" : s.lastOsa >= 75 ? "warn" : "danger"}
-                            className="flex-1"
-                            delay={0.12 + i * 0.05}
-                          />
-                          <span className="tnum w-10 text-right text-[14px] font-semibold">
-                            {s.lastOsa}%
-                          </span>
-                        </div>
+                        {/* A store nobody has photographed has no OSA. Drawing
+                            an empty bar would read as a shelf stripped bare. */}
+                        {s.lastOsa === null ? (
+                          <p className="mt-3 text-[13px] text-muted">ยังไม่เคยตรวจชั้นวางที่ร้านนี้</p>
+                        ) : (
+                          <div className="mt-3 flex items-center gap-3">
+                            <span className="text-[13px] text-muted">OSA ครั้งก่อน</span>
+                            <Bar
+                              value={s.lastOsa}
+                              tone={s.lastOsa >= 90 ? "ok" : s.lastOsa >= 75 ? "warn" : "danger"}
+                              className="flex-1"
+                              delay={0.12 + i * 0.05}
+                            />
+                            <span className="tnum w-10 text-right text-[14px] font-semibold">
+                              {s.lastOsa}%
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </motion.button>

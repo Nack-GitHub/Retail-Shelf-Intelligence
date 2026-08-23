@@ -34,7 +34,7 @@ from app.db.models import (
     Visit,
 )
 from app.domain.enums import Role
-from app.services.risk import risk_band, risk_score
+from app.repositories import store_risk
 
 router = APIRouter(tags=["analytics"])
 
@@ -102,30 +102,14 @@ async def risk_ranking(
         query = query.where(Store.area_id == area_id)
     stores = (await db.execute(query)).scalars().all()
 
-    latest_osa = dict(
-        (
-            await db.execute(
-                select(Visit.store_id, func.max(ShelfAnalysisRow.osa_score))
-                .join(Capture, Capture.visit_id == Visit.id)
-                .join(ShelfAnalysisRow, ShelfAnalysisRow.capture_id == Capture.id)
-                .group_by(Visit.store_id)
-            )
-        ).all()
-    )
-    last_seen = dict(
-        (
-            await db.execute(
-                select(Visit.store_id, func.max(Visit.checked_in_at)).group_by(Visit.store_id)
-            )
-        ).all()
-    )
+    # Shared with /v1/stores and /v1/routes/today. Three copies of this query
+    # meant three chances for the rep's route and the manager's ranking to
+    # disagree about which store is worst.
+    facts = await store_risk.load(db, [s.id for s in stores])
 
-    now = datetime.now(UTC)
     rows = []
     for store in stores:
-        osa = latest_osa.get(store.id)
-        days = (now - last_seen[store.id]).days if store.id in last_seen else None
-        score = risk_score(osa, days, repeat_gap_skus=0)
+        risk = store_risk.for_store(facts, store.id)
         rows.append(
             {
                 "storeId": str(store.id),
@@ -133,10 +117,11 @@ async def risk_ranking(
                 "chain": store.chain,
                 "storeFormat": store.store_format,
                 "areaId": store.area_id,
-                "lastOsa": round(osa, 4) if osa is not None else None,
-                "daysSinceLastVisit": days,
-                "riskScore": score,
-                "riskBand": risk_band(score).value,
+                "lastOsa": risk.last_osa,
+                "daysSinceLastVisit": risk.days_since_last_visit,
+                "repeatGapSkus": risk.repeat_gap_skus,
+                "riskScore": risk.score,
+                "riskBand": risk.band,
             }
         )
 

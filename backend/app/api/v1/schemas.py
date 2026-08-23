@@ -62,13 +62,24 @@ class StoreOut(ApiModel):
     visit_window: str
 
 
-class RouteStopOut(StoreOut):
-    distance_km: float
+class StoreRiskOut(StoreOut):
+    """A store plus how much attention it needs.
+
+    `last_osa` and `days_since_last_visit` are nullable on purpose: a store
+    nobody has photographed has no OSA, and rendering that as 0 would show a
+    perfectly healthy shelf as a catastrophe.
+    """
+
+    area_id: str
     last_osa: float | None
     days_since_last_visit: int | None
     risk_band: str
     risk_score: float
     repeat_gap_skus: int
+
+
+class RouteStopOut(StoreRiskOut):
+    distance_km: float
 
 
 # ── Visits ───────────────────────────────────────────────────────────────────

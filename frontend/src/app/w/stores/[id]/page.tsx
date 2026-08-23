@@ -28,7 +28,9 @@ export default function StoreDetail() {
   const row = RISK_RANKING.find((r) => r.storeId === id);
   const [evidence, setEvidence] = useState<EvidenceItem | null>(null);
 
-  const osa = row?.osa ?? store.lastOsa;
+  // T8 replaces this whole screen with real history; until then the
+  // fallback keeps a never-measured store from crashing the render.
+  const osa = row?.osa ?? store.lastOsa ?? 0;
 
   return (
     <>

@@ -13,11 +13,16 @@ export interface Store {
   name: string;
   chain: string;
   storeFormat: StoreFormat;
+  areaId: string;
   address: string;
-  distanceKm: number;
-  lastOsa: number;
-  daysSinceLastVisit: number;
+  /** absent on a plain store lookup — only a route stop knows how far away it is */
+  distanceKm: number | null;
+  /** percent 0-100. `null` means never measured, which is NOT zero: rendering
+   *  an unvisited store as 0% shows a healthy shelf as a catastrophe. */
+  lastOsa: number | null;
+  daysSinceLastVisit: number | null;
   riskBand: RiskBand;
+  /** percent 0-100, converted from the API's 0..1 ratio at the api boundary */
   riskScore: number;
   repeatGapSkus: number;
   lat: number;
@@ -31,6 +36,7 @@ export interface ShelfCategory {
   name: string;
   bays: string[];
   skuCount: number;
+  /** percent 0-100, or null when this category has never been photographed here */
   lastOsa: number | null;
 }
 

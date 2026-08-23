@@ -114,3 +114,37 @@ def upload_capture(
     )
     assert response.status_code == 202, response.text
     return {**response.json(), "captureId": presign["captureId"], "objectKey": presign["objectKey"]}
+
+
+@pytest.fixture
+def unvisited_store() -> Iterator[str]:
+    """A store with no history at all.
+
+    Seeded stores accumulate visits as the suite runs, so a test about the
+    "never measured" case has to bring its own store or it will pass on a
+    fresh database and fail on a used one.
+    """
+    from app.db.models import Store
+
+    store_id = uuid.uuid4()
+    with SyncSessionFactory() as session:
+        session.add(
+            Store(
+                id=store_id,
+                external_code=f"TEST-{store_id.hex[:8]}",
+                name="ร้านทดสอบ ยังไม่เคยเข้า",
+                chain="ทดสอบ",
+                store_format="CVS",
+                area_id="area-bke",
+                address="ไม่มีที่อยู่จริง",
+                lat=13.7563,
+                lng=100.5018,
+            )
+        )
+        session.commit()
+
+    yield str(store_id)
+
+    with SyncSessionFactory() as session:
+        session.delete(session.get(Store, store_id))
+        session.commit()
