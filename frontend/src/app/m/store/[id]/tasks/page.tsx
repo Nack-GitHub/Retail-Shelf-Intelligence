@@ -9,7 +9,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { BLOCKED_REASONS } from "@/lib/mock/data";
+import { BLOCKED_REASONS } from "@/lib/constants";
 import { fetchStore } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { messageOf } from "@/lib/api/errors";

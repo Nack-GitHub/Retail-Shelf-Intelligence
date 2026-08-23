@@ -1,11 +1,16 @@
-import type { Detection, GapFinding, ShelfAnalysis } from "@/types";
-
 /* ------------------------------------------------------------------
-   The shelf is described ONCE, here.
-   The rendered photo and the detection boxes are both derived from
-   this array, so an overlay box can never drift away from the thing
-   it is pointing at. Image space is 1920x1080, top-left origin,
-   absolute pixels — the same contract the inference service uses.
+   The drawn stand-in shelf.
+
+   This is NOT data — it is an illustration, shown only when there is no
+   photograph to show: a reviewer on a laptop with no camera, or a screen
+   reached before any capture exists. Real photos always win.
+
+   It survived the deletion of lib/mock because losing it would make the
+   whole flow unreviewable on the machines demos are actually given on.
+
+   Drawn in 1920x1080 space, top-left origin, absolute pixels — the same
+   contract the inference service uses, so nothing downstream has to
+   special-case it.
    ------------------------------------------------------------------ */
 
 export const IMAGE_W = 1920;
@@ -88,115 +93,11 @@ function position(x: number, w: number): "ซ้าย" | "กลาง" | "ข�
   return c < 700 ? "ซ้าย" : c < 1300 ? "กลาง" : "ขวา";
 }
 
-/* ---- the six confirmed-pending gaps, in reading order ---- */
-const GAP_SKUS: Record<
-  string,
-  { code: string; name: string; brand: string; priority: 1 | 2 | 3; facings: number }
-> = {
-  r0s2: { code: "CF-ESP-180", name: "เอสเปรสโซ กระป๋อง 180 มล.", brand: "คาเฟ่โกลด์", priority: 1, facings: 2 },
-  r0s6: { code: "CF-LAT-180", name: "ลาเต้เย็น กระป๋อง 180 มล.", brand: "คาเฟ่โกลด์", priority: 2, facings: 2 },
-  r1s1: { code: "RC-ORI-27", name: "3in1 ออริจินัล 17.5 ก. x27", brand: "ริชชี่", priority: 1, facings: 2 },
-  r1s5: { code: "RC-MOC-25", name: "3in1 มอคค่า 18 ก. x25", brand: "ริชชี่", priority: 2, facings: 4 },
-  r1s7: { code: "GB-BLK-30", name: "กาแฟดำ 2 ก. x30", brand: "โกลด์บรู", priority: 3, facings: 2 },
-  r2s3: { code: "CF-REF-200", name: "ถุงเติม 200 ก.", brand: "คาเฟ่โกลด์", priority: 1, facings: 3 },
-};
 
-// Class ids mirror the real dataset so anything logging them sees plausible
-// values. Consumers must branch on semanticType, never on these names.
-const CLASS_MAP: Record<SlotKind, { id: number; name: string }> = {
-  PRODUCT: { id: 7, name: "Packaged Coffee" },
-  GAP: { id: 19, name: "Empty Shelf" },
-};
-
-export function buildDetections(): Detection[] {
-  const out: Detection[] = SLOTS.map((s) => {
-    const cls = CLASS_MAP[s.kind];
-    return {
-      detectionId: `det-${s.id}`,
-      classId: cls.id,
-      className: cls.name,
-      semanticType: s.kind === "GAP" ? "GAP" : "PRODUCT",
-      bbox: slotBox(s),
-      confidence: s.confidence,
-      shelfRowIndex: s.row,
-    } satisfies Detection;
-  });
-  // price rails — present in every real frame, hidden behind a filter chip
-  ROWS.forEach((row, r) => {
-    [180, 760, 1340].forEach((x, tagIndex) => {
-      out.push({
-        detectionId: `det-tag-${r}-${tagIndex}`,
-        classId: 31,
-        className: "Price Tag",
-        semanticType: "PRICE_TAG",
-        bbox: { x, y: row.board + 4, w: 132, h: 26 },
-        confidence: 0.9,
-        shelfRowIndex: r,
-      });
-    });
-  });
-  return out;
-}
-
-export function buildGapFindings(): GapFinding[] {
-  return SLOTS.filter((s) => s.kind === "GAP").map((s) => {
-    const sku = GAP_SKUS[s.id];
-    return {
-      id: `gap-${s.id}`,
-      detectionId: `det-${s.id}`,
-      shelfRowIndex: s.row,
-      positionLabel: `${ROWS[s.row].label} · ตำแหน่ง${position(s.x, s.w)}`,
-      confidence: s.confidence,
-      isLowConfidence: s.confidence < 0.6,
-      verificationStatus: "PENDING",
-      skuCode: sku.code,
-      skuName: sku.name,
-      skuBrand: sku.brand,
-      priority: sku.priority,
-      facings: sku.facings,
-    } satisfies GapFinding;
-  });
-}
-
-
-/** Maps the mock geometry onto whatever image was actually captured.
- *  Until a model is wired up the boxes are simulated, but they live in the
- *  real image's pixel space so the overlay maths is already correct. */
-export function buildAnalysis(image?: { width: number; height: number }): ShelfAnalysis {
-  const sx = image ? image.width / IMAGE_W : 1;
-  const sy = image ? image.height / IMAGE_H : 1;
-  const scale = (d: Detection): Detection =>
-    sx === 1 && sy === 1
-      ? d
-      : {
-          ...d,
-          bbox: {
-            x: Math.round(d.bbox.x * sx),
-            y: Math.round(d.bbox.y * sy),
-            w: Math.round(d.bbox.w * sx),
-            h: Math.round(d.bbox.h * sy),
-          },
-        };
-
-  const detections = buildDetections().map(scale);
-  const gapFindings = buildGapFindings();
-  return {
-    captureId: "cap-01J8X4Q2ZK",
-    modelVersion: "shelf-product-v3",
-    imageWidth: image?.width ?? IMAGE_W,
-    imageHeight: image?.height ?? IMAGE_H,
-    rowCount: ROWS.length,
-    gapRatio: 0.22,
-    osaScore: 78,
-    status: "LOW",
-    inferenceMs: 1840,
-    lowConfidenceCount: gapFindings.filter((g) => g.isLowConfidence).length,
-    detections,
-    gapFindings,
-  };
-}
-
-/** Slots as they look after the rep restocks: filled gaps become product. */
+/** The same shelf after a restock: filled gaps become product.
+ *
+ *  Used by the before/after comparison when there is no real after-photo to
+ *  put beside the before-photo. */
 export function slotsAfter(filledGapIds: string[]): Slot[] {
   const filled = new Set(filledGapIds.map((id) => id.replace(/^gap-/, "")));
   return SLOTS.map((s) =>

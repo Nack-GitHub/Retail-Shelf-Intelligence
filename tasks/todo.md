@@ -214,13 +214,14 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `lib/offline/{queue,useOnline}.ts` · `lib/api/sync.ts` · `lib/store.ts` · `app/m/sync/page.tsx` · `app/m/captures/page.tsx`
 **Depends on:** T6 · **Scope:** M
 
-### - [ ] T13: Delete `lib/mock/`
+### - [x] T13: Delete `lib/mock/`
 **Description:** Move the drawn shelf to `components/shelf/PlaceholderShelf.tsx` and the reason lists to `lib/constants.ts`, then delete the directory.
 
 **Acceptance:**
-- [ ] `grep -rn "lib/mock" frontend/src/` prints nothing
-- [ ] `npm run build` passes with the directory gone
-- [ ] A machine with no camera can still walk the whole flow
+- [x] `grep -rn "lib/mock" frontend/src/` prints nothing but one comment explaining the deletion
+- [x] `npm run build` passes with the directory gone
+- [x] A machine with no camera can still walk the whole flow — the drawn shelf moved to `components/shelf/placeholder-shelf.ts`
+- [x] `REJECT_REASONS` / `BLOCKED_REASONS` moved to `lib/constants.ts`: they are the closed sets the API validates against, not mock data
 
 **Verify:** the grep, then a clean build
 **Files:** `components/shelf/PlaceholderShelf.tsx` · `lib/constants.ts` · delete `lib/mock/`

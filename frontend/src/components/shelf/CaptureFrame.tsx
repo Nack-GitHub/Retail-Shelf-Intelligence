@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { ShelfPhoto } from "@/components/shelf/ShelfPhoto";
-import type { Slot } from "@/lib/mock/shelf";
+import type { Slot } from "@/components/shelf/placeholder-shelf";
 import type { CapturedPhoto } from "@/lib/capture";
 import { cn } from "@/lib/cn";
 

@@ -9,7 +9,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Controls";
-import { REJECT_REASONS } from "@/lib/mock/data";
+import { REJECT_REASONS } from "@/lib/constants";
 import { useDemo } from "@/lib/store";
 import { messageOf } from "@/lib/api/errors";
 import type { GapFinding, RejectReason } from "@/types";

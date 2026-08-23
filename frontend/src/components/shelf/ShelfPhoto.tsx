@@ -1,4 +1,4 @@
-import { IMAGE_H, IMAGE_W, ROWS, SLOTS, type Slot } from "@/lib/mock/shelf";
+import { IMAGE_H, IMAGE_W, ROWS, SLOTS, type Slot } from "@/components/shelf/placeholder-shelf";
 import { cn } from "@/lib/cn";
 
 /* A stand-in for the camera frame, drawn in the same 1920x1080 space the

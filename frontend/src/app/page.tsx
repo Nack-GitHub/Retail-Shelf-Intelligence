@@ -36,7 +36,7 @@ export default function PlatformLauncher() {
               Shelf<span className="text-[#5b9bf5]">Eye</span>
             </span>
             <span className="ml-1 rounded-pill bg-white/10 px-2.5 py-1 text-[12px] font-medium text-[#93a0b3]">
-              โหมดสาธิต · ยังไม่ต่อ API
+              โหมดสาธิต · ต่อ API จริง
             </span>
           </div>
           <h1 className="mt-8 max-w-[620px] text-[38px] font-bold leading-[1.2] tracking-tight sm:text-[46px]">

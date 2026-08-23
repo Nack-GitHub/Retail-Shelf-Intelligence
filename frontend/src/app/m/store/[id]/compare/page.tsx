@@ -12,7 +12,7 @@ import { Segmented } from "@/components/ui/Controls";
 import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill } from "@/components/ui/Badge";
 import { osaStatusOf } from "@/components/ui/Badge";
-import { slotsAfter } from "@/lib/mock/shelf";
+import { slotsAfter } from "@/components/shelf/placeholder-shelf";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
 import { pollJob, uploadCapture } from "@/lib/api/captures";
 import { messageOf } from "@/lib/api/errors";

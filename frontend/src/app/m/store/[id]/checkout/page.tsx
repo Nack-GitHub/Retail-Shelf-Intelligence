@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill, osaStatusOf, Pill } from "@/components/ui/Badge";
 import { SkuThumb } from "@/components/shelf/SkuThumb";
-import { BLOCKED_REASONS } from "@/lib/mock/data";
+import { BLOCKED_REASONS } from "@/lib/constants";
 import { fetchStore, fetchTodaysRoute } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
