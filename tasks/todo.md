@@ -242,3 +242,36 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 ### ▣ Checkpoint E — complete
 - [x] Every gate green: contracts 21 · backend 98 · model 20 · `check-boundary` · `tsc --noEmit` · `next lint` · clean `npm run build`
 - [x] Every screen real
+
+---
+
+## Phase 6 — Review rounds (added after the plan)
+
+### - [x] R1: `/review` — four defects, fixed
+- [x] `visits` KPI counted visits while labelled "stores" (an area of 5 reported 483)
+- [x] Offline queue never freed photo blobs — ~80 MB/day, and IndexedDB evicts whole databases
+- [x] Manager dashboard fetched every area-scoped resource twice
+- [x] Auto-drain and manual drain could run concurrently
+
+### - [x] R2: `/ship` — three personas in parallel, all findings triaged
+**Fixed (security):**
+- [x] ⛔ **Critical** — object storage was world-readable and listable; `presign_get` was a no-op
+- [x] ⛔ **Critical** — identity reachable by composing store-history → `visitId` → `GET /v1/visits/{id}` → `userId`
+- [x] **High** — any account could presign a capture into another user's visit
+
+**Fixed (correctness / honesty):**
+- [x] ⛔ **Critical** — the app told reps their work was saved offline when only captures were queued
+- [x] Verify, task-close and checkout now queue for real; drain runs app-wide, not only on `/m/sync`
+- [x] Replayed task-close and checkout moved `completed_at` / `checked_out_at`, corrupting the TTR KPI and visit durations
+- [x] Replayed capture minted a ghost capture row; a stale verdict resurrected a retracted task
+- [x] Hardcoded GPS distance and a visit duration padded by 17 minutes
+- [x] Login promised offline sign-in that does not exist
+- [x] Queue failures showed the literal string "ApiError"
+- [x] Model-health parsed a display caption into `NaN` and rendered a confident "0.000"
+- [x] Overlay hardcoded a 0.6 confidence threshold against the engine's 0.55
+- [x] Evidence timeline reached one photograph per visit, chosen by random UUID order
+- [x] "รูปแบบร้าน" rendered the chain; a KPI delta of 0 rendered as a regression
+
+**Fixed (tests):** prohibition coverage for every new endpoint, a graph-walk test for identity-by-composition, two order-dependent tests, and three that asserted nothing on a fresh database.
+
+**Accepted, documented below:** evidence substitution within the presign window, and broad read access for authenticated reps.
