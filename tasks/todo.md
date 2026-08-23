@@ -64,14 +64,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `backend/app/api/v1/catalog.py` · `lib/api/{catalog,visits}.ts` · `lib/store.ts` · `app/m/store/[id]/{checkin,category}/page.tsx`
 **Depends on:** T2 · **Scope:** M
 
-### - [ ] T4: Capture flow — presign → PUT → commit → poll  ⚠️ highest risk
+### - [x] T4: Capture flow — presign → PUT → commit → poll  ⚠️ highest risk
 **Description:** Real upload straight to object storage and real job polling. `/processing` loses its fake timer.
 
 **Acceptance:**
-- [ ] The photo lands in MinIO and produces an `inference_jobs` row
-- [ ] Committing twice with one Idempotency-Key yields one job
-- [ ] A `_unreadable` bay shows "ภาพไม่ชัดหรือเสียหาย กรุณาถ่ายใหม่" and **no OSA** (⛔3)
-- [ ] The `PUT` carries **no** `Authorization` header (⛔4)
+- [x] The photo lands in MinIO and produces an `inference_jobs` row (verified in psql: real object_key, DONE, osa 0.875)
+- [x] Committing twice with one Idempotency-Key yields one job (`test_capture_commit_is_idempotent`)
+- [x] A `_unreadable` bay shows "ภาพไม่ชัดหรือเสียหาย กรุณาถ่ายใหม่" and **no OSA** — the result endpoint 404s, so there is nothing to show (⛔3)
+- [x] The `PUT` carries **no** `Authorization` header — only `content-type` (⛔4)
+- [x] MinIO CORS allows browser PUTs from :3000 out of the box; no compose change needed
 
 **Verify:** browser network panel · MinIO console shows the object · walk the `_unreadable` path by hand
 **Files:** `lib/api/captures.ts` · `lib/store.ts` · `app/m/store/[id]/{capture,processing}/page.tsx`

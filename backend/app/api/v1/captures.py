@@ -238,6 +238,7 @@ async def get_result(
     return ShelfAnalysisOut(
         capture_id=capture_id,
         model_version=analysis.model_version,
+        image_url=get_storage().presign_get(capture.object_key) if capture.object_key else None,
         image_width=capture.image_width or 0,
         image_height=capture.image_height or 0,
         row_count=analysis.row_count,

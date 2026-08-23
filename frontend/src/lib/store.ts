@@ -10,9 +10,9 @@ import type {
   SyncItem,
   Task,
 } from "@/types";
-import { buildAnalysis } from "@/lib/mock/shelf";
 import { SYNC_ITEMS } from "@/lib/mock/data";
 import { revokePhoto, type CapturedPhoto } from "@/lib/capture";
+import type { AnalysisResult } from "@/lib/api/captures";
 
 /* Demo-only state. When the API lands, everything under `visit` becomes
    server state (React Query) and this store keeps only UI concerns. */
@@ -37,7 +37,9 @@ interface DemoState {
   /** every photo taken this session, newest first — the local intake log */
   photoLog: CapturedPhoto[];
 
-  analysis: ShelfAnalysis | null;
+  /** the capture the server is analysing, once presign has run */
+  captureId: string | null;
+  analysis: AnalysisResult | null;
   /** true only between "use this photo" and the result screen, so opening
    *  /processing directly holds the screen instead of racing past it */
   justCaptured: boolean;
@@ -58,7 +60,10 @@ interface DemoState {
   /** records a photo the moment intake finishes, before the rep decides
    *  whether to keep it — a discarded shot still happened */
   logPhoto: (photo: CapturedPhoto) => void;
-  finishCapture: (photo?: CapturedPhoto | null) => void;
+  /** the rep kept this shot — hand it to the processing screen to upload */
+  stageCapture: (photo: CapturedPhoto | null) => void;
+  /** the server's verdict for that photo */
+  setAnalysis: (captureId: string, analysis: AnalysisResult) => void;
   setAfterPhoto: (photo: CapturedPhoto | null) => void;
   clearPhotoLog: () => void;
   consumeCapture: () => void;
@@ -90,6 +95,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   afterPhoto: null,
   photoLog: [],
 
+  captureId: null,
   analysis: null,
   justCaptured: false,
   findings: [],
@@ -114,6 +120,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       bay: null,
       photo: null,
       afterPhoto: null,
+      captureId: null,
       analysis: null,
       justCaptured: false,
       findings: [],
@@ -140,17 +147,19 @@ export const useDemo = create<DemoState>((set, get) => ({
         : { photoLog: [photo, ...s.photoLog] },
     ),
 
-  finishCapture: (photo) => {
-    const analysis = buildAnalysis(
-      photo ? { width: photo.width, height: photo.height } : undefined,
-    );
+  stageCapture: (photo) =>
     set((s) => ({
       photo: photo ?? s.photo,
-      analysis,
-      findings: analysis.gapFindings,
+      // The previous verdict must not survive a new photo: showing the old
+      // OSA over a fresh shot is how a rep "fixes" a shelf that never changed.
+      captureId: null,
+      analysis: null,
+      findings: [],
       justCaptured: true,
-    }));
-  },
+    })),
+
+  setAnalysis: (captureId, analysis) =>
+    set({ captureId, analysis, findings: analysis.gapFindings }),
 
   setAfterPhoto: (photo) => set({ afterPhoto: photo }),
 
@@ -224,6 +233,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       bay: null,
       photo: null,
       afterPhoto: null,
+      captureId: null,
       analysis: null,
       justCaptured: false,
       findings: [],

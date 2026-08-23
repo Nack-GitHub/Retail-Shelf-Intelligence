@@ -209,6 +209,9 @@ class GapFindingOut(ApiModel):
 class ShelfAnalysisOut(ApiModel):
     capture_id: UUID
     model_version: str
+    # Presigned GET for the photograph these boxes were drawn on. Every number
+    # a manager sees must be traceable back to the pixels that produced it.
+    image_url: str | None = None
     image_width: int
     image_height: int
     row_count: int

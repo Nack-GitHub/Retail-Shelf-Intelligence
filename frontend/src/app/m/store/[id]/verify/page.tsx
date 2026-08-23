@@ -24,16 +24,11 @@ export default function VerifyScreen() {
   const findings = useDemo((s) => s.findings);
   const verify = useDemo((s) => s.verify);
   const buildTasks = useDemo((s) => s.buildTasks);
-  const finishCapture = useDemo((s) => s.finishCapture);
 
   const [mode, setMode] = useState<"ONE" | "ALL">("ONE");
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<1 | -1>(1);
   const [rejecting, setRejecting] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!analysis) finishCapture();
-  }, [analysis, finishCapture]);
 
   if (!analysis || findings.length === 0) return null;
 

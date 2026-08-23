@@ -330,3 +330,18 @@ def test_sync_batch_is_safe_to_replay(client: TestClient, rep_auth: dict[str, st
     assert [r["idempotencyKey"] for r in first["results"]] == [
         r["idempotencyKey"] for r in second["results"]
     ]
+
+
+def test_result_carries_a_signed_url_for_the_photograph(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Every number a manager sees must be traceable back to the pixels.
+
+    The overlay is drawn in the capture's own pixel space, so the image and
+    its dimensions have to travel with the boxes or they cannot be aligned.
+    """
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_gaps")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+
+    assert result["imageUrl"], "no signed URL — the result screen has nothing to draw on"
+    assert result["imageWidth"] > 0 and result["imageHeight"] > 0

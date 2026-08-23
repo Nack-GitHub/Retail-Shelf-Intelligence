@@ -1,52 +1,143 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { ShelfPhoto } from "@/components/shelf/ShelfPhoto";
+import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { ProgressRing } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
-import { StateSwitcher } from "@/components/mobile/StateSwitcher";
 import { useDemo } from "@/lib/store";
+import { fetchResult, pollJob, uploadCapture, type Job } from "@/lib/api/captures";
+import { messageOf } from "@/lib/api/errors";
 import { easeOut, springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
-type Mode = "ONLINE" | "OFFLINE" | "FAILED";
+/* This screen does the actual work: it uploads the photo the rep just kept,
+   waits for the model, and hands the verdict to /result.
 
-const STEPS_ONLINE = [
-  { id: "upload", label: "อัปโหลดภาพที่เบลอใบหน้าแล้ว", at: 0 },
-  { id: "detect", label: "ตรวจจับสินค้าและช่องว่าง", at: 34 },
-  { id: "osa", label: "คำนวณ OSA และจัดลำดับความสำคัญ", at: 72 },
-];
+   ⛔ A failed job NEVER shows an OSA number. "Nothing found at all" and "no
+   gaps found" are different answers, and rendering a failure as a full shelf
+   would poison every trend built on this data. */
 
-const STEPS_OFFLINE = [
-  { id: "local", label: "รันโมเดลบนเครื่อง (โหมดเร็ว)", at: 0 },
-  { id: "detect", label: "ตรวจจับสินค้าและช่องว่าง", at: 40 },
-  { id: "queue", label: "เข้าคิวส่งขึ้นเซิร์ฟเวอร์ภายหลัง", at: 78 },
-];
+type Phase = "UPLOADING" | "ANALYSING" | "FAILED";
+
+const STEPS = [
+  { id: "upload", label: "อัปโหลดภาพขึ้นเซิร์ฟเวอร์" },
+  { id: "detect", label: "ตรวจจับสินค้าและช่องว่าง" },
+  { id: "osa", label: "คำนวณ OSA และจัดลำดับความสำคัญ" },
+] as const;
 
 export default function ProcessingScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const online = useDemo((s) => s.online);
-  const justCaptured = useDemo((s) => s.justCaptured);
-  const consumeCapture = useDemo((s) => s.consumeCapture);
 
-  const [mode, setMode] = useState<Mode>(online ? "ONLINE" : "OFFLINE");
-  // Arriving from the camera, this screen moves on by itself. Once someone
-  // picks a state from the demo switcher they are inspecting it, so hold.
-  const [inspecting, setInspecting] = useState(false);
+  const photo = useDemo((s) => s.photo);
+  const visitId = useDemo((s) => s.visitId);
+  const categoryId = useDemo((s) => s.categoryId);
+  const bay = useDemo((s) => s.bay);
+  const consumeCapture = useDemo((s) => s.consumeCapture);
+  const setAnalysis = useDemo((s) => s.setAnalysis);
+
+  const [phase, setPhase] = useState<Phase>("UPLOADING");
+  const [step, setStep] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // Guards against React 18 double-invoking effects in development, which
+  // would otherwise upload the same photo twice.
+  const running = useRef(false);
+
+  const run = useCallback(async () => {
+    if (running.current) return;
+    if (!photo || !visitId || !categoryId || !bay) return;
+    running.current = true;
+
+    setPhase("UPLOADING");
+    setStep(0);
+    setFailure(null);
+
+    try {
+      const job = await uploadCapture({
+        visitId,
+        category: categoryId,
+        shelfBayLabel: bay,
+        phase: "BEFORE",
+        photo,
+      });
+
+      setPhase("ANALYSING");
+      setStep(1);
+
+      const finished = await pollJob(job.jobId, {
+        onProgress: (j: Job) => setStep(j.status === "RUNNING" ? 2 : 1),
+      });
+
+      if (finished.status === "FAILED") {
+        // The API already wrote the sentence the rep needs, in Thai, and it
+        // says what to do — not just that something broke.
+        setFailure(finished.userMessage ?? "วิเคราะห์ภาพไม่สำเร็จ กรุณาถ่ายใหม่");
+        setPhase("FAILED");
+        return;
+      }
+
+      const result = await fetchResult(finished.captureId);
+      setAnalysis(finished.captureId, result);
+      setStep(3);
+      consumeCapture();
+      router.replace(`/m/store/${id}/result`);
+    } catch (err) {
+      setFailure(messageOf(err));
+      setPhase("FAILED");
+    } finally {
+      running.current = false;
+    }
+  }, [photo, visitId, categoryId, bay, setAnalysis, consumeCapture, router, id]);
+
+  useEffect(() => {
+    void run();
+  }, [run, attempt]);
+
+  // Elapsed clock, purely for the ring. Stops when the work does.
+  useEffect(() => {
+    if (phase === "FAILED") return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setElapsed((Date.now() - startedAt) / 1000), 100);
+    return () => window.clearInterval(timer);
+  }, [phase, attempt]);
+
+  // Landed here without a photo — a reload, or a deep link. Sending them back
+  // to the camera is more useful than an empty ring that never fills.
+  if (!photo || !visitId) {
+    return (
+      <div className="on-dark flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-ink px-6 text-center">
+        <h1 className="text-[19px] font-semibold text-ink-text">ไม่มีภาพที่รอวิเคราะห์</h1>
+        <p className="max-w-[280px] text-[14px] leading-relaxed text-ink-muted">
+          {visitId
+            ? "เริ่มถ่ายภาพชั้นวางเพื่อดูผลการตรวจ"
+            : "ยังไม่ได้เช็คอินที่ร้านนี้ กรุณาเช็คอินก่อนเปิดกล้อง"}
+        </p>
+        <Button
+          size="lg"
+          onClick={() => router.replace(`/m/store/${id}/${visitId ? "capture" : "checkin"}`)}
+        >
+          {visitId ? "เปิดกล้อง" : "ไปหน้าเช็คอิน"}
+        </Button>
+      </div>
+    );
+  }
+
+  const progress = phase === "FAILED" ? 100 : Math.min(96, (step / STEPS.length) * 100 + 8);
 
   return (
     <div className="on-dark relative flex min-h-0 flex-1 flex-col overflow-hidden bg-ink">
       {/* the photo stays visible so the rep keeps context while waiting */}
       <div className="absolute inset-0 opacity-25">
-        <ShelfPhoto />
+        <CaptureFrame photo={photo} fit="cover" />
       </div>
       <div className="absolute inset-0 bg-ink/70" />
 
-      {/* scan line sweeping the frame */}
-      {mode !== "FAILED" && (
+      {phase !== "FAILED" && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div
             className="absolute inset-x-0 h-24"
@@ -61,7 +152,7 @@ export default function ProcessingScreen() {
 
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-6">
         <AnimatePresence mode="wait">
-          {mode === "FAILED" ? (
+          {phase === "FAILED" ? (
             <motion.div
               key="failed"
               initial={{ opacity: 0, scale: 0.96 }}
@@ -77,179 +168,93 @@ export default function ProcessingScreen() {
                 </svg>
               </div>
               <h1 className="mt-4 text-[19px] font-semibold text-ink-text">วิเคราะห์ไม่สำเร็จ</h1>
-              <p className="mt-1.5 text-[14px] leading-relaxed text-ink-muted">
-                เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (NETWORK_TIMEOUT) ภาพถูกเก็บไว้ในเครื่องแล้ว
-                ไม่สูญหาย
-              </p>
+              <p className="mt-1.5 text-[14px] leading-relaxed text-ink-muted">{failure}</p>
               <div className="mt-6 flex w-full flex-col gap-2.5">
-                <Button
-                  size="lg"
-                  full
-                  onClick={() => {
-                    setInspecting(false);
-                    setMode(online ? "ONLINE" : "OFFLINE");
-                  }}
-                >
-                  ลองอีกครั้ง
+                <Button size="lg" full onClick={() => router.replace(`/m/store/${id}/capture`)}>
+                  ถ่ายใหม่
                 </Button>
                 <Button
                   variant="outlineDark"
                   size="lg"
                   full
-                  onClick={() => {
-                    setInspecting(false);
-                    setMode("OFFLINE");
-                  }}
+                  onClick={() => setAttempt((n) => n + 1)}
                 >
-                  วิเคราะห์บนเครื่องแทน
+                  ลองวิเคราะห์ภาพเดิมอีกครั้ง
                 </Button>
               </div>
             </motion.div>
           ) : (
-            <Working
-              key={mode}
-              mode={mode}
-              onDone={
-                inspecting || !justCaptured
-                  ? undefined
-                  : () => {
-                      consumeCapture();
-                      router.push(`/m/store/${id}/result`);
-                    }
-              }
-            />
+            <motion.div
+              key="working"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: easeOut }}
+              className="flex w-full max-w-[320px] flex-col items-center"
+            >
+              <ProgressRing value={progress} size={156} stroke={9} color="#1b6fe8">
+                <div className="text-center">
+                  <p className="tnum text-[34px] font-bold leading-none text-ink-text">
+                    {elapsed.toFixed(1)}
+                  </p>
+                  <p className="mt-1 text-[13px] text-ink-muted">วินาที</p>
+                </div>
+              </ProgressRing>
+
+              <h1 className="mt-6 text-center text-[19px] font-semibold text-ink-text">
+                {phase === "UPLOADING" ? "กำลังอัปโหลดภาพ…" : "กำลังวิเคราะห์ชั้นวาง…"}
+              </h1>
+              <p className="mt-1.5 text-center text-[14px] text-ink-muted">
+                เป้าหมายไม่เกิน 10 วินาที
+              </p>
+
+              <ul className="mt-6 w-full space-y-2.5">
+                {STEPS.map((s, i) => {
+                  const active = step >= i;
+                  const complete = step > i;
+                  return (
+                    <li key={s.id} className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          "grid size-6 shrink-0 place-items-center rounded-full transition-colors duration-300",
+                          complete ? "bg-ok" : active ? "bg-primary" : "bg-ink-3",
+                        )}
+                      >
+                        {complete ? (
+                          <motion.svg
+                            width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={springSnappy}
+                          >
+                            <path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                          </motion.svg>
+                        ) : active ? (
+                          <motion.span
+                            className="size-2.5 rounded-full bg-white"
+                            animate={{ opacity: [1, 0.35, 1] }}
+                            transition={{ duration: 1.1, repeat: Infinity }}
+                          />
+                        ) : null}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[14px] transition-colors duration-300",
+                          active ? "text-ink-text" : "text-ink-muted/60",
+                        )}
+                      >
+                        {s.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <div className="relative shrink-0 px-4 pb-[max(12px,env(safe-area-inset-bottom))]">
-        <StateSwitcher
-          dark
-          value={mode}
-          onChange={(v) => {
-            setInspecting(true);
-            setMode(v);
-          }}
-          options={[
-            { value: "ONLINE", label: "กำลังประมวลผล" },
-            { value: "OFFLINE", label: "โหมดออฟไลน์" },
-            { value: "FAILED", label: "ล้มเหลว" },
-          ]}
-        />
-      </div>
-
       <span className="sr-only" role="status" aria-live="polite">
-        {mode === "FAILED" ? "วิเคราะห์ไม่สำเร็จ" : "กำลังวิเคราะห์ชั้นวาง"}
+        {phase === "FAILED" ? "วิเคราะห์ไม่สำเร็จ" : "กำลังวิเคราะห์ชั้นวาง"}
       </span>
     </div>
-  );
-}
-
-/* Remounted whenever the mode changes (key={mode}), so the timer state
-   starts from zero without ever resetting state inside an effect. */
-function Working({
-  mode,
-  onDone,
-}: {
-  mode: Exclude<Mode, "FAILED">;
-  /** omitted while the screen is being inspected — the ring fills and holds */
-  onDone?: () => void;
-}) {
-  const [progress, setProgress] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const fired = useRef(false);
-
-  useEffect(() => {
-    const started = Date.now();
-    const target = mode === "OFFLINE" ? 5200 : 3400;
-    const tick = window.setInterval(() => {
-      const ms = Date.now() - started;
-      const p = Math.min(100, (ms / target) * 100);
-      // the clock stops when the work does, even if the screen is being held
-      setElapsed(Math.min(ms, target) / 1000);
-      setProgress(p);
-      if (p >= 100 && !fired.current && onDone) {
-        fired.current = true;
-        window.setTimeout(onDone, 420);
-      }
-    }, 90);
-    return () => window.clearInterval(tick);
-  }, [mode, onDone]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3, ease: easeOut }}
-      className="flex w-full max-w-[320px] flex-col items-center"
-    >
-      <ProgressRing
-        value={progress}
-        size={156}
-        stroke={9}
-        color={mode === "OFFLINE" ? "#f79009" : "#1b6fe8"}
-      >
-        <div className="text-center">
-          <p className="tnum text-[34px] font-bold leading-none text-ink-text">
-            {elapsed.toFixed(1)}
-          </p>
-          <p className="mt-1 text-[13px] text-ink-muted">วินาที</p>
-        </div>
-      </ProgressRing>
-
-      <h1 className="mt-6 text-center text-[19px] font-semibold text-ink-text">
-        {mode === "OFFLINE" ? "ไม่มีสัญญาณ — วิเคราะห์บนเครื่อง" : "กำลังวิเคราะห์ชั้นวาง…"}
-      </h1>
-      <p className="mt-1.5 text-center text-[14px] text-ink-muted">
-        {mode === "OFFLINE"
-          ? "โหมดเร็ว ความแม่นยำต่ำกว่าเล็กน้อย และจะประมวลผลซ้ำเมื่อออนไลน์"
-          : "เป้าหมายไม่เกิน 10 วินาที · โมเดล shelf-product-v3"}
-      </p>
-
-      <ul className="mt-6 w-full space-y-2.5">
-        {(mode === "OFFLINE" ? STEPS_OFFLINE : STEPS_ONLINE).map((s) => {
-          const active = progress >= s.at;
-          const complete = progress >= s.at + 32;
-          return (
-            <li key={s.id} className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "grid size-6 shrink-0 place-items-center rounded-full transition-colors duration-300",
-                  complete
-                    ? "bg-ok"
-                    : active
-                      ? mode === "OFFLINE" ? "bg-warn" : "bg-primary"
-                      : "bg-ink-3",
-                )}
-              >
-                {complete ? (
-                  <motion.svg
-                    width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={springSnappy}
-                  >
-                    <path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  </motion.svg>
-                ) : active ? (
-                  <motion.span
-                    className="size-2.5 rounded-full bg-white"
-                    animate={{ opacity: [1, 0.35, 1] }}
-                    transition={{ duration: 1.1, repeat: Infinity }}
-                  />
-                ) : null}
-              </span>
-              <span
-                className={cn(
-                  "text-[14px] transition-colors duration-300",
-                  active ? "text-ink-text" : "text-ink-muted/60",
-                )}
-              >
-                {s.label}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </motion.div>
   );
 }

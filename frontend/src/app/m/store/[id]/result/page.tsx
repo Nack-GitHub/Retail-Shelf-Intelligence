@@ -25,7 +25,6 @@ export default function ResultScreen() {
   const analysis = useDemo((s) => s.analysis);
   const photo = useDemo((s) => s.photo);
   const findings = useDemo((s) => s.findings);
-  const finishCapture = useDemo((s) => s.finishCapture);
   const categoryId = useDemo((s) => s.categoryId);
   const bay = useDemo((s) => s.bay);
   const cat = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
@@ -33,11 +32,6 @@ export default function ResultScreen() {
   const [view, setView] = useState<View>("NORMAL");
   const [filter, setFilter] = useState<OverlayFilter>("ALL");
   const [expanded, setExpanded] = useState(false);
-
-  // deep-linking straight to /result in the demo shouldn't show an empty screen
-  useEffect(() => {
-    if (!analysis) finishCapture();
-  }, [analysis, finishCapture]);
 
   const gapCount = findings.length;
   const lowConf = findings.filter((f) => f.isLowConfidence).length;

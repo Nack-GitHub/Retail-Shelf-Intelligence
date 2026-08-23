@@ -8,7 +8,10 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { Button } from "@/components/ui/Button";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { getStore, CATEGORIES } from "@/lib/mock/data";
+import { fetchStore } from "@/lib/api/routes";
+import { fetchCategories } from "@/lib/api/catalog";
+import { useResource } from "@/lib/api/useResource";
+import { LoadingBlock } from "@/components/ui/AsyncState";
 import { useDemo } from "@/lib/store";
 import { useCamera } from "@/hooks/useCamera";
 import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
@@ -26,15 +29,18 @@ const WARNINGS = [
 export default function CaptureScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
   const reduced = useReducedMotion();
 
   const consent = useDemo((s) => s.consent);
   const categoryId = useDemo((s) => s.categoryId);
   const bay = useDemo((s) => s.bay);
-  const finishCapture = useDemo((s) => s.finishCapture);
+  const stageCapture = useDemo((s) => s.stageCapture);
   const logPhoto = useDemo((s) => s.logPhoto);
-  const cat = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
+
+  const storeResource = useResource(() => fetchStore(id), [id]);
+  const catalog = useResource(() => fetchCategories(id), [id]);
+  const store = storeResource.data;
+  const cat = catalog.data?.find((c) => c.id === categoryId) ?? catalog.data?.[0] ?? null;
 
 
   const [phase, setPhase] = useState<"CAPTURE" | "PREVIEW">("CAPTURE");
@@ -127,10 +133,13 @@ export default function CaptureScreen() {
   }
 
   function usePhoto() {
-    finishCapture(photo);
+    stageCapture(photo);
     router.push(`/m/store/${id}/processing`);
   }
 
+  // The camera is behind two gates: the store's own data must have loaded,
+  // and consent must be recorded (GUARDRAIL — never open the lens without it).
+  if (!store || !cat) return <LoadingBlock label="กำลังเตรียมกล้อง…" />;
   if (!consent) return <ConsentGate storeId={id} storeName={store.name} />;
 
   return (
