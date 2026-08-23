@@ -17,6 +17,7 @@ export function CropView({
   zoomTarget = 0.28,
   className,
   photo,
+  imageUrl,
   imageWidth,
   imageHeight,
 }: {
@@ -26,6 +27,8 @@ export function CropView({
   zoomTarget?: number;
   className?: string;
   photo?: CapturedPhoto | null;
+  /** presigned GET, for a reviewer opening a capture they did not take */
+  imageUrl?: string | null;
   /** pixel space the bbox is expressed in */
   imageWidth: number;
   imageHeight: number;
@@ -49,7 +52,7 @@ export function CropView({
         transition={springSoft}
         style={{ aspectRatio: `${imageWidth} / ${imageHeight}` }}
       >
-        <CaptureFrame photo={photo} fit="contain" />
+        <CaptureFrame photo={photo} imageUrl={imageUrl} fit="contain" />
         <DetectionOverlay
           detections={detections}
           filter="GAP"

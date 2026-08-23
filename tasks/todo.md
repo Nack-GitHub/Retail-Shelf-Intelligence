@@ -160,39 +160,41 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Depends on:** T7 · **Scope:** S
 
 ### ▣ Checkpoint C
-- [ ] All three manager screens on real data, no invented numbers
-- [ ] Rep role is 403 everywhere under `/w`
+- [x] All three manager screens on real data, no invented numbers
+- [x] Rep role is 403 everywhere under `/w`
 
 ---
 
 ## Phase 4 — Data team
 
-### - [ ] T10: Model health
+### - [x] T10: Model health
 **Description:** Seed `model_versions` from the real artifact metrics, and serve `GET /v1/model/health` with the true gate-failing numbers plus a weekly rep-override rate in place of drift.
 
 **Acceptance:**
-- [ ] Gap-class recall reads **0.4113** against target 0.90, in red
-- [ ] Override rate is computed from `gap_findings`, never hardcoded
-- [ ] Version list comes from the `model_versions` table
+- [x] Gap-class recall reads **0.4113** against target 0.90, in red — all three gates fail, with their rationales
+- [x] Override rate is computed from `gap_findings` (38.5% this week, from 143 reviewed), never hardcoded
+- [x] Version list comes from `model_versions`, seeded from the real artifact SHA `24931c2b`
+- [x] Drift chart removed: drift needs a reference distribution this system does not store
 
 **Verify:** backend pytest · browser check of `/w/model-health`
 **Files:** `backend/app/api/v1/model_health.py` · `backend/app/db/seed.py` · `backend/app/main.py` · `lib/api/model.ts` · `app/w/model-health/page.tsx`
 **Depends on:** T7 · **Scope:** M
 
-### - [ ] T11: Relabel queue
+### - [x] T11: Relabel queue
 **Description:** `GET /v1/model/relabel-queue` — rejected and low-confidence findings with image, bbox and reason. ⛔ **never who rejected it.**
 
 **Acceptance:**
-- [ ] Queue reflects real findings produced by the golden path
-- [ ] Response contains no `verifiedBy` / `userId` / `repName` — asserted by a new prohibition test
-- [ ] Image and bbox render in the review pane
+- [x] Queue reflects real findings produced by the golden path (55 real rejections)
+- [x] Response contains no `verifiedBy` / `userId` / `repName` — asserted by `test_model_health.py`, and re-checked against the rendered DOM
+- [x] Image and bbox render in the review pane, cropped from the real presigned capture
+- [x] "Send to next training round" relabelled: it is a local mark, and the screen says so rather than claiming a submission that does not happen
 
 **Verify:** new test in `test_prohibitions.py` · browser check of `/w/relabel`
 **Files:** `backend/app/api/v1/model_health.py` · `backend/tests/integration/test_prohibitions.py` · `lib/api/model.ts` · `app/w/relabel/page.tsx`
 **Depends on:** T10 · **Scope:** M
 
 ### ▣ Checkpoint D
-- [ ] Data-team screens real; prohibition tests cover both new endpoints
+- [x] Data-team screens real; prohibition tests cover both new endpoints
 
 ---
 

@@ -7,31 +7,36 @@ import { CropView } from "@/components/shelf/CropView";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Controls";
-import { buildAnalysis } from "@/lib/mock/shelf";
-import { RELABEL_QUEUE, type RelabelItem } from "@/lib/mock/analytics";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import {
+  fetchRelabelQueue,
+  REJECT_REASON_LABELS,
+  type RelabelItem,
+} from "@/lib/api/model";
+import { useResource } from "@/lib/api/useResource";
 import { listItem, stagger, fadeUp, easeOut, springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/cn";
-
-const analysis = buildAnalysis();
-const GAP_DETECTIONS = analysis.detections.filter((d) => d.semanticType === "GAP");
 
 type Filter = "ALL" | "LOW_CONFIDENCE" | "REP_REJECTED";
 
 export default function RelabelQueue() {
+  const queue = useResource(() => fetchRelabelQueue(60), []);
+
   const [filter, setFilter] = useState<Filter>("ALL");
   const [selected, setSelected] = useState<string[]>([]);
   const [sent, setSent] = useState<string[]>([]);
 
+  const pending = useMemo(
+    () => (queue.data ?? []).filter((i) => !sent.includes(i.findingId)),
+    [queue.data, sent],
+  );
   const items = useMemo(
-    () =>
-      RELABEL_QUEUE.filter((i) => !sent.includes(i.id)).filter((i) =>
-        filter === "ALL" ? true : i.reason === filter,
-      ),
-    [filter, sent],
+    () => pending.filter((i) => (filter === "ALL" ? true : i.reason === filter)),
+    [pending, filter],
   );
 
-  const rejectedCount = RELABEL_QUEUE.filter((i) => !sent.includes(i.id) && i.reason === "REP_REJECTED").length;
-  const lowConfCount = RELABEL_QUEUE.filter((i) => !sent.includes(i.id) && i.reason === "LOW_CONFIDENCE").length;
+  const rejectedCount = pending.filter((i) => i.reason === "REP_REJECTED").length;
+  const lowConfCount = pending.filter((i) => i.reason === "LOW_CONFIDENCE").length;
 
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -62,6 +67,12 @@ export default function RelabelQueue() {
       />
 
       <div className="px-6 py-6 lg:px-8">
+        {queue.state === "LOADING" ? (
+          <LoadingBlock label="กำลังโหลดคิวตรวจภาพ…" />
+        ) : queue.state === "ERROR" ? (
+          <ErrorBlock message={queue.error ?? ""} onRetry={queue.reload} />
+        ) : (
+        <>
         <motion.div
           variants={fadeUp}
           initial="hidden"
@@ -86,10 +97,10 @@ export default function RelabelQueue() {
                 <path d="M5 12.5l5 5L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h2 className="mt-4 text-[18px] font-semibold">ตรวจครบทุกภาพแล้ว</h2>
-            <p className="mt-1.5 max-w-[340px] text-[14px] leading-relaxed text-muted">
-              ภาพที่เลือกไว้ถูกส่งเข้ารอบเทรนถัดไปเรียบร้อย
-              ระบบจะแจ้งเมื่อมีภาพใหม่เข้าคิว
+            <h2 className="mt-4 text-[18px] font-semibold">ไม่มีภาพรอตรวจในคิว</h2>
+            <p className="mt-1.5 max-w-[360px] text-[14px] leading-relaxed text-muted">
+              ภาพจะเข้าคิวอัตโนมัติเมื่อพนักงานตีกลับผลการตรวจ
+              หรือเมื่อโมเดลไม่มั่นใจในจุดที่ตรวจพบ
             </p>
           </motion.div>
         ) : (
@@ -100,17 +111,18 @@ export default function RelabelQueue() {
             className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
           >
             <AnimatePresence mode="popLayout">
-              {items.map((item, i) => (
+              {items.map((item) => (
                 <RelabelCard
-                  key={item.id}
+                  key={item.findingId}
                   item={item}
-                  index={i}
-                  checked={selected.includes(item.id)}
-                  onToggle={() => toggle(item.id)}
+                  checked={selected.includes(item.findingId)}
+                  onToggle={() => toggle(item.findingId)}
                 />
               ))}
             </AnimatePresence>
           </motion.ul>
+        )}
+        </>
         )}
       </div>
 
@@ -136,11 +148,14 @@ export default function RelabelQueue() {
                 ล้างที่เลือก
               </button>
               <div className="flex-1" />
-              <Button variant="secondary" size="sm">
-                มอบหมายให้ผู้ตรวจฉลาก
-              </Button>
+              {/* Marking for the next training round is a local selection in
+                  this build — there is no endpoint behind it yet, and a button
+                  that silently does nothing is worse than one that says so. */}
+              <p className="text-[12px] leading-relaxed text-faint">
+                รุ่นสาธิต: การเลือกยังไม่ถูกส่งไปยังรอบเทรนจริง
+              </p>
               <Button size="sm" onClick={sendToRetrain}>
-                ส่งเข้ารอบเทรนถัดไป
+                ทำเครื่องหมายว่าตรวจแล้ว
               </Button>
             </div>
           </motion.div>
@@ -152,16 +167,22 @@ export default function RelabelQueue() {
 
 function RelabelCard({
   item,
-  index,
   checked,
   onToggle,
 }: {
   item: RelabelItem;
-  index: number;
   checked: boolean;
   onToggle: () => void;
 }) {
-  const det = GAP_DETECTIONS[index % GAP_DETECTIONS.length];
+  const capturedLabel = item.capturedAt
+    ? new Date(item.capturedAt).toLocaleString("th-TH", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "ไม่ทราบเวลา";
+
   return (
     <motion.li
       variants={listItem}
@@ -175,14 +196,33 @@ function RelabelCard({
         )}
       >
         <div className="relative">
-          <CropView
-            bbox={det.bbox}
-            detections={analysis.detections}
-            focusId={det.detectionId}
-            zoomTarget={0.42}
-            imageWidth={analysis.imageWidth}
-            imageHeight={analysis.imageHeight}
-          />
+          {/* The real crop, from the real capture. A reviewer relabelling a
+              stand-in image would be labelling nothing. */}
+          {item.bbox && item.imageUrl && item.imageWidth && item.imageHeight ? (
+            <CropView
+              bbox={item.bbox}
+              detections={[
+                {
+                  detectionId: item.findingId,
+                  classId: -1,
+                  className: "",
+                  semanticType: "GAP",
+                  bbox: item.bbox,
+                  confidence: item.confidence,
+                  shelfRowIndex: 0,
+                },
+              ]}
+              focusId={item.findingId}
+              zoomTarget={0.42}
+              imageUrl={item.imageUrl}
+              imageWidth={item.imageWidth}
+              imageHeight={item.imageHeight}
+            />
+          ) : (
+            <div className="grid aspect-[16/10] place-items-center bg-surface-2 px-4 text-center text-[13px] text-muted">
+              ไม่มีภาพสำหรับรายการนี้
+            </div>
+          )}
           <label
             className="absolute left-3 top-3 flex cursor-pointer items-center gap-2 rounded-pill bg-ink/70 px-2.5 py-1.5 backdrop-blur-sm"
           >
@@ -208,9 +248,9 @@ function RelabelCard({
         <div className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold">{item.store}</p>
+              <p className="truncate text-[14px] font-semibold">{item.storeName}</p>
               <p className="truncate text-[13px] text-muted">
-                {item.category} · {item.capturedAt}
+                {item.category} · {capturedLabel}
               </p>
             </div>
             <Pill tone={item.reason === "REP_REJECTED" ? "warn" : "uncertain"} className="shrink-0 text-[12px]">
@@ -219,8 +259,9 @@ function RelabelCard({
           </div>
 
           {item.rejectedReason && (
+            /* ⛔ The reason, never the person who gave it. */
             <p className="mt-2 rounded-inset bg-surface px-2.5 py-1.5 text-[13px] text-muted">
-              เหตุผล: {item.rejectedReason}
+              เหตุผล: {REJECT_REASON_LABELS[item.rejectedReason] ?? item.rejectedReason}
             </p>
           )}
 

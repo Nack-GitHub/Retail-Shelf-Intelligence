@@ -15,6 +15,7 @@ from app.api.v1 import (
     captures,
     catalog,
     findings,
+    model_health,
     routes,
     stores,
     sync,
@@ -103,6 +104,7 @@ for router in (
     tasks.router,
     analytics.router,
     areas.router,
+    model_health.router,
     sync.router,
 ):
     app.include_router(router, prefix="/v1")
