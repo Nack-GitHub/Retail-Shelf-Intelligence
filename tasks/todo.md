@@ -116,13 +116,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 
 ## Phase 3 — Manager web
 
-### - [ ] T7: KPIs + areas + dashboard
+### - [x] T7: KPIs + areas + dashboard
 **Description:** `GET /v1/analytics/kpis` (only the computable KPIs), `GET /v1/areas`, and `/w` wired to those plus the existing OSA-trend and risk-ranking endpoints.
 
 **Acceptance:**
-- [ ] Three KPI cards, not four — "ต้นทุนต่อการตรวจ" is absent, not invented
-- [ ] Trend buckets by real week from `shelf_analyses`
-- [ ] A rep token gets 403 on every analytics endpoint
+- [x] Three KPI cards, not four — "ต้นทุนต่อการตรวจ" is absent, not invented
+- [x] Trend buckets by real week from `shelf_analyses`; under two buckets the chart says so instead of drawing a line through one point
+- [x] A rep token gets 403 on every analytics endpoint — verified in the browser, Thai message shown
+- [x] KPI deltas compare the preceding window of equal length; `null` when there is no earlier window, so no chip is drawn
+- [x] Dropped the per-store OSA-delta column: not computed, and not worth a second query for a demo
 
 **Verify:** backend pytest incl. a no-`userId`-in-response assertion (⛔1) · browser check of `/w`
 **Files:** `backend/app/api/v1/{analytics,areas}.py` · `lib/api/analytics.ts` · `app/w/page.tsx` · `components/web/WebShell.tsx`
@@ -140,13 +142,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `app/w/stores/[id]/page.tsx` · `components/web/EvidenceViewer.tsx` · `lib/api/analytics.ts`
 **Depends on:** T2, T7 · **Scope:** M
 
-### - [ ] T9: Route plan
+### - [x] T9: Route plan
 **Description:** `GET /v1/analytics/route-plan` — store-level risk ordering with `avgVisitMinutes` from closed visits, `null` when never visited.
 
 **Acceptance:**
-- [ ] Ordering matches `risk_score` DESC
-- [ ] `avgVisitMinutes` renders "—" when null, never a fabricated estimate
-- [ ] Drag-to-reorder still works client-side
+- [x] Ordering matches `risk_score` DESC
+- [x] `avgVisitMinutes` renders "—" when null, never a fabricated estimate
+- [x] Drag-to-reorder still works client-side
+- [x] "Sort by distance" replaced with "by staleness": a weekly plan has no current position to measure distance from
+- [x] Fixed: coverage read 0% and warned about excluded high-risk stores when there were none
 
 **Verify:** backend pytest · browser check of `/w/routes`
 **Files:** `backend/app/api/v1/analytics.py` · `lib/api/analytics.ts` · `app/w/routes/page.tsx`

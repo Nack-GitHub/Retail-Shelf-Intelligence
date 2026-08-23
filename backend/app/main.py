@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     analytics,
+    areas,
     auth,
     captures,
     catalog,
@@ -101,6 +102,7 @@ for router in (
     findings.router,
     tasks.router,
     analytics.router,
+    areas.router,
     sync.router,
 ):
     app.include_router(router, prefix="/v1")

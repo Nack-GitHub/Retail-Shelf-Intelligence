@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
@@ -10,23 +10,47 @@ import { CountUp, Bar } from "@/components/ui/Progress";
 import { RiskBadge, Pill } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Controls";
 import { Button } from "@/components/ui/Button";
-import { KPIS, OSA_TREND, RISK_RANKING } from "@/lib/mock/analytics";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { useResource } from "@/lib/api/useResource";
+import { fetchKpis, fetchOsaTrend, fetchRiskRanking } from "@/lib/api/analytics";
+import { useArea } from "@/components/web/WebShell";
 import { listItem, stagger, fadeUp, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 type Range = "4W" | "12W" | "26W";
 
+const RANGE_DAYS: Record<Range, number> = { "4W": 28, "12W": 84, "26W": 182 };
+
 export default function AreaDashboard() {
   const router = useRouter();
   const [range, setRange] = useState<Range>("12W");
+  const { areaId, areaName } = useArea();
+  const days = RANGE_DAYS[range];
 
-  const trend = range === "4W" ? OSA_TREND.slice(-4) : OSA_TREND;
+  const kpis = useResource(() => fetchKpis(areaId, days), [areaId, days]);
+  const osa = useResource(() => fetchOsaTrend({ areaId, days }), [areaId, days]);
+  const risk = useResource(() => fetchRiskRanking(areaId), [areaId]);
+
+  const trend = useMemo(
+    () =>
+      (osa.data ?? []).map((p) => ({
+        // "2026-08-17" → "17 ส.ค." — the axis has no room for a full date
+        label: new Date(p.bucket).toLocaleDateString("th-TH", {
+          day: "numeric",
+          month: "short",
+        }),
+        value: p.osa,
+      })),
+    [osa.data],
+  );
+
+  const rows = risk.data ?? [];
 
   return (
     <>
       <PageHeader
         title="ภาพรวมพื้นที่"
-        subtitle="กรุงเทพฯ ตะวันออก · ข้อมูลถึง 22 ส.ค. 2569 เวลา 09:30 น."
+        subtitle={`${areaName} · ข้อมูลสด ณ เวลาที่เปิดหน้านี้`}
         actions={
           <>
             <Segmented
@@ -48,67 +72,88 @@ export default function AreaDashboard() {
 
       <div className="px-6 py-6 lg:px-8">
         {/* ---------- KPI row ---------- */}
-        <motion.ul
-          variants={stagger(0.06)}
-          initial="hidden"
-          animate="show"
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        >
-          {KPIS.map((k) => {
-            const positive = k.good === "up" ? k.delta > 0 : k.delta < 0;
-            const progress = k.good === "up" ? (k.value / k.target) * 100 : (k.target / k.value) * 100;
-            return (
-              <motion.li
-                key={k.id}
-                variants={listItem}
-                className="rounded-card border border-line bg-bg p-5 shadow-[var(--shadow-card)]"
-              >
-                <p className="min-h-[38px] text-[13px] leading-snug text-muted">{k.label}</p>
-                <p className="mt-2 flex items-baseline gap-1.5">
-                  <CountUp
-                    to={k.value}
-                    decimals={k.value % 1 === 0 ? 0 : 1}
-                    className="text-[32px] font-bold leading-none tracking-tight"
-                  />
-                  <span className="text-[15px] font-medium text-muted">{k.unit}</span>
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[12px] font-semibold",
-                      positive ? "bg-ok-soft text-[#07794a]" : "bg-danger-soft text-[#a52218]",
-                    )}
-                  >
-                    <svg
-                      width="12" height="12" viewBox="0 0 24 24" fill="none"
-                      className={k.delta > 0 ? "" : "rotate-180"}
-                      aria-hidden
-                    >
-                      <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span className="tnum">{Math.abs(k.delta)}{k.unit === "%" ? " จุด" : ""}</span>
-                  </span>
-                  <span className="text-[12px] text-faint">{k.deltaLabel}</span>
-                </div>
-                <div className="mt-3.5 border-t border-line pt-3">
-                  <div className="flex items-center justify-between text-[12px] text-muted">
-                    <span>เทียบเป้าหมาย</span>
-                    <span className="tnum">
-                      {k.target}
-                      {k.unit === "%" ? "%" : ` ${k.unit}`}
-                    </span>
-                  </div>
-                  <Bar
-                    value={Math.min(100, progress)}
-                    tone={progress >= 100 ? "ok" : progress >= 85 ? "warn" : "danger"}
-                    className="mt-1.5 w-full"
-                    height={5}
-                  />
-                </div>
-              </motion.li>
-            );
-          })}
-        </motion.ul>
+        {kpis.state === "LOADING" ? (
+          <LoadingBlock label="กำลังโหลดตัวชี้วัด…" />
+        ) : kpis.state === "ERROR" ? (
+          <ErrorBlock message={kpis.error ?? ""} onRetry={kpis.reload} />
+        ) : (
+          <motion.ul
+            variants={stagger(0.06)}
+            initial="hidden"
+            animate="show"
+            className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            {(kpis.data ?? []).map((k) => {
+              // delta is null when there is no earlier window to compare
+              // against — no chip at all beats a "0" that reads as "steady".
+              const positive =
+                k.delta === null ? null : k.good === "up" ? k.delta > 0 : k.delta < 0;
+              const progress =
+                k.target === null
+                  ? null
+                  : k.good === "up"
+                    ? (k.value / k.target) * 100
+                    : (k.target / k.value) * 100;
+              return (
+                <motion.li
+                  key={k.id}
+                  variants={listItem}
+                  className="rounded-card border border-line bg-bg p-5 shadow-[var(--shadow-card)]"
+                >
+                  <p className="min-h-[38px] text-[13px] leading-snug text-muted">{k.label}</p>
+                  <p className="mt-2 flex items-baseline gap-1.5">
+                    <CountUp
+                      to={k.value}
+                      decimals={k.value % 1 === 0 ? 0 : 1}
+                      className="text-[32px] font-bold leading-none tracking-tight"
+                    />
+                    <span className="text-[15px] font-medium text-muted">{k.unit}</span>
+                  </p>
+                  {k.delta !== null && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[12px] font-semibold",
+                          positive ? "bg-ok-soft text-[#07794a]" : "bg-danger-soft text-[#a52218]",
+                        )}
+                      >
+                        <svg
+                          width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          className={k.delta > 0 ? "" : "rotate-180"}
+                          aria-hidden
+                        >
+                          <path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="tnum">
+                          {Math.abs(k.delta)}
+                          {k.unit === "%" ? " จุด" : ""}
+                        </span>
+                      </span>
+                      <span className="text-[12px] text-faint">{k.deltaLabel}</span>
+                    </div>
+                  )}
+                  {progress !== null && k.target !== null && (
+                    <div className="mt-3.5 border-t border-line pt-3">
+                      <div className="flex items-center justify-between text-[12px] text-muted">
+                        <span>เทียบเป้าหมาย</span>
+                        <span className="tnum">
+                          {k.target}
+                          {k.unit === "%" ? "%" : ` ${k.unit}`}
+                        </span>
+                      </div>
+                      <Bar
+                        value={Math.min(100, progress)}
+                        tone={progress >= 100 ? "ok" : progress >= 85 ? "warn" : "danger"}
+                        className="mt-1.5 w-full"
+                        height={5}
+                      />
+                    </div>
+                  )}
+                </motion.li>
+              );
+            })}
+          </motion.ul>
+        )}
 
         {/* ---------- trend ---------- */}
         <motion.section
@@ -131,7 +176,21 @@ export default function AreaDashboard() {
             </div>
           </div>
           <div className="px-3 py-4 sm:px-5">
-            <LineChart data={trend.map((t) => ({ label: t.week, value: t.osa }))} target={90} targetLabel="เป้าหมาย 90%" height={260} />
+            {osa.state === "LOADING" ? (
+              <LoadingBlock label="กำลังโหลดแนวโน้ม…" />
+            ) : osa.state === "ERROR" ? (
+              <ErrorBlock message={osa.error ?? ""} onRetry={osa.reload} />
+            ) : trend.length < 2 ? (
+              /* One point is not a trend. Drawing a line through it would
+                 imply a direction the data cannot support. */
+              <p className="px-2 py-14 text-center text-[14px] leading-relaxed text-muted">
+                ยังมีข้อมูลไม่พอสำหรับแนวโน้ม
+                <br />
+                ต้องมีผลการตรวจอย่างน้อย 2 สัปดาห์จึงจะแสดงกราฟได้
+              </p>
+            ) : (
+              <LineChart data={trend} target={90} targetLabel="เป้าหมาย 90%" height={260} />
+            )}
           </div>
         </motion.section>
 
@@ -151,82 +210,93 @@ export default function AreaDashboard() {
               </p>
             </div>
             <Pill tone="neutral">
-              <span className="tnum">{RISK_RANKING.length}</span> ร้าน
+              <span className="tnum">{rows.length}</span> ร้าน
             </Pill>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-line bg-surface/60">
-                  {["ร้าน", "OSA", "เปลี่ยนแปลง", "SKU ที่ขาดซ้ำ", "ตรวจครั้งล่าสุด", "ระดับความเสี่ยง", ""].map((h) => (
-                    <th
-                      key={h}
-                      scope="col"
-                      className="px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-muted"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {RISK_RANKING.map((r, i) => (
-                  <motion.tr
-                    key={r.storeId}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.4 + i * 0.03, duration: 0.3, ease: easeOut }}
-                    onClick={() => router.push(`/w/stores/${r.storeId}`)}
-                    className="cursor-pointer border-b border-line last:border-0 transition-colors hover:bg-surface"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="text-[14px] font-medium">{r.name}</p>
-                      <p className="text-[12px] text-muted">{r.chain}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="tnum text-[15px] font-semibold">{r.osa}%</span>
-                        <Bar
-                          value={r.osa}
-                          tone={r.osa >= 90 ? "ok" : r.osa >= 75 ? "warn" : "danger"}
-                          className="w-16"
-                          height={5}
-                          delay={0.45 + i * 0.03}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "tnum inline-flex items-center gap-1 text-[13px] font-medium",
-                          r.osaDelta >= 0 ? "text-ok" : "text-danger",
-                        )}
+          {risk.state === "LOADING" ? (
+            <LoadingBlock label="กำลังจัดอันดับร้าน…" />
+          ) : risk.state === "ERROR" ? (
+            <div className="p-5">
+              <ErrorBlock message={risk.error ?? ""} onRetry={risk.reload} />
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="px-5 py-12 text-center text-[14px] text-muted">
+              ยังไม่มีร้านในพื้นที่นี้
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-line bg-surface/60">
+                    {["ร้าน", "OSA ล่าสุด", "SKU ที่ขาดซ้ำ", "ตรวจครั้งล่าสุด", "ระดับความเสี่ยง", ""].map((h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-muted"
                       >
-                        {r.osaDelta >= 0 ? "▲" : "▼"} {Math.abs(r.osaDelta).toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="tnum px-4 py-3 text-[14px]">{r.repeatGapSkus}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-[14px]">{r.lastVisit}</p>
-                      <p className="tnum text-[12px] text-muted">{r.daysSince} วันก่อน</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <RiskBadge band={r.risk} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="inline-flex items-center gap-1 text-[13px] font-medium text-primary">
-                        ดูหลักฐาน
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <motion.tr
+                      key={r.storeId}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 + i * 0.03, duration: 0.3, ease: easeOut }}
+                      onClick={() => router.push(`/w/stores/${r.storeId}`)}
+                      className="cursor-pointer border-b border-line last:border-0 transition-colors hover:bg-surface"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="text-[14px] font-medium">{r.storeName}</p>
+                        <p className="text-[12px] text-muted">{r.chain}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* Never measured is not zero — an empty bar here would
+                            read as a shelf stripped bare. */}
+                        {r.lastOsa === null ? (
+                          <span className="text-[13px] text-muted">ยังไม่เคยตรวจ</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="tnum text-[15px] font-semibold">{r.lastOsa}%</span>
+                            <Bar
+                              value={r.lastOsa}
+                              tone={r.lastOsa >= 90 ? "ok" : r.lastOsa >= 75 ? "warn" : "danger"}
+                              className="w-16"
+                              height={5}
+                              delay={0.45 + i * 0.03}
+                            />
+                          </div>
+                        )}
+                      </td>
+                      <td className="tnum px-4 py-3 text-[14px]">{r.repeatGapSkus}</td>
+                      <td className="px-4 py-3">
+                        {r.daysSinceLastVisit === null ? (
+                          <p className="text-[13px] text-muted">ยังไม่เคยเข้า</p>
+                        ) : (
+                          <p className="tnum text-[14px]">{r.daysSinceLastVisit} วันก่อน</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <RiskBadge band={r.riskBand} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="inline-flex items-center gap-1 text-[13px] font-medium text-primary">
+                          ดูหลักฐาน
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </motion.section>
 
         <motion.p

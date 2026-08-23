@@ -3,12 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
-import { MANAGER_USER, } from "@/lib/mock/data";
-import { AREAS } from "@/lib/mock/analytics";
+import { useSession } from "@/components/auth/AuthGate";
+import { fetchAreas, type Area } from "@/lib/api/analytics";
+import { useResource } from "@/lib/api/useResource";
 import { springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+
+/* The area picker lives in the shell, and every screen under it reports on
+   whichever area is selected. Passing it through context rather than a query
+   param keeps the pages from each inventing their own default. */
+
+interface AreaSelection {
+  /** undefined means "all areas" — the API treats a missing areaId that way */
+  areaId: string | undefined;
+  areaName: string;
+  areas: Area[];
+  setAreaId: (id: string | undefined) => void;
+}
+
+const AreaContext = createContext<AreaSelection>({
+  areaId: undefined,
+  areaName: "ทุกพื้นที่",
+  areas: [],
+  setAreaId: () => {},
+});
+
+export function useArea(): AreaSelection {
+  return useContext(AreaContext);
+}
 
 const NAV = [
   { href: "/w", label: "ภาพรวมพื้นที่", code: "W1", icon: GridIcon },
@@ -19,9 +43,28 @@ const NAV = [
 
 export function WebShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [area, setArea] = useState(AREAS[0].id);
+  const { user } = useSession();
+  const areasResource = useResource(() => fetchAreas(), []);
+  const areas = useMemo(() => areasResource.data ?? [], [areasResource.data]);
+  const [areaId, setAreaId] = useState<string | undefined>(undefined);
+
+  // Default to the manager's own area once it is known, rather than to
+  // whichever area happens to sort first.
+  useEffect(() => {
+    if (areaId || areas.length === 0) return;
+    const own = user?.areaId && areas.some((a) => a.id === user.areaId) ? user.areaId : areas[0].id;
+    setAreaId(own);
+  }, [areas, areaId, user?.areaId]);
+
+  const selection: AreaSelection = {
+    areaId,
+    areaName: areas.find((a) => a.id === areaId)?.name ?? "ทุกพื้นที่",
+    areas,
+    setAreaId,
+  };
 
   return (
+    <AreaContext.Provider value={selection}>
     <div className="min-h-dvh bg-surface lg:grid lg:grid-cols-[248px_1fr]">
       {/* ---------- sidebar ---------- */}
       <aside className="sticky top-0 z-40 border-b border-line bg-bg lg:h-dvh lg:border-b-0 lg:border-r">
@@ -73,21 +116,24 @@ export function WebShell({ children }: { children: React.ReactNode }) {
             <label className="sr-only" htmlFor="area">เลือกพื้นที่</label>
             <select
               id="area"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
+              value={areaId ?? ""}
+              onChange={(e) => setAreaId(e.target.value || undefined)}
               className="mt-1.5 h-9 w-full rounded-inset border border-line-strong bg-bg px-2 text-[13px] outline-none focus:border-primary"
             >
-              {AREAS.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
+              <option value="">ทุกพื้นที่</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.storeCount})
+                </option>
               ))}
             </select>
             <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-[12px] font-semibold text-primary-ink">
-                {MANAGER_USER.name.slice(0, 1)}
+                {user?.fullName.slice(0, 1) ?? "?"}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">{MANAGER_USER.name}</p>
-                <p className="truncate text-[12px] text-muted">ผู้จัดการพื้นที่</p>
+                <p className="truncate text-[13px] font-medium">{user?.fullName ?? "—"}</p>
+                <p className="truncate text-[12px] text-muted">{ROLE_LABELS[user?.role ?? ""] ?? ""}</p>
               </div>
             </div>
           </div>
@@ -101,9 +147,17 @@ export function WebShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0">{children}</div>
-    </div>
+      </div>
+    </AreaContext.Provider>
   );
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  REP: "พนักงานภาคสนาม",
+  MANAGER: "ผู้จัดการพื้นที่",
+  ADMIN: "ผู้ดูแลระบบ",
+  DATA: "ทีมข้อมูล",
+};
 
 export function PageHeader({
   title,

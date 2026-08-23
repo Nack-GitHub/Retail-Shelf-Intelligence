@@ -82,6 +82,12 @@ class RouteStopOut(StoreRiskOut):
     distance_km: float
 
 
+class AreaOut(ApiModel):
+    id: str
+    name: str
+    store_count: int
+
+
 class ShelfCategoryOut(ApiModel):
     """A shelf a rep can choose to photograph.
 

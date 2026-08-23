@@ -30,6 +30,7 @@ from app.db.models import (
     GapFindingRow,
     ShelfAnalysisRow,
     Store,
+    TaskRow,
     User,
     Visit,
 )
@@ -177,3 +178,178 @@ async def store_history(
             for v in visits
         ],
     }
+
+
+@router.get("/analytics/kpis")
+async def kpis(
+    days: int = Query(28, ge=1, le=365),
+    area_id: str | None = Query(None, alias="areaId"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(manager_only),
+) -> dict:
+    """The headline numbers, and ONLY the ones the database can answer.
+
+    "ต้นทุนต่อการตรวจ" is deliberately absent: there is no cost data anywhere
+    in this system, and a card showing an estimate would sit beside measured
+    numbers with nothing to tell a reader which is which. The frontend renders
+    whatever arrives, so an absent KPI simply is not drawn.
+
+    ⛔ Every figure here is an area or store aggregate. None may be per rep.
+    """
+    now = datetime.now(UTC)
+    since = now - timedelta(days=days)
+    # The preceding window of equal length. A delta against "some earlier time"
+    # would not be comparable; against the same span it is.
+    previous_since = since - timedelta(days=days)
+    cards: list[dict] = []
+
+    def scoped(query):
+        return query.where(Store.area_id == area_id) if area_id else query
+
+    def osa_between(start, end):
+        return scoped(
+            select(func.avg(ShelfAnalysisRow.osa_score))
+            .join(Capture, Capture.id == ShelfAnalysisRow.capture_id)
+            .join(Visit, Visit.id == Capture.visit_id)
+            .join(Store, Store.id == Visit.store_id)
+            .where(ShelfAnalysisRow.computed_at >= start, ShelfAnalysisRow.computed_at < end)
+        )
+
+    def visits_between(start, end):
+        return scoped(
+            select(func.count(Visit.id))
+            .join(Store, Store.id == Visit.store_id)
+            .where(Visit.checked_in_at >= start, Visit.checked_in_at < end)
+        )
+
+    def ttr_between(start, end):
+        # Detection to shelf: how long a confirmed gap waits before someone
+        # actually puts the product back. The number trade marketing argues about.
+        return scoped(
+            select(func.avg(TaskRow.completed_at - GapFindingRow.created_at))
+            .join(GapFindingRow, GapFindingRow.id == TaskRow.gap_finding_id)
+            .join(Capture, Capture.id == GapFindingRow.capture_id)
+            .join(Visit, Visit.id == Capture.visit_id)
+            .join(Store, Store.id == Visit.store_id)
+            .where(TaskRow.status == "FIXED", TaskRow.completed_at.is_not(None))
+            .where(GapFindingRow.created_at >= start, GapFindingRow.created_at < end)
+        )
+
+    previous_label = f"เทียบ {days} วันก่อนหน้า"
+
+    osa = (await db.execute(osa_between(since, now))).scalar()
+    if osa is not None:
+        previous = (await db.execute(osa_between(previous_since, since))).scalar()
+        value = round(float(osa) * 100, 1)
+        cards.append(
+            {
+                "id": "osa",
+                "label": "OSA เฉลี่ยของพื้นที่",
+                "value": value,
+                "unit": "%",
+                # null, not zero: with no earlier window there is no change to
+                # report, and "0" would read as "held steady".
+                "delta": (
+                    round(value - float(previous) * 100, 1) if previous is not None else None
+                ),
+                "deltaLabel": previous_label,
+                "good": "up",
+                "target": 90,
+            }
+        )
+
+    ttr = (await db.execute(ttr_between(since, now))).scalar()
+    if ttr is not None:
+        previous = (await db.execute(ttr_between(previous_since, since))).scalar()
+        minutes = round(ttr.total_seconds() / 60, 1)
+        cards.append(
+            {
+                "id": "ttr",
+                "label": "เวลาเฉลี่ยจากตรวจพบถึงเติมของสำเร็จ",
+                "value": minutes,
+                "unit": "นาที",
+                "delta": (
+                    round(minutes - previous.total_seconds() / 60, 1)
+                    if previous is not None
+                    else None
+                ),
+                "deltaLabel": previous_label,
+                "good": "down",
+                "target": 30,
+            }
+        )
+
+    visits = (await db.execute(visits_between(since, now))).scalar() or 0
+    previous_visits = (await db.execute(visits_between(previous_since, since))).scalar() or 0
+    cards.append(
+        {
+            "id": "visits",
+            "label": f"ร้านที่ตรวจใน {days} วันล่าสุด",
+            "value": visits,
+            "unit": "ร้าน",
+            "delta": visits - previous_visits,
+            "deltaLabel": previous_label,
+            "good": "up",
+            "target": None,
+        }
+    )
+
+    return {"areaId": area_id, "days": days, "kpis": cards}
+
+
+@router.get("/analytics/route-plan")
+async def route_plan(
+    area_id: str | None = Query(None, alias="areaId"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(manager_only),
+) -> dict:
+    """Next week's visits, worst store first.
+
+    `avgVisitMinutes` is measured from this store's own closed visits and is
+    null when there are none. Filling that gap with a default would place a
+    fabricated duration beside measured ones with nothing to tell them apart.
+    """
+    query = select(Store)
+    if area_id:
+        query = query.where(Store.area_id == area_id)
+    stores = (await db.execute(query)).scalars().all()
+
+    facts = await store_risk.load(db, [s.id for s in stores])
+
+    durations = dict(
+        (
+            await db.execute(
+                select(
+                    Visit.store_id,
+                    func.avg(Visit.checked_out_at - Visit.checked_in_at),
+                )
+                .where(Visit.checked_out_at.is_not(None))
+                .group_by(Visit.store_id)
+            )
+        ).all()
+    )
+
+    stops = []
+    for store in stores:
+        risk = store_risk.for_store(facts, store.id)
+        duration = durations.get(store.id)
+        stops.append(
+            {
+                "storeId": str(store.id),
+                "storeName": store.name,
+                "chain": store.chain,
+                "areaId": store.area_id,
+                "lastOsa": risk.last_osa,
+                "daysSinceLastVisit": risk.days_since_last_visit,
+                "repeatGapSkus": risk.repeat_gap_skus,
+                "riskScore": risk.score,
+                "riskBand": risk.band,
+                "avgVisitMinutes": (
+                    round(duration.total_seconds() / 60) if duration is not None else None
+                ),
+            }
+        )
+
+    stops.sort(key=lambda s: -s["riskScore"])
+    return {"areaId": area_id, "stops": stops[:limit]}

@@ -1,37 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, Reorder, AnimatePresence } from "motion/react";
 import { PageHeader } from "@/components/web/WebShell";
 import { Button } from "@/components/ui/Button";
 import { RiskBadge, Pill } from "@/components/ui/Badge";
 import { Bar } from "@/components/ui/Progress";
 import { Segmented } from "@/components/ui/Controls";
-import { NEXT_WEEK_PLAN, type PlannedStop } from "@/lib/mock/analytics";
+import { fetchRoutePlan, type PlannedStop } from "@/lib/api/analytics";
+import { useResource } from "@/lib/api/useResource";
+import { useArea } from "@/components/web/WebShell";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { fadeUp, easeOut, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
+/* Sorting by distance is deliberately not offered: a weekly plan has no
+   "current position" to measure from, and the only honest second axis is how
+   long a store has gone unvisited. */
+type Sort = "RISK" | "STALENESS";
+
 export default function RoutePlanning() {
-  const [stops, setStops] = useState<PlannedStop[]>(NEXT_WEEK_PLAN);
+  const { areaId, areaName } = useArea();
+  const plan = useResource(() => fetchRoutePlan(areaId), [areaId]);
+
+  const [stops, setStops] = useState<PlannedStop[]>([]);
   const [excluded, setExcluded] = useState<string[]>([]);
-  const [sort, setSort] = useState<"RISK" | "DISTANCE">("RISK");
+  const [sort, setSort] = useState<Sort>("RISK");
   const [approved, setApproved] = useState(false);
 
-  const active = stops.filter((s) => !excluded.includes(s.storeId));
-  const totalKm = active.reduce((a, s) => a + s.distanceKm, 0);
-  const totalMin = active.reduce((a, s) => a + s.estMinutes, 0);
-  const highRisk = active.filter((s) => s.risk === "HIGH").length;
-  const coverage = Math.round(
-    (active.filter((s) => s.risk === "HIGH").length /
-      Math.max(1, stops.filter((s) => s.risk === "HIGH").length)) *
-      100,
-  );
+  // The list is reorderable, so it becomes local state once it arrives.
+  useEffect(() => {
+    if (plan.data) setStops(plan.data);
+  }, [plan.data]);
 
-  function applySort(next: "RISK" | "DISTANCE") {
+  const active = stops.filter((s) => !excluded.includes(s.storeId));
+  // Only stores with a measured average contribute; a null is skipped rather
+  // than counted as zero, and the label says how many are still unmeasured.
+  const measured = active.filter((s) => s.avgVisitMinutes !== null);
+  const totalMin = measured.reduce((a, s) => a + (s.avgVisitMinutes ?? 0), 0);
+  const highRisk = active.filter((s) => s.riskBand === "HIGH").length;
+  const highRiskTotal = stops.filter((s) => s.riskBand === "HIGH").length;
+  // No high-risk stores means nothing can be missed. Dividing by a clamped 1
+  // reported 0% coverage and warned about excluded stores that did not exist.
+  const coverage = highRiskTotal === 0 ? 100 : Math.round((highRisk / highRiskTotal) * 100);
+
+  function applySort(next: Sort) {
     setSort(next);
     setStops((prev) =>
       [...prev].sort((a, b) =>
-        next === "RISK" ? b.riskScore - a.riskScore : a.distanceKm - b.distanceKm,
+        next === "RISK"
+          ? b.riskScore - a.riskScore
+          : (b.daysSinceLastVisit ?? Infinity) - (a.daysSinceLastVisit ?? Infinity),
       ),
     );
   }
@@ -45,7 +64,7 @@ export default function RoutePlanning() {
     <>
       <PageHeader
         title="วางแผนเส้นทางสัปดาห์หน้า"
-        subtitle="25–29 สิงหาคม 2569 · จัดลำดับตามความเสี่ยงระดับร้าน"
+        subtitle={`${areaName} · จัดลำดับตามความเสี่ยงระดับร้าน`}
         actions={
           <Segmented
             ariaLabel="เกณฑ์การจัดลำดับ"
@@ -53,7 +72,7 @@ export default function RoutePlanning() {
             onChange={applySort}
             options={[
               { value: "RISK", label: "ตามความเสี่ยง" },
-              { value: "DISTANCE", label: "ตามระยะทาง" },
+              { value: "STALENESS", label: "ตามวันที่ไม่ได้เข้า" },
             ]}
           />
         }
@@ -69,6 +88,15 @@ export default function RoutePlanning() {
             <p className="text-[13px] text-muted">ลากเพื่อจัดลำดับใหม่</p>
           </div>
 
+          {plan.state === "LOADING" ? (
+            <LoadingBlock label="กำลังจัดลำดับร้าน…" />
+          ) : plan.state === "ERROR" ? (
+            <ErrorBlock message={plan.error ?? ""} onRetry={plan.reload} />
+          ) : stops.length === 0 ? (
+            <p className="rounded-card border border-line bg-bg px-6 py-14 text-center text-[14px] text-muted">
+              ยังไม่มีร้านในพื้นที่นี้ให้วางแผน
+            </p>
+          ) : (
           <Reorder.Group axis="y" values={stops} onReorder={setStops} className="flex flex-col gap-2.5">
             {stops.map((s, i) => {
               const off = excluded.includes(s.storeId);
@@ -99,31 +127,48 @@ export default function RoutePlanning() {
                     </span>
 
                     <div className="min-w-[150px] flex-1">
-                      <p className="text-[15px] font-semibold leading-snug">{s.name}</p>
+                      <p className="text-[15px] font-semibold leading-snug">{s.storeName}</p>
                       <p className="text-[13px] text-muted">{s.chain}</p>
                     </div>
 
                     <div className="w-[104px]">
                       <p className="text-[12px] text-muted">OSA ล่าสุด</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className="tnum text-[14px] font-semibold">{s.osa}%</span>
-                        <Bar value={s.osa} tone={s.osa >= 90 ? "ok" : s.osa >= 75 ? "warn" : "danger"} className="flex-1" height={5} />
-                      </div>
+                      {s.lastOsa === null ? (
+                        <p className="mt-1 text-[13px] text-muted">ยังไม่เคยตรวจ</p>
+                      ) : (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="tnum text-[14px] font-semibold">{s.lastOsa}%</span>
+                          <Bar
+                            value={s.lastOsa}
+                            tone={s.lastOsa >= 90 ? "ok" : s.lastOsa >= 75 ? "warn" : "danger"}
+                            className="flex-1"
+                            height={5}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="w-[76px]">
                       <p className="text-[12px] text-muted">ไม่ได้เข้า</p>
-                      <p className="tnum text-[14px] font-semibold">{s.daysSince} วัน</p>
-                    </div>
-
-                    <div className="w-[96px]">
-                      <p className="text-[12px] text-muted">ระยะ / เวลา</p>
                       <p className="tnum text-[14px] font-semibold">
-                        {s.distanceKm} กม. · {s.estMinutes}′
+                        {s.daysSinceLastVisit === null ? "—" : `${s.daysSinceLastVisit} วัน`}
                       </p>
                     </div>
 
-                    <RiskBadge band={s.risk} />
+                    <div className="w-[96px]">
+                      <p className="text-[12px] text-muted">เวลาในร้านเฉลี่ย</p>
+                      {/* Measured from this store's own closed visits. A store
+                          with none shows a dash, never a default. */}
+                      <p className="tnum text-[14px] font-semibold">
+                        {s.avgVisitMinutes === null
+                          ? "—"
+                          : s.avgVisitMinutes < 1
+                            ? "<1′"
+                            : `${s.avgVisitMinutes}′`}
+                      </p>
+                    </div>
+
+                    <RiskBadge band={s.riskBand} />
 
                     <button
                       type="button"
@@ -137,6 +182,7 @@ export default function RoutePlanning() {
               );
             })}
           </Reorder.Group>
+          )}
         </section>
 
         {/* ---- summary ---- */}
@@ -146,8 +192,15 @@ export default function RoutePlanning() {
 
             <dl className="mt-4 space-y-3">
               <Metric label="จำนวนร้าน" value={`${active.length}`} unit="ร้าน" />
-              <Metric label="ระยะทางรวม" value={totalKm.toFixed(1)} unit="กม." />
-              <Metric label="เวลาในร้านรวม" value={`${Math.floor(totalMin / 60)} ชม. ${totalMin % 60}`} unit="นาที" />
+              <Metric
+                label={
+                  measured.length === active.length
+                    ? "เวลาในร้านรวม"
+                    : `เวลาในร้านรวม (จาก ${measured.length}/${active.length} ร้านที่มีข้อมูล)`
+                }
+                value={`${Math.floor(totalMin / 60)} ชม. ${Math.round(totalMin % 60)}`}
+                unit="นาที"
+              />
               <Metric label="ร้านเสี่ยงสูงในแผน" value={`${highRisk}`} unit="ร้าน" tone="danger" />
             </dl>
 
@@ -157,11 +210,15 @@ export default function RoutePlanning() {
                 <span className="tnum font-semibold">{coverage}%</span>
               </div>
               <Bar value={coverage} tone={coverage === 100 ? "ok" : "warn"} className="mt-2 w-full" height={7} />
-              {coverage < 100 && (
+              {highRiskTotal === 0 ? (
+                <p className="mt-2 text-[13px] leading-relaxed text-muted">
+                  ไม่มีร้านเสี่ยงสูงในพื้นที่นี้ตอนนี้
+                </p>
+              ) : coverage < 100 ? (
                 <p className="mt-2 text-[13px] leading-relaxed text-[#b45f04]">
                   ยังมีร้านเสี่ยงสูงที่ถูกตัดออกจากแผน ควรทบทวนก่อนอนุมัติ
                 </p>
-              )}
+              ) : null}
             </div>
 
             <div className="mt-5">
