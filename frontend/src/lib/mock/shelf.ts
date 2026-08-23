@@ -11,7 +11,7 @@ import type { Detection, GapFinding, ShelfAnalysis } from "@/types";
 export const IMAGE_W = 1920;
 export const IMAGE_H = 1080;
 
-export type SlotKind = "PRODUCT" | "ALMOST" | "GAP";
+export type SlotKind = "PRODUCT" | "GAP";
 export type Shape = "can" | "box" | "pouch" | "jar";
 
 export interface Slot {
@@ -52,7 +52,7 @@ export const SLOTS: Slot[] = [
   { id: "r0s1", row: 0, x: 328, w: 136, kind: "PRODUCT", shape: "can", ...P.latte, confidence: 0.94 },
   { id: "r0s2", row: 0, x: 472, w: 104, kind: "GAP", shape: "can", ...P.espresso, confidence: 0.91 },
   { id: "r0s3", row: 0, x: 584, w: 272, kind: "PRODUCT", shape: "can", ...P.mocha, confidence: 0.95 },
-  { id: "r0s4", row: 0, x: 864, w: 136, kind: "ALMOST", shape: "can", ...P.latte, confidence: 0.88 },
+  { id: "r0s4", row: 0, x: 864, w: 136, kind: "PRODUCT", shape: "can", ...P.latte, confidence: 0.88 },
   { id: "r0s5", row: 0, x: 1008, w: 232, kind: "PRODUCT", shape: "can", ...P.espresso, confidence: 0.97 },
   { id: "r0s6", row: 0, x: 1248, w: 120, kind: "GAP", shape: "can", ...P.latte, confidence: 0.89 },
   { id: "r0s7", row: 0, x: 1376, w: 424, kind: "PRODUCT", shape: "can", ...P.green, confidence: 0.93 },
@@ -61,7 +61,7 @@ export const SLOTS: Slot[] = [
   { id: "r1s0", row: 1, x: 120, w: 168, kind: "PRODUCT", shape: "box", ...P.original, confidence: 0.95 },
   { id: "r1s1", row: 1, x: 296, w: 112, kind: "GAP", shape: "box", ...P.original, confidence: 0.93 },
   { id: "r1s2", row: 1, x: 416, w: 280, kind: "PRODUCT", shape: "box", ...P.cream, confidence: 0.92 },
-  { id: "r1s3", row: 1, x: 704, w: 112, kind: "ALMOST", shape: "box", ...P.mocha, confidence: 0.86 },
+  { id: "r1s3", row: 1, x: 704, w: 112, kind: "PRODUCT", shape: "box", ...P.mocha, confidence: 0.86 },
   { id: "r1s4", row: 1, x: 824, w: 168, kind: "PRODUCT", shape: "box", ...P.blue, confidence: 0.94 },
   { id: "r1s5", row: 1, x: 1000, w: 224, kind: "GAP", shape: "box", ...P.mocha, confidence: 0.52 },
   { id: "r1s6", row: 1, x: 1232, w: 280, kind: "PRODUCT", shape: "box", ...P.original, confidence: 0.96 },
@@ -70,7 +70,7 @@ export const SLOTS: Slot[] = [
 
   // ---- row 2 : กาแฟถุงเติม / เมล็ดคั่ว ----
   { id: "r2s0", row: 2, x: 120, w: 248, kind: "PRODUCT", shape: "pouch", ...P.cream, confidence: 0.93 },
-  { id: "r2s1", row: 2, x: 376, w: 160, kind: "ALMOST", shape: "pouch", ...P.espresso, confidence: 0.84 },
+  { id: "r2s1", row: 2, x: 376, w: 160, kind: "PRODUCT", shape: "pouch", ...P.espresso, confidence: 0.84 },
   { id: "r2s2", row: 2, x: 544, w: 304, kind: "PRODUCT", shape: "pouch", ...P.mocha, confidence: 0.95 },
   { id: "r2s3", row: 2, x: 856, w: 176, kind: "GAP", shape: "pouch", ...P.cream, confidence: 0.48 },
   { id: "r2s4", row: 2, x: 1040, w: 272, kind: "PRODUCT", shape: "jar", ...P.black, confidence: 0.97 },
@@ -101,9 +101,10 @@ const GAP_SKUS: Record<
   r2s3: { code: "CF-REF-200", name: "ถุงเติม 200 ก.", brand: "คาเฟ่โกลด์", priority: 1, facings: 3 },
 };
 
+// Class ids mirror the real dataset so anything logging them sees plausible
+// values. Consumers must branch on semanticType, never on these names.
 const CLASS_MAP: Record<SlotKind, { id: number; name: string }> = {
   PRODUCT: { id: 7, name: "Packaged Coffee" },
-  ALMOST: { id: 12, name: "Low Stock Facing" },
   GAP: { id: 19, name: "Empty Shelf" },
 };
 
@@ -157,7 +158,6 @@ export function buildGapFindings(): GapFinding[] {
   });
 }
 
-export const ALMOST_COUNT = SLOTS.filter((s) => s.kind === "ALMOST").length;
 
 /** Maps the mock geometry onto whatever image was actually captured.
  *  Until a model is wired up the boxes are simulated, but they live in the

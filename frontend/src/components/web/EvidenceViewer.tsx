@@ -134,7 +134,6 @@ export function EvidenceViewer({
                     [
                       { id: "ALL", label: "ทั้งหมด" },
                       { id: "GAP", label: "ช่องว่าง" },
-                      { id: "ALMOST", label: "เกือบหมด" },
                       { id: "LOW_CONF", label: "ความมั่นใจต่ำ" },
                     ] as { id: OverlayFilter; label: string }[]
                   ).map((c) => (

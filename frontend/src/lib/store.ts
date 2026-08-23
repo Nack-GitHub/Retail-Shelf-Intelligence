@@ -10,7 +10,7 @@ import type {
   SyncItem,
   Task,
 } from "@/types";
-import { buildAnalysis, ALMOST_COUNT } from "@/lib/mock/shelf";
+import { buildAnalysis } from "@/lib/mock/shelf";
 import { SYNC_ITEMS } from "@/lib/mock/data";
 import { revokePhoto, type CapturedPhoto } from "@/lib/capture";
 
@@ -281,7 +281,6 @@ export function useVisitStats() {
       fixed: tasks.filter((t) => t.status === "FIXED"),
       blocked: tasks.filter((t) => t.status === "BLOCKED"),
       openTasks: tasks.filter((t) => t.status === "OPEN"),
-      almostCount: ALMOST_COUNT,
     }),
     [findings, tasks],
   );

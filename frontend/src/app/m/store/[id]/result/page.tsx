@@ -11,7 +11,6 @@ import { OsaStatusPill, Pill } from "@/components/ui/Badge";
 import { CountUp } from "@/components/ui/Progress";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
 import { getStore, CATEGORIES } from "@/lib/mock/data";
-import { ALMOST_COUNT } from "@/lib/mock/shelf";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -48,7 +47,6 @@ export default function ResultScreen() {
       [
         { id: "ALL" as const, label: "ทั้งหมด", count: null, dot: null },
         { id: "GAP" as const, label: "ช่องว่าง", count: gapCount, dot: "bg-danger" },
-        { id: "ALMOST" as const, label: "เกือบหมด", count: ALMOST_COUNT, dot: "bg-warn" },
         { id: "PRODUCT" as const, label: "มีสินค้า", count: null, dot: "bg-ok" },
         { id: "LOW_CONF" as const, label: "ต้องตรวจสอบ", count: lowConf, dot: "bg-uncertain" },
         { id: "TAG" as const, label: "ป้ายราคา", count: null, dot: "bg-[#7fb0ff]" },
@@ -189,7 +187,7 @@ export default function ResultScreen() {
 
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <CountTile tone="danger" value={gapCount} label="ช่องว่าง" />
-              <CountTile tone="warn" value={ALMOST_COUNT} label="เกือบหมด" />
+              <CountTile tone="warn" value={lowConf} label="ต้องตรวจสอบ" />
             </div>
 
             <p className="mt-3.5 border-t border-line pt-3 text-[13px] leading-relaxed text-muted">

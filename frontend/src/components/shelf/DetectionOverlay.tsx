@@ -5,20 +5,24 @@ import { IMAGE_H, IMAGE_W } from "@/lib/mock/shelf";
 import type { Detection, GapFinding } from "@/types";
 import { easeOut } from "@/lib/motion";
 
-export type OverlayFilter = "ALL" | "GAP" | "ALMOST" | "PRODUCT" | "LOW_CONF" | "TAG";
+export type OverlayFilter = "ALL" | "GAP" | "PRODUCT" | "LOW_CONF" | "TAG";
 
 const COLORS = {
   PRODUCT: "#12b76a",
-  ALMOST: "#f79009",
   GAP: "#d92d20",
   LOW: "#98a2b3",
   TAG: "#7fb0ff",
 } as const;
 
-function kindOf(d: Detection): "PRODUCT" | "ALMOST" | "GAP" | "TAG" {
-  if (d.semanticType === "PRICE_TAG") return "TAG";
+/** Branch on semanticType only.
+ *
+ *  className is raw model output: the 45 class names change on every retrain,
+ *  so testing one here would silently stop matching the day the ML team
+ *  renames a class. semanticType is the stable contract. */
+function kindOf(d: Detection): "PRODUCT" | "GAP" | "TAG" {
+  if (d.semanticType === "PRICE_TAG" || d.semanticType === "PROMO_TAG") return "TAG";
   if (d.semanticType === "GAP") return "GAP";
-  return d.className === "Low Stock Facing" ? "ALMOST" : "PRODUCT";
+  return "PRODUCT";
 }
 
 function matches(d: Detection, f: OverlayFilter) {
@@ -26,7 +30,6 @@ function matches(d: Detection, f: OverlayFilter) {
   switch (f) {
     case "ALL": return k !== "TAG";
     case "GAP": return k === "GAP";
-    case "ALMOST": return k === "ALMOST";
     case "PRODUCT": return k === "PRODUCT";
     case "LOW_CONF": return d.confidence < 0.6;
     case "TAG": return k === "TAG";

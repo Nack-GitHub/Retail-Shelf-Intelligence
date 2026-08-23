@@ -74,9 +74,7 @@ function SlotGraphic({ s }: { s: Slot }) {
   const top = row.board - row.height;
   const fw = facingWidth(s.shape);
   const gap = 4;
-  // an "almost empty" slot needs room for at least one remaining facing
-  // plus the void beside it, so it can never collapse to a single facing
-  const count = Math.max(s.kind === "ALMOST" ? 2 : 1, Math.round(s.w / fw));
+  const count = Math.max(1, Math.round(s.w / fw));
   const each = (s.w - gap * (count - 1)) / count;
 
   if (s.kind === "GAP") {
@@ -89,20 +87,9 @@ function SlotGraphic({ s }: { s: Slot }) {
     );
   }
 
-  const shown = s.kind === "ALMOST" ? 1 : count;
   return (
     <g>
-      {s.kind === "ALMOST" && (
-        <rect
-          x={s.x + each + gap}
-          y={top}
-          width={Math.max(0, s.w - each - gap)}
-          height={row.height}
-          fill="#2b3038"
-          opacity={0.5}
-        />
-      )}
-      {Array.from({ length: shown }).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const h = row.height * (0.86 + ((i * 7) % 3) * 0.045);
         const x = s.x + i * (each + gap);
         return <Facing key={i} s={s} x={x} w={each} h={h} y={row.board - h} />;
