@@ -34,9 +34,7 @@ def test_kpis_return_only_what_the_database_can_answer(
         assert kpi["value"] is not None
 
 
-def test_kpis_carry_no_user_identifier(
-    client: TestClient, manager_auth: dict[str, str]
-) -> None:
+def test_kpis_carry_no_user_identifier(client: TestClient, manager_auth: dict[str, str]) -> None:
     body = str(client.get("/v1/analytics/kpis", headers=manager_auth).json()).lower()
     for banned in ("userid", "user_id", "repname", "repid", "perrep", "leaderboard"):
         assert banned not in body
@@ -52,14 +50,10 @@ def test_areas_lists_what_stores_actually_belong_to(
     assert all(a["storeCount"] > 0 for a in areas), "an area with no stores is not an area"
 
 
-def test_route_plan_is_ordered_by_risk(
-    client: TestClient, manager_auth: dict[str, str]
-) -> None:
+def test_route_plan_is_ordered_by_risk(client: TestClient, manager_auth: dict[str, str]) -> None:
     rows = client.get("/v1/analytics/route-plan", headers=manager_auth).json()["stops"]
     assert rows
-    assert [r["riskScore"] for r in rows] == sorted(
-        [r["riskScore"] for r in rows], reverse=True
-    )
+    assert [r["riskScore"] for r in rows] == sorted([r["riskScore"] for r in rows], reverse=True)
 
 
 def test_route_plan_reports_null_rather_than_a_guessed_duration(
@@ -90,9 +84,7 @@ def test_store_history_carries_the_captures_behind_each_visit(
 
     upload_capture(client, rep_auth, visit["id"], bay="A2_gaps", category="cat-coffee")
 
-    history = client.get(
-        f"/v1/stores/{visit['storeId']}/history", headers=manager_auth
-    ).json()
+    history = client.get(f"/v1/stores/{visit['storeId']}/history", headers=manager_auth).json()
     row = next(v for v in history["visits"] if v["visitId"] == visit["id"])
 
     assert row["captures"], "no captures on the visit that produced the score"

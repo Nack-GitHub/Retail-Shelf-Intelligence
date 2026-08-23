@@ -30,9 +30,7 @@ def test_store_id_is_required(client: TestClient, rep_auth: dict[str, str]) -> N
 def test_never_photographed_category_reports_null(
     client: TestClient, rep_auth: dict[str, str], visit: dict
 ) -> None:
-    categories = client.get(
-        f"/v1/categories?storeId={visit['storeId']}", headers=rep_auth
-    ).json()
+    categories = client.get(f"/v1/categories?storeId={visit['storeId']}", headers=rep_auth).json()
     instant = next(c for c in categories if c["id"] == "cat-instant")
     assert instant["lastOsa"] is None
 
@@ -44,9 +42,7 @@ def test_last_osa_reflects_a_real_analysis(
     produced for this store's shelf, not an average of somewhere else."""
     upload_capture(client, rep_auth, visit["id"], bay="A2_gaps", category="cat-coffee")
 
-    categories = client.get(
-        f"/v1/categories?storeId={visit['storeId']}", headers=rep_auth
-    ).json()
+    categories = client.get(f"/v1/categories?storeId={visit['storeId']}", headers=rep_auth).json()
     coffee = next(c for c in categories if c["id"] == "cat-coffee")
 
     assert coffee["lastOsa"] is not None

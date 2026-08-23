@@ -9,7 +9,7 @@ MODEL := model
 PY_BACKEND := $(BACKEND)/.venv/bin/python
 PY_MODEL := $(MODEL)/.venv/bin/python
 
-.PHONY: help setup dataset infra infra-stop migrate seed api worker ml stop \
+.PHONY: help setup dataset infra infra-stop migrate seed reset-db api worker ml stop \
         test test-backend test-model test-contracts lint check-boundary \
         train train-smoke evaluate export card demo clean-artifacts
 
@@ -48,8 +48,15 @@ infra-stop: ## Stop this project's containers only (never removes them)
 migrate: ## Apply database migrations
 	cd $(BACKEND) && .venv/bin/alembic upgrade head
 
-seed: ## Seed demo users and stores
+seed: ## Seed demo users, stores and model versions
 	cd $(BACKEND) && PYTHONPATH=. .venv/bin/python -m app.db.seed
+
+reset-db: ## Drop and rebuild THIS project's schema, then reseed (destructive)
+	@# Development databases accumulate every test run — after a few hundred
+	@# captures every store reads 100% OSA and "0 days since visit", and the
+	@# demo stops demonstrating anything. Touches the shelfeye database only.
+	cd $(BACKEND) && .venv/bin/alembic downgrade base && .venv/bin/alembic upgrade head
+	$(MAKE) seed
 
 # ── Services ─────────────────────────────────────────────────────────────────
 

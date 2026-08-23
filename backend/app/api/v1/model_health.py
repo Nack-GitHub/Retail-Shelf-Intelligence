@@ -53,7 +53,11 @@ async def model_health(
     is counted from real verifications every time this is called.
     """
     versions = (
-        (await db.execute(select(ModelVersion).order_by(ModelVersion.promoted_at.desc().nullslast())))
+        (
+            await db.execute(
+                select(ModelVersion).order_by(ModelVersion.promoted_at.desc().nullslast())
+            )
+        )
         .scalars()
         .all()
     )
@@ -64,9 +68,9 @@ async def model_health(
             select(
                 func.date_trunc("week", GapFindingRow.verified_at).label("bucket"),
                 func.count().label("reviewed"),
-                func.sum(
-                    case((GapFindingRow.verification_status == "REJECTED", 1), else_=0)
-                ).label("rejected"),
+                func.sum(case((GapFindingRow.verification_status == "REJECTED", 1), else_=0)).label(
+                    "rejected"
+                ),
             )
             .where(
                 GapFindingRow.verified_at.is_not(None),

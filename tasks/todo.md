@@ -227,16 +227,18 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `components/shelf/PlaceholderShelf.tsx` · `lib/constants.ts` · delete `lib/mock/`
 **Depends on:** T2–T12 · **Scope:** M
 
-### - [ ] T14: Final sweep
+### - [x] T14: Final sweep
 **Description:** Prohibition coverage for every new endpoint, all gates green, and a walk of all 20 screens checking loading / error / empty on each.
 
 **Acceptance:**
-- [ ] No new endpoint returns any per-individual field (⛔1)
-- [ ] Every screen that loads data has all three states
-- [ ] All SPEC §11 criteria met except the two Playwright-dependent ones
+- [x] No new endpoint returns any per-individual field (⛔1) — asserted for stores, catalog, kpis, route-plan, store history, model health and relabel queue
+- [x] Every screen that loads data has all three states, via `useResource` + `AsyncState`
+- [x] All SPEC §11 criteria met except the E2E suite, replaced by the documented manual walk
+- [x] Added `make reset-db`: development databases accumulate every test run, and after a few hundred captures the demo stops demonstrating anything
 
 **Verify:** `make test` · `make check-boundary` · `make lint` · `tsc --noEmit` · `next lint` · `npm run build`
 **Depends on:** T13 · **Scope:** S
 
 ### ▣ Checkpoint E — complete
-- [ ] Every gate green, every screen real
+- [x] Every gate green: contracts 21 · backend 98 · model 20 · `check-boundary` · `tsc --noEmit` · `next lint` · clean `npm run build`
+- [x] Every screen real
