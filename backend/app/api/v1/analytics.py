@@ -276,8 +276,12 @@ async def kpis(
         )
 
     def visits_between(start, end):
+        # DISTINCT stores, not visit rows. The card is labelled "ร้านที่ตรวจ"
+        # and its unit is "ร้าน", so counting visits let one store visited
+        # forty times read as forty stores covered — which is precisely the
+        # question a manager uses this number to answer.
         return scoped(
-            select(func.count(Visit.id))
+            select(func.count(func.distinct(Visit.store_id)))
             .join(Store, Store.id == Visit.store_id)
             .where(Visit.checked_in_at >= start, Visit.checked_in_at < end)
         )

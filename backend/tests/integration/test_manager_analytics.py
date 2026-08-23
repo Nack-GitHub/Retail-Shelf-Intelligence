@@ -110,3 +110,31 @@ def test_store_history_carries_no_user_identifier(
     ).lower()
     for banned in ("userid", "user_id", "repname", "capturedby", "verifiedby"):
         assert banned not in body
+
+
+def test_visits_kpi_counts_stores_not_visits(
+    client: TestClient, rep_auth: dict[str, str], manager_auth: dict[str, str]
+) -> None:
+    """The card is labelled "ร้านที่ตรวจ" and its unit is "ร้าน", so it has to
+    count STORES. Counting visit rows made an area of 5 stores report 483,
+    which a manager reads as coverage and acts on.
+    """
+    stores = client.get("/v1/stores", headers=rep_auth).json()
+    store_id = stores[0]["id"]
+
+    # Same store, three separate visits.
+    for _ in range(3):
+        response = client.post(
+            "/v1/visits",
+            headers=rep_auth,
+            json={"storeId": store_id, "photoConsentConfirmed": True},
+        )
+        assert response.status_code == 201
+
+    payload = client.get("/v1/analytics/kpis?days=1", headers=manager_auth).json()
+    visits_kpi = next(k for k in payload["kpis"] if k["id"] == "visits")
+
+    assert visits_kpi["value"] <= len(stores), (
+        f"reported {visits_kpi['value']} stores inspected, but only "
+        f"{len(stores)} stores exist"
+    )

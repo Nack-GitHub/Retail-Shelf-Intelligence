@@ -20,8 +20,8 @@ import { cn } from "@/lib/cn";
 type Sort = "RISK" | "STALENESS";
 
 export default function RoutePlanning() {
-  const { areaId, areaName } = useArea();
-  const plan = useResource(() => fetchRoutePlan(areaId), [areaId]);
+  const { areaId, areaName, ready } = useArea();
+  const plan = useResource(async () => (ready ? fetchRoutePlan(areaId) : null), [areaId, ready]);
 
   const [stops, setStops] = useState<PlannedStop[]>([]);
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -88,7 +88,7 @@ export default function RoutePlanning() {
             <p className="text-[13px] text-muted">ลากเพื่อจัดลำดับใหม่</p>
           </div>
 
-          {plan.state === "LOADING" ? (
+          {plan.state === "LOADING" || !ready ? (
             <LoadingBlock label="กำลังจัดลำดับร้าน…" />
           ) : plan.state === "ERROR" ? (
             <ErrorBlock message={plan.error ?? ""} onRetry={plan.reload} />

@@ -92,6 +92,34 @@ export async function remove(id: string): Promise<void> {
   await tx("readwrite", (store) => store.delete(id));
 }
 
+/** How long a sent operation stays visible in the sync list. */
+const KEEP_DONE_MS = 10 * 60 * 1000;
+
+/** Frees what a completed operation was holding.
+ *
+ *  The blob goes immediately: it is the expensive part — a few megabytes per
+ *  photo — and once the server has it, keeping a second copy on the phone
+ *  buys nothing. The row itself lingers briefly so the rep can see
+ *  "ส่งสำเร็จ" against the work they just did.
+ *
+ *  Without this the store grows by every photo ever taken. IndexedDB does not
+ *  evict a row at a time: when the origin hits its quota the browser drops the
+ *  WHOLE database, taking any still-unsent captures with it — which is the
+ *  precise loss this queue exists to prevent. */
+export async function purgeCompleted(now = Date.now()): Promise<void> {
+  const rows = await list();
+  for (const row of rows) {
+    if (row.status !== "DONE") continue;
+
+    const age = now - new Date(row.queuedAt).getTime();
+    if (age > KEEP_DONE_MS) {
+      await remove(row.id);
+    } else if (row.blob) {
+      await update(row.id, { blob: undefined });
+    }
+  }
+}
+
 /** Is IndexedDB usable at all?
  *
  *  Private browsing in some browsers exposes the API and then fails on open.

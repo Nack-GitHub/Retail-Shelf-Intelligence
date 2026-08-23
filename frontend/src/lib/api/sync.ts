@@ -97,11 +97,31 @@ export interface DrainReport {
   failed: number;
 }
 
+/* One drain at a time.
+ *
+ * Reconnecting fires an automatic drain, and the rep can tap "ส่งทั้งหมด" at
+ * the same moment. Both passes would read the same PENDING rows and replay
+ * them: the server's Idempotency-Keys keep the database correct, but the
+ * phone would upload every photo twice over a connection that just came back
+ * — which is exactly when bandwidth is scarcest. */
+let inFlight: Promise<DrainReport> | null = null;
+
 /** Sends everything the queue is holding, oldest first.
  *
  *  One bad operation must not block the rest: the rep's other seven captures
  *  should still land. Failures stay queued with their attempt count bumped. */
-export async function drain(
+export function drain(
+  onProgress?: (operation: QueuedOperation) => void,
+): Promise<DrainReport> {
+  // A second caller joins the drain already running rather than starting one.
+  if (inFlight) return inFlight;
+  inFlight = runDrain(onProgress).finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function runDrain(
   onProgress?: (operation: QueuedOperation) => void,
 ): Promise<DrainReport> {
   const pending = (await queue.list()).filter((o) => o.status !== "DONE");
@@ -141,6 +161,10 @@ export async function drain(
     /* ignore: the operations themselves succeeded */
   }
 
+  // Release the photo bytes the server now holds, and retire rows old enough
+  // that nobody is still looking at them.
+  await queue.purgeCompleted();
+
   return report;
 }
 
@@ -154,6 +178,7 @@ export async function retry(id: string): Promise<boolean> {
     await replay(operation);
     await queue.update(id, { status: "DONE", attempts: operation.attempts + 1 });
     await acknowledge([operation]).catch(() => {});
+    await queue.purgeCompleted();
     return true;
   } catch (err) {
     await queue.update(id, {

@@ -21,6 +21,13 @@ interface AreaSelection {
   areaName: string;
   areas: Area[];
   setAreaId: (id: string | undefined) => void;
+  /** false until the default area is chosen.
+   *
+   *  Screens gate their queries on this. Without it every area-scoped
+   *  request fires twice on load — once unscoped before /v1/areas resolves,
+   *  then again for the manager's own area — and the dashboard briefly shows
+   *  numbers for the whole country. */
+  ready: boolean;
 }
 
 const AreaContext = createContext<AreaSelection>({
@@ -28,6 +35,7 @@ const AreaContext = createContext<AreaSelection>({
   areaName: "ทุกพื้นที่",
   areas: [],
   setAreaId: () => {},
+  ready: false,
 });
 
 export function useArea(): AreaSelection {
@@ -47,20 +55,30 @@ export function WebShell({ children }: { children: React.ReactNode }) {
   const areasResource = useResource(() => fetchAreas(), []);
   const areas = useMemo(() => areasResource.data ?? [], [areasResource.data]);
   const [areaId, setAreaId] = useState<string | undefined>(undefined);
+  const [ready, setReady] = useState(false);
 
   // Default to the manager's own area once it is known, rather than to
   // whichever area happens to sort first.
   useEffect(() => {
-    if (areaId || areas.length === 0) return;
+    if (ready) return;
+    // An empty area list is still an answer: there is nothing to scope to,
+    // so screens should stop waiting and query unscoped.
+    if (areasResource.state === "ERROR" || (areasResource.state === "READY" && areas.length === 0)) {
+      setReady(true);
+      return;
+    }
+    if (areas.length === 0) return;
     const own = user?.areaId && areas.some((a) => a.id === user.areaId) ? user.areaId : areas[0].id;
     setAreaId(own);
-  }, [areas, areaId, user?.areaId]);
+    setReady(true);
+  }, [areas, ready, user?.areaId, areasResource.state]);
 
   const selection: AreaSelection = {
     areaId,
     areaName: areas.find((a) => a.id === areaId)?.name ?? "ทุกพื้นที่",
     areas,
     setAreaId,
+    ready,
   };
 
   return (

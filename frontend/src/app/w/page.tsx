@@ -24,12 +24,12 @@ const RANGE_DAYS: Record<Range, number> = { "4W": 28, "12W": 84, "26W": 182 };
 export default function AreaDashboard() {
   const router = useRouter();
   const [range, setRange] = useState<Range>("12W");
-  const { areaId, areaName } = useArea();
+  const { areaId, areaName, ready } = useArea();
   const days = RANGE_DAYS[range];
 
-  const kpis = useResource(() => fetchKpis(areaId, days), [areaId, days]);
-  const osa = useResource(() => fetchOsaTrend({ areaId, days }), [areaId, days]);
-  const risk = useResource(() => fetchRiskRanking(areaId), [areaId]);
+  const kpis = useResource(async () => (ready ? fetchKpis(areaId, days) : null), [areaId, days, ready]);
+  const osa = useResource(async () => (ready ? fetchOsaTrend({ areaId, days }) : null), [areaId, days, ready]);
+  const risk = useResource(async () => (ready ? fetchRiskRanking(areaId) : null), [areaId, ready]);
 
   const trend = useMemo(
     () =>
@@ -72,7 +72,7 @@ export default function AreaDashboard() {
 
       <div className="px-6 py-6 lg:px-8">
         {/* ---------- KPI row ---------- */}
-        {kpis.state === "LOADING" ? (
+        {kpis.state === "LOADING" || !ready ? (
           <LoadingBlock label="กำลังโหลดตัวชี้วัด…" />
         ) : kpis.state === "ERROR" ? (
           <ErrorBlock message={kpis.error ?? ""} onRetry={kpis.reload} />
@@ -176,7 +176,7 @@ export default function AreaDashboard() {
             </div>
           </div>
           <div className="px-3 py-4 sm:px-5">
-            {osa.state === "LOADING" ? (
+            {osa.state === "LOADING" || !ready ? (
               <LoadingBlock label="กำลังโหลดแนวโน้ม…" />
             ) : osa.state === "ERROR" ? (
               <ErrorBlock message={osa.error ?? ""} onRetry={osa.reload} />
@@ -214,7 +214,7 @@ export default function AreaDashboard() {
             </Pill>
           </div>
 
-          {risk.state === "LOADING" ? (
+          {risk.state === "LOADING" || !ready ? (
             <LoadingBlock label="กำลังจัดอันดับร้าน…" />
           ) : risk.state === "ERROR" ? (
             <div className="p-5">
