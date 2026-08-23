@@ -9,7 +9,10 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { BLOCKED_REASONS, getStore } from "@/lib/mock/data";
+import { BLOCKED_REASONS } from "@/lib/mock/data";
+import { fetchStore } from "@/lib/api/routes";
+import { useResource } from "@/lib/api/useResource";
+import { messageOf } from "@/lib/api/errors";
 import { useDemo, useVisitStats } from "@/lib/store";
 import type { BlockedReason, Task } from "@/types";
 import { listItem, stagger, springSoft, easeOut, fadeUp } from "@/lib/motion";
@@ -21,11 +24,12 @@ const PRIORITY_TONE = { 1: "danger", 2: "warn", 3: "neutral" } as const;
 export default function TaskListScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
+  const store = useResource(() => fetchStore(id), [id]).data;
 
   const tasks = useDemo((s) => s.tasks);
-  const buildTasks = useDemo((s) => s.buildTasks);
+  const loadTasks = useDemo((s) => s.loadTasks);
   const setTask = useDemo((s) => s.setTask);
+  const visitId = useDemo((s) => s.visitId);
   const findings = useDemo((s) => s.findings);
   const requests = useDemo((s) => s.replenishmentRequests);
   const stats = useVisitStats();
@@ -33,10 +37,26 @@ export default function TaskListScreen() {
   const [view, setView] = useState<"HAS_TASKS" | "PERFECT">("HAS_TASKS");
   const [sheetFor, setSheetFor] = useState<Task | null>(null);
   const [blockFor, setBlockFor] = useState<Task | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // Reloading this screen loses the in-memory list but not the visit, so the
+  // tasks are read back from the server rather than reconstructed.
   useEffect(() => {
-    if (findings.length && !tasks.length) buildTasks();
-  }, [findings.length, tasks.length, buildTasks]);
+    if (visitId && !tasks.length) void loadTasks().catch(() => {});
+  }, [visitId, tasks.length, loadTasks]);
+
+  async function change(
+    taskId: string,
+    status: "FIXED" | "BLOCKED",
+    reason?: BlockedReason,
+  ) {
+    setError(null);
+    try {
+      await setTask(taskId, status, reason);
+    } catch (err) {
+      setError(messageOf(err));
+    }
+  }
 
   const openCount = tasks.filter((t) => t.status === "OPEN").length;
   const allDone = tasks.length > 0 && openCount === 0;
@@ -46,7 +66,7 @@ export default function TaskListScreen() {
     <>
       <MobileHeader
         title="ต้องทำที่ร้านนี้"
-        subtitle={store.name}
+        subtitle={store?.name}
         progress={0.8}
         right={
           !showEmpty ? (
@@ -76,7 +96,7 @@ export default function TaskListScreen() {
                     key={t.id}
                     task={t}
                     onOpen={() => setSheetFor(t)}
-                    onFix={() => setTask(t.id, "FIXED")}
+                    onFix={() => void change(t.id, "FIXED")}
                   />
                 ))}
               </AnimatePresence>
@@ -154,7 +174,7 @@ export default function TaskListScreen() {
           <button
             type="button"
             onClick={() => {
-              if (sheetFor) setTask(sheetFor.id, "FIXED");
+              if (sheetFor) void change(sheetFor.id, "FIXED");
               setSheetFor(null);
             }}
             className="flex items-center gap-3 rounded-card border-2 border-line-strong bg-bg px-4 py-4 text-left transition-colors hover:border-ok hover:bg-ok-soft"
@@ -205,7 +225,7 @@ export default function TaskListScreen() {
               <button
                 type="button"
                 onClick={() => {
-                  if (blockFor) setTask(blockFor.id, "BLOCKED", r.id as BlockedReason);
+                  if (blockFor) void change(blockFor.id, "BLOCKED", r.id as BlockedReason);
                   setBlockFor(null);
                 }}
                 className="w-full rounded-card border border-line-strong bg-bg px-4 py-3.5 text-left transition-colors hover:border-text hover:bg-surface"

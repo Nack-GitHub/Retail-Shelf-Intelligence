@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { useCamera } from "@/hooks/useCamera";
-import { intakePhoto, PhotoIntakeError } from "@/lib/capture";
+import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Controls";
 import { CountUp } from "@/components/ui/Progress";
@@ -14,6 +14,8 @@ import { OsaStatusPill } from "@/components/ui/Badge";
 import { osaStatusOf } from "@/components/ui/Badge";
 import { slotsAfter } from "@/lib/mock/shelf";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
+import { pollJob, uploadCapture } from "@/lib/api/captures";
+import { messageOf } from "@/lib/api/errors";
 import { easeOut, fadeUp, springSnappy, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -29,6 +31,9 @@ export default function CompareScreen() {
   const afterPhoto = useDemo((s) => s.afterPhoto);
   const setAfterPhoto = useDemo((s) => s.setAfterPhoto);
   const logPhoto = useDemo((s) => s.logPhoto);
+  const visitId = useDemo((s) => s.visitId);
+  const categoryId = useDemo((s) => s.categoryId);
+  const bay = useDemo((s) => s.bay);
   const osaAfter = useOsaAfter();
   const stats = useVisitStats();
 
@@ -37,6 +42,7 @@ export default function CompareScreen() {
   const [flash, setFlash] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -49,8 +55,35 @@ export default function CompareScreen() {
     aspect: 16 / 9,
   });
 
-  const osaBefore = analysis?.osaScore ?? 78;
+  const osaBefore = analysis?.osaScore ?? null;
   const after = slotsAfter(tasks.filter((t) => t.status === "FIXED").map((t) => t.findingId));
+
+  /** Sends the AFTER shot through the same path as the BEFORE shot.
+   *
+   *  This is what makes checkout's osa_after a measurement rather than an
+   *  estimate: the server averages the AFTER-phase analyses for the visit. An
+   *  after-photo that stays on the phone proves nothing. */
+  async function uploadAfter(p: CapturedPhoto) {
+    if (!visitId || !categoryId || !bay) return;
+    setUploading(true);
+    try {
+      const job = await uploadCapture({
+        visitId,
+        category: categoryId,
+        shelfBayLabel: bay,
+        phase: "AFTER",
+        photo: p,
+      });
+      const finished = await pollJob(job.jobId);
+      if (finished.status === "FAILED") {
+        setError(finished.userMessage ?? "วิเคราะห์ภาพหลังเติมของไม่สำเร็จ กรุณาถ่ายใหม่");
+      }
+    } catch (err) {
+      setError(messageOf(err));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function shoot() {
     if (busy) return;
@@ -70,6 +103,7 @@ export default function CompareScreen() {
       logPhoto(p);
       setAfterPhoto(p);
       markAfterCaptured();
+      void uploadAfter(p);
     } catch (err) {
       setError(err instanceof PhotoIntakeError ? err.message : "ถ่ายภาพไม่สำเร็จ ลองอีกครั้ง");
     } finally {
@@ -88,6 +122,7 @@ export default function CompareScreen() {
       logPhoto(p);
       setAfterPhoto(p);
       markAfterCaptured();
+      void uploadAfter(p);
     } catch (err) {
       setError(err instanceof PhotoIntakeError ? err.message : "เปิดไฟล์รูปไม่สำเร็จ");
     } finally {
@@ -249,10 +284,10 @@ export default function CompareScreen() {
               </div>
 
               <span className="absolute left-3 top-3 rounded-pill bg-ink/75 px-2.5 py-1.5 text-[12px] font-semibold text-ink-text backdrop-blur-sm">
-                ก่อน · OSA {osaBefore}%
+                ก่อน · OSA {osaBefore ?? "—"}%
               </span>
               <span className="absolute right-3 top-3 rounded-pill bg-ok/90 px-2.5 py-1.5 text-[12px] font-semibold text-white">
-                หลัง · OSA {osaAfter}%
+                หลัง{osaAfter === null ? " · รอผลตอนเช็คเอาต์" : ` · OSA ${osaAfter}%`}
               </span>
 
               {/* divider */}
@@ -303,20 +338,37 @@ export default function CompareScreen() {
             className="rounded-card border border-line bg-bg p-5 shadow-[var(--shadow-card)]"
           >
             <p className="text-[13px] font-medium text-muted">ผลลัพธ์ที่ชั้นวางนี้</p>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="tnum text-[30px] font-bold leading-none text-muted">{osaBefore}%</span>
-              <motion.svg
-                width="30" height="20" viewBox="0 0 30 20" fill="none" className="text-primary"
-                initial={{ x: -6, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.35, ...springSoft }}
-              >
-                <path d="M2 10h24M20 4l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </motion.svg>
-              <span className="flex items-baseline text-[38px] font-bold leading-none tracking-tight text-ok">
-                <CountUp to={osaAfter} />%
-              </span>
-              <OsaStatusPill status={osaStatusOf(osaAfter)} className="ml-auto" />
-            </div>
+            {/* The after-score is measured at checkout from the AFTER photo.
+                Until then this screen says so instead of guessing. */}
+            {osaAfter === null ? (
+              <div className="mt-2 flex items-center gap-3">
+                <span className="tnum text-[30px] font-bold leading-none">
+                  {osaBefore ?? "—"}%
+                </span>
+                <span className="text-[13px] leading-relaxed text-muted">
+                  {uploading
+                    ? "กำลังส่งภาพหลังเติมของไปวิเคราะห์…"
+                    : "ค่า OSA หลังเติมของจะคำนวณตอนปิดการเข้าร้าน"}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2 flex items-center gap-3">
+                <span className="tnum text-[30px] font-bold leading-none text-muted">
+                  {osaBefore ?? "—"}%
+                </span>
+                <motion.svg
+                  width="30" height="20" viewBox="0 0 30 20" fill="none" className="text-primary"
+                  initial={{ x: -6, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.35, ...springSoft }}
+                >
+                  <path d="M2 10h24M20 4l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </motion.svg>
+                <span className="flex items-baseline text-[38px] font-bold leading-none tracking-tight text-ok">
+                  <CountUp to={osaAfter} />%
+                </span>
+                <OsaStatusPill status={osaStatusOf(osaAfter)} className="ml-auto" />
+              </div>
+            )}
 
             <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
               <Stat label="ช่องว่างที่พบ" value={stats.total} />

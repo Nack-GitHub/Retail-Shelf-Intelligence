@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/Button";
 import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill, osaStatusOf, Pill } from "@/components/ui/Badge";
 import { SkuThumb } from "@/components/shelf/SkuThumb";
-import { BLOCKED_REASONS, getStore, STORES } from "@/lib/mock/data";
+import { BLOCKED_REASONS } from "@/lib/mock/data";
+import { fetchStore, fetchTodaysRoute } from "@/lib/api/routes";
+import { useResource } from "@/lib/api/useResource";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { messageOf } from "@/lib/api/errors";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -16,12 +20,14 @@ import { cn } from "@/lib/cn";
 export default function CheckoutScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
+  const store = useResource(() => fetchStore(id), [id]).data;
+  const route = useResource(() => fetchTodaysRoute(), []).data;
 
   const analysis = useDemo((s) => s.analysis);
   const checkedInAt = useDemo((s) => s.checkedInAt);
   const checkedOutAt = useDemo((s) => s.checkedOutAt);
-  const closeVisit = useDemo((s) => s.closeVisit);
+  const closeOutVisit = useDemo((s) => s.closeOutVisit);
+  const checkout = useDemo((s) => s.checkout);
   const tasks = useDemo((s) => s.tasks);
   const requests = useDemo((s) => s.replenishmentRequests);
   const resetVisit = useDemo((s) => s.resetVisit);
@@ -29,9 +35,25 @@ export default function CheckoutScreen() {
   const osaAfter = useOsaAfter();
   const stats = useVisitStats();
 
+  const [closing, setClosing] = useState(true);
+  const [closeError, setCloseError] = useState<string | null>(null);
+
+  // Checkout is what makes the visit real: it closes the row and computes
+  // osa_after from the AFTER-phase captures. The screen waits for it rather
+  // than showing an estimate it would later contradict.
   useEffect(() => {
-    closeVisit();
-  }, [closeVisit]);
+    let cancelled = false;
+    closeOutVisit()
+      .catch((err) => {
+        if (!cancelled) setCloseError(messageOf(err));
+      })
+      .finally(() => {
+        if (!cancelled) setClosing(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [closeOutVisit]);
 
   const minutes = useMemo(() => {
     if (!checkedInAt || !checkedOutAt) return 18;
@@ -40,9 +62,10 @@ export default function CheckoutScreen() {
     return m < 60 ? m + 17 : m;
   }, [checkedInAt, checkedOutAt]);
 
-  const osaBefore = analysis?.osaScore ?? 78;
-  const nextIndex = STORES.findIndex((s) => s.id === id) + 1;
-  const nextStore = STORES[nextIndex] ?? null;
+  const osaBefore = checkout?.osaBefore ?? analysis?.osaScore ?? null;
+  const stops = route ?? [];
+  const nextIndex = stops.findIndex((s) => s.id === id) + 1;
+  const nextStore = nextIndex > 0 ? (stops[nextIndex] ?? null) : null;
   const blocked = tasks.filter((t) => t.status === "BLOCKED");
 
   function goNext() {
@@ -57,7 +80,7 @@ export default function CheckoutScreen() {
 
   return (
     <>
-      <MobileHeader title="สรุปการเข้าร้าน" subtitle={store.name} progress={1} />
+      <MobileHeader title="สรุปการเข้าร้าน" subtitle={store?.name} progress={1} />
 
       <Scroll className="px-4 pt-4 pb-5">
         <motion.div variants={stagger(0.06)} initial="hidden" animate="show" className="flex flex-col gap-3">
@@ -65,42 +88,71 @@ export default function CheckoutScreen() {
             variants={listItem}
             className="rounded-card border border-line bg-bg p-5 shadow-[var(--shadow-card)]"
           >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[13px] font-medium text-muted">OSA ก่อน → หลัง</p>
-                <div className="mt-1.5 flex items-baseline gap-2.5">
-                  <span className="tnum text-[26px] font-bold leading-none text-muted">{osaBefore}%</span>
-                  <span className="text-muted" aria-hidden>→</span>
-                  <span className="flex items-baseline text-[40px] font-bold leading-none tracking-tight text-ok">
-                    <CountUp to={osaAfter} />%
+            {osaAfter === null ? (
+              /* No AFTER photo, so there is no measured improvement. Estimating
+                 one from how many tasks were ticked would read high and would
+                 disagree with the manager's dashboard for the same visit. */
+              <>
+                <p className="text-[13px] font-medium text-muted">OSA ของการเข้าร้านนี้</p>
+                <p className="mt-1.5 flex items-baseline gap-1">
+                  <span className="tnum text-[40px] font-bold leading-none tracking-tight">
+                    {osaBefore ?? "—"}
                   </span>
+                  <span className="text-[20px] font-bold text-muted">%</span>
+                </p>
+                <p className="mt-3 text-[13px] leading-relaxed text-muted">
+                  ยังไม่ได้ถ่ายภาพหลังเติมของ จึงยังไม่มีค่า OSA หลังการเติม
+                  ถ่ายภาพชั้นวางอีกครั้งเพื่อวัดผลที่เกิดขึ้นจริง
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[13px] font-medium text-muted">OSA ก่อน → หลัง</p>
+                    <div className="mt-1.5 flex items-baseline gap-2.5">
+                      <span className="tnum text-[26px] font-bold leading-none text-muted">
+                        {osaBefore ?? "—"}%
+                      </span>
+                      <span className="text-muted" aria-hidden>→</span>
+                      <span className="flex items-baseline text-[40px] font-bold leading-none tracking-tight text-ok">
+                        <CountUp to={osaAfter} />%
+                      </span>
+                    </div>
+                  </div>
+                  <OsaStatusPill status={osaStatusOf(osaAfter)} />
                 </div>
-              </div>
-              <OsaStatusPill status={osaStatusOf(osaAfter)} />
-            </div>
 
-            <div className="mt-4 h-2.5 w-full overflow-hidden rounded-pill bg-surface-2">
-              <motion.div
-                className="h-full rounded-pill bg-muted"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: osaBefore / 100 }}
-                style={{ originX: 0 }}
-                transition={{ duration: 0.5, ease: easeOut }}
-              />
-            </div>
-            <div className="-mt-2.5 h-2.5 w-full overflow-hidden rounded-pill">
-              <motion.div
-                className="h-full rounded-pill bg-ok"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: osaAfter / 100 }}
-                style={{ originX: 0 }}
-                transition={{ duration: 0.8, ease: easeOut, delay: 0.35 }}
-              />
-            </div>
-            <p className="mt-3 text-[13px] text-muted">
-              เพิ่มขึ้น <span className="tnum font-semibold text-ok">+{osaAfter - osaBefore}</span> จุด
-              จากการเติมของ <span className="tnum">{stats.fixed.length}</span> รายการ
-            </p>
+                <div className="mt-4 h-2.5 w-full overflow-hidden rounded-pill bg-surface-2">
+                  <motion.div
+                    className="h-full rounded-pill bg-muted"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: (osaBefore ?? 0) / 100 }}
+                    style={{ originX: 0 }}
+                    transition={{ duration: 0.5, ease: easeOut }}
+                  />
+                </div>
+                <div className="-mt-2.5 h-2.5 w-full overflow-hidden rounded-pill">
+                  <motion.div
+                    className="h-full rounded-pill bg-ok"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: osaAfter / 100 }}
+                    style={{ originX: 0 }}
+                    transition={{ duration: 0.8, ease: easeOut, delay: 0.35 }}
+                  />
+                </div>
+                {osaBefore !== null && (
+                  <p className="mt-3 text-[13px] text-muted">
+                    เปลี่ยนแปลง{" "}
+                    <span className="tnum font-semibold text-ok">
+                      {osaAfter - osaBefore >= 0 ? "+" : ""}
+                      {osaAfter - osaBefore}
+                    </span>{" "}
+                    จุด จากการเติมของ <span className="tnum">{stats.fixed.length}</span> รายการ
+                  </p>
+                )}
+              </>
+            )}
           </motion.div>
 
           <motion.div variants={listItem} className="grid grid-cols-2 gap-3">

@@ -92,23 +92,25 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `backend/app/api/v1/{schemas,captures}.py` · `lib/api/captures.ts` · `app/m/store/[id]/result/page.tsx` · `components/shelf/{DetectionOverlay,CaptureFrame,CropView}.tsx`
 **Depends on:** T4 · **Scope:** M
 
-### - [ ] T6: verify → task → checkout
+### - [x] T6: verify → task → checkout
 **Description:** Verification, tasks and checkout all go to the server. `buildTasks()` is deleted — the API creates tasks on CONFIRMED.
 
 **Acceptance:**
-- [ ] CONFIRMED creates exactly one `tasks` row, idempotent on double-tap
-- [ ] REJECTED with a reason removes any task already created
-- [ ] `OUT_OF_BACKSTOCK` raises a real `replenishment_requests` row
-- [ ] Checkout returns real `osaBefore` / `osaAfter`
+- [x] CONFIRMED creates exactly one `tasks` row, idempotent on double-tap (3 confirms → 3 tasks, 68→71)
+- [x] REJECTED with a reason removes any task already created (server-side, covered by `test_review_findings.py`)
+- [x] `OUT_OF_BACKSTOCK` raises a real `replenishment_requests` row (23→24)
+- [x] Checkout returns real `osaBefore` / `osaAfter` — both 0.875 from the BEFORE and AFTER analyses
+- [x] The AFTER photo is now actually uploaded, which is what makes `osa_after` a measurement
+- [x] Removed the client-side OSA estimate: it assumed every fixed task restored its full share, read high, and disagreed with the manager's dashboard
 
 **Verify:** `test_golden_path.py` + `test_review_findings.py` green · walk the flow, confirm rows in `psql`
 **Files:** `lib/api/{findings,tasks}.ts` · `lib/store.ts` · `app/m/store/[id]/{verify,tasks,compare,checkout}/page.tsx`
 **Depends on:** T5 · **Scope:** M
 
 ### ▣ Checkpoint B
-- [ ] Golden path end to end on real data
-- [ ] `make test` green · `tsc --noEmit` · `next lint` · `npm run build` clean
-- [ ] A bad photo says "ถ่ายใหม่" and shows no OSA
+- [x] Golden path end to end on real data — login → route → check-in → category → photo → OSA 88% with boxes → 3 confirms → 3 tasks → 2 fixed + 1 blocked → after-photo → checkout 88%→88%
+- [x] `make test` green (83) · `tsc --noEmit` · `next lint` · `npm run build` clean
+- [x] A bad photo says "ถ่ายใหม่" and shows no OSA
 
 ---
 

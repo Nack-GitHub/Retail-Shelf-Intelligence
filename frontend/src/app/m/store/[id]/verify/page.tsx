@@ -11,6 +11,7 @@ import { Pill } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Controls";
 import { REJECT_REASONS } from "@/lib/mock/data";
 import { useDemo } from "@/lib/store";
+import { messageOf } from "@/lib/api/errors";
 import type { GapFinding, RejectReason } from "@/types";
 import { easeOut, listItem, stagger } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -23,12 +24,14 @@ export default function VerifyScreen() {
   const photo = useDemo((s) => s.photo);
   const findings = useDemo((s) => s.findings);
   const verify = useDemo((s) => s.verify);
-  const buildTasks = useDemo((s) => s.buildTasks);
+  const loadTasks = useDemo((s) => s.loadTasks);
 
   const [mode, setMode] = useState<"ONE" | "ALL">("ONE");
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState<1 | -1>(1);
   const [rejecting, setRejecting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   if (!analysis || findings.length === 0) return null;
 
@@ -43,20 +46,43 @@ export default function VerifyScreen() {
     }
   }
 
+  async function record(
+    f: GapFinding,
+    verdict: "CONFIRMED" | "REJECTED",
+    reason?: RejectReason,
+  ) {
+    setError(null);
+    try {
+      // The store updates optimistically and rolls back if the server
+      // refuses, so the rep keeps tapping at their own pace.
+      await verify(f.id, verdict, reason);
+      window.setTimeout(advance, 220);
+    } catch (err) {
+      setError(messageOf(err));
+    }
+  }
+
   function confirm(f: GapFinding) {
-    verify(f.id, "CONFIRMED");
-    window.setTimeout(advance, 220);
+    void record(f, "CONFIRMED");
   }
 
   function reject(f: GapFinding, reason: RejectReason) {
-    verify(f.id, "REJECTED", reason);
     setRejecting(null);
-    window.setTimeout(advance, 220);
+    void record(f, "REJECTED", reason);
   }
 
-  function goTasks() {
-    buildTasks();
-    router.push(`/m/store/${id}/tasks`);
+  async function goTasks() {
+    setBusy(true);
+    setError(null);
+    try {
+      // Read back what the SERVER created from the confirmed gaps, rather
+      // than assuming the client and the database agree.
+      await loadTasks();
+      router.push(`/m/store/${id}/tasks`);
+    } catch (err) {
+      setError(messageOf(err));
+      setBusy(false);
+    }
   }
 
   return (
@@ -208,7 +234,7 @@ export default function VerifyScreen() {
               </button>
               <div className="flex-1" />
               {allDone ? (
-                <Button size="sm" className="h-10 px-4" onClick={goTasks}>
+                <Button size="sm" className="h-10 px-4" disabled={busy} onClick={() => void goTasks()}>
                   ไปยังรายการที่ต้องทำ
                 </Button>
               ) : (
@@ -284,7 +310,12 @@ export default function VerifyScreen() {
             </motion.ul>
           </Scroll>
           <BottomBar>
-            <Button size="lg" full disabled={!allDone} onClick={goTasks}>
+            {error && (
+              <p role="alert" className="mb-2.5 rounded-card bg-danger/10 px-3.5 py-2.5 text-[13px] leading-relaxed text-danger">
+                {error}
+              </p>
+            )}
+            <Button size="lg" full disabled={!allDone || busy} onClick={() => void goTasks()}>
               {allDone ? "ไปยังรายการที่ต้องทำ" : `เหลืออีก ${findings.length - decided} จุด`}
             </Button>
           </BottomBar>

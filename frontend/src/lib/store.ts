@@ -13,6 +13,9 @@ import type {
 import { SYNC_ITEMS } from "@/lib/mock/data";
 import { revokePhoto, type CapturedPhoto } from "@/lib/capture";
 import type { AnalysisResult } from "@/lib/api/captures";
+import { verifyFinding } from "@/lib/api/findings";
+import { fetchTasks, updateTask } from "@/lib/api/tasks";
+import { checkOut, type CheckoutSummary } from "@/lib/api/visits";
 
 /* Demo-only state. When the API lands, everything under `visit` becomes
    server state (React Query) and this store keeps only UI concerns. */
@@ -67,9 +70,21 @@ interface DemoState {
   setAfterPhoto: (photo: CapturedPhoto | null) => void;
   clearPhotoLog: () => void;
   consumeCapture: () => void;
-  verify: (findingId: string, verdict: "CONFIRMED" | "REJECTED", reason?: RejectReason) => void;
-  buildTasks: () => void;
-  setTask: (taskId: string, status: "FIXED" | "BLOCKED", reason?: BlockedReason) => void;
+  verify: (
+    findingId: string,
+    verdict: "CONFIRMED" | "REJECTED",
+    reason?: RejectReason,
+  ) => Promise<void>;
+  /** reads back the tasks the SERVER created from confirmed gaps */
+  loadTasks: () => Promise<void>;
+  setTask: (
+    taskId: string,
+    status: "FIXED" | "BLOCKED",
+    reason?: BlockedReason,
+  ) => Promise<void>;
+  /** closes the visit and keeps the server's own before/after OSA */
+  closeOutVisit: () => Promise<CheckoutSummary | null>;
+  checkout: CheckoutSummary | null;
   markAfterCaptured: () => void;
   resetVisit: () => void;
   syncAll: () => void;
@@ -102,6 +117,7 @@ export const useDemo = create<DemoState>((set, get) => ({
   tasks: [],
   afterCaptured: false,
   replenishmentRequests: [],
+  checkout: null,
 
   sync: SYNC_ITEMS,
 
@@ -127,6 +143,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       tasks: [],
       afterCaptured: false,
       replenishmentRequests: [],
+      checkout: null,
       };
     }),
 
@@ -173,52 +190,63 @@ export const useDemo = create<DemoState>((set, get) => ({
 
   consumeCapture: () => set({ justCaptured: false }),
 
-  verify: (findingId, verdict, reason) =>
+  verify: async (findingId, verdict, reason) => {
+    // Optimistic: the rep taps through gaps quickly and a spinner per tap
+    // would make the screen feel broken. The server is authoritative, so a
+    // failure rolls the row back rather than leaving a lie on screen.
+    const previous = get().findings.find((f) => f.id === findingId);
     set((s) => ({
       findings: s.findings.map((f) =>
         f.id === findingId
           ? { ...f, verificationStatus: verdict, rejectedReason: reason }
           : f,
       ),
-    })),
+    }));
 
-  buildTasks: () => {
-    const { findings, tasks } = get();
-    const confirmed = findings.filter((f) => f.verificationStatus === "CONFIRMED");
-    const existing = new Map(tasks.map((t) => [t.findingId, t]));
-    const next: Task[] = confirmed
-      .map(
-        (f) =>
-          existing.get(f.id) ?? {
-            id: `task-${f.id}`,
-            findingId: f.id,
-            skuCode: f.skuCode,
-            skuName: f.skuName,
-            skuBrand: f.skuBrand,
-            positionLabel: f.positionLabel,
-            priority: f.priority,
-            facings: f.facings,
-            status: "OPEN" as const,
-          },
-      )
-      .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-    set({ tasks: next });
+    try {
+      await verifyFinding(findingId, verdict, reason);
+    } catch (err) {
+      if (previous) {
+        set((s) => ({
+          findings: s.findings.map((f) => (f.id === findingId ? previous : f)),
+        }));
+      }
+      throw err;
+    }
   },
 
-  setTask: (taskId, status, reason) =>
+  loadTasks: async () => {
+    const { visitId } = get();
+    if (!visitId) return;
+    // The server creates a task when a gap is CONFIRMED. Building them here
+    // too would give the rep a list that quietly disagrees with the database.
+    set({ tasks: await fetchTasks(visitId) });
+  },
+
+  setTask: async (taskId, status, reason) => {
+    const updated = await updateTask(taskId, status, reason);
     set((s) => {
-      const task = s.tasks.find((t) => t.id === taskId);
       const requests = [...s.replenishmentRequests];
-      if (task && status === "BLOCKED" && reason === "OUT_OF_BACKSTOCK") {
-        if (!requests.includes(task.skuCode)) requests.push(task.skuCode);
+      // Mirrors what the API just did: OUT_OF_BACKSTOCK raises a
+      // replenishment request server-side, and the summary screen says so.
+      if (status === "BLOCKED" && reason === "OUT_OF_BACKSTOCK" && !requests.includes(updated.skuCode)) {
+        requests.push(updated.skuCode);
       }
       return {
-        tasks: s.tasks.map((t) =>
-          t.id === taskId ? { ...t, status, blockedReason: reason } : t,
-        ),
+        tasks: s.tasks.map((t) => (t.id === taskId ? updated : t)),
         replenishmentRequests: requests,
       };
-    }),
+    });
+  },
+
+  closeOutVisit: async () => {
+    const { visitId, checkout } = get();
+    if (!visitId) return null;
+    if (checkout) return checkout;
+    const summary = await checkOut(visitId);
+    set({ checkout: summary, checkedOutAt: Date.now() });
+    return summary;
+  },
 
   markAfterCaptured: () => set({ afterCaptured: true }),
 
@@ -240,6 +268,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       tasks: [],
       afterCaptured: false,
       replenishmentRequests: [],
+      checkout: null,
     }),
 
   syncAll: () => {
@@ -303,15 +332,14 @@ export function useVisitStats() {
   );
 }
 
-/** OSA after restock — recomputed from the gaps the rep actually closed.
- *  Returns a primitive, so it is safe to derive inside the selector. */
-export function useOsaAfter() {
-  return useDemo((s) => {
-    const before = s.analysis?.osaScore ?? 78;
-    if (!s.findings.length) return before;
-    const closed = s.tasks.filter((t) => t.status === "FIXED").length;
-    const rejected = s.findings.filter((f) => f.verificationStatus === "REJECTED").length;
-    const perGap = (100 - before) / s.findings.length;
-    return Math.min(100, Math.round(before + perGap * (closed + rejected)));
-  });
+/** OSA after restock, as the SERVER computed it from the after-photo.
+ *
+ *  This used to be estimated on the client from how many gaps the rep had
+ *  closed. That number looked authoritative and was not: it assumed every
+ *  fixed task restored its full share of the shelf, so it read high, and it
+ *  disagreed with the figure the manager's dashboard showed for the same
+ *  visit. `null` until checkout has run — an estimate is worse than nothing
+ *  when the real one is one request away. */
+export function useOsaAfter(): number | null {
+  return useDemo((s) => s.checkout?.osaAfter ?? null);
 }
