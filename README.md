@@ -9,7 +9,8 @@ labelled in Thai, and turned into a replenishment task.
 
 ## Architecture
 
-Two services that share exactly one thing: a contract.
+Two backend services that share exactly one thing: a contract — and a
+frontend that talks to neither directly, only to the API.
 
 ```
 ┌────────────────────────────┐         ┌────────────────────────────┐
@@ -24,6 +25,16 @@ Two services that share exactly one thing: a contract.
 └────────────────────────────┘         └────────────────────────────┘
                     └──── contracts/ ────┘
                     OpenAPI 3.1 + Pydantic
+
+┌────────────────────────────┐
+│  frontend/  Next.js 16     │
+│                            │
+│  mobile: rep's day         │  every request goes through
+│  web: manager + data team  │  lib/api/client.ts, the only
+│                            │  file that knows the base URL
+│  ⛔ no component calls     │  or holds the token
+│     fetch directly         │
+└────────────────────────────┘
 ```
 
 **The measure of whether the separation worked:** going from fake detections to
@@ -42,20 +53,42 @@ business-logic file touched.
 
 ## Quick start
 
-Requires Docker and Python 3.12. Host ports are shifted off the defaults
+Requires Docker, Python 3.12 and Node 20+. Host ports are shifted off the
+defaults
 (postgres **5433**, redis **6380**) so nothing already running is disturbed.
 
 ```bash
 make setup          # both venvs + shared contracts package
 make dataset        # extract the Roboflow dataset (1,349 images)
 make infra          # postgres + redis + minio
-make migrate seed   # schema + demo users and stores
+make migrate seed   # schema + demo users, stores and model versions
 make api worker     # API on :8000, Celery worker
 make demo           # walk the golden path and print each step
+
+cd frontend && npm install && npm run dev    # the app, on :3000
 ```
 
-Log in with `rep@shelfeye.demo` / `demo1234`. Other seeded roles:
-`manager@`, `admin@`, `data@`, same password.
+Open <http://localhost:3000> and log in with `rep@shelfeye.demo` /
+`demo1234`. Other seeded roles: `manager@`, `admin@`, `data@`, same
+password — the rep lands on the mobile app, the rest on the dashboard.
+
+The frontend reads one environment variable, `NEXT_PUBLIC_API_URL`, and
+defaults to `http://localhost:8000`. See
+[frontend/.env.example](frontend/.env.example) — you only need to set it
+when the phone and the API are not on the same host.
+
+> Development databases fill up: after a few hundred captures every store
+> reads 100% OSA and "0 days since visit", and the demo stops
+> demonstrating anything. `make reset-db` rebuilds this project's schema
+> and reseeds.
+
+### Testing the camera
+
+The camera needs a secure context, so a real phone has to reach the dev
+server over HTTPS: `npm run dev:mobile` serves on the LAN, and
+`next.config.ts` already allows tunnel and private-network origins. On a
+desktop with no camera the capture screen offers "อัปโหลดรูปแทน" and the
+rest of the flow is identical.
 
 ## The golden path
 
@@ -115,7 +148,7 @@ make lint
 | :-- | --: | :-- |
 | `contracts/` — Pydantic ↔ OpenAPI parity | 21 | nothing |
 | `backend/tests/unit` — OSA engine, mock ML | 25 | nothing |
-| `backend/tests/integration` — API, prohibitions | 35 | `make infra migrate` |
+| `backend/tests/integration` — API, prohibitions | 74 | `make infra migrate` |
 | `model/tests` — class map, letterbox, decode | 20 | nothing |
 
 The OSA engine's tests run in 0.1s with no services at all, because
@@ -159,7 +192,8 @@ v1 — 1,349 images, 45 classes, pinned by version and archive SHA.
 
 | Document | Contents |
 | :-- | :-- |
-| **[SPEC.md](SPEC.md)** | **Current work** — connecting the frontend to the backend API |
+| **[SPEC.md](SPEC.md)** | The frontend↔API integration, delivered — every screen now reads from the database |
+| [tasks/plan.md](tasks/plan.md) · [tasks/todo.md](tasks/todo.md) | How that work was sliced, and the 14 tasks it became |
 | [docs/archive/SPEC.md](docs/archive/SPEC.md) | Specification the build was delivered against — contract rules, schema, boundaries |
 | [docs/archive/plan.md](docs/archive/plan.md) | Implementation plan, dependency graph, demo simplifications, outcome |
 | [docs/archive/todo.md](docs/archive/todo.md) | The 18 tasks, all complete |
