@@ -34,3 +34,6 @@ node_modules/
 
 # ultralytics writes validation runs here
 runs/
+
+# Detached dev-process logs and pid files (devrun.py / devrun_ml.py)
+.logs/
