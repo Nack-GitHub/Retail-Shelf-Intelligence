@@ -1,51 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "motion/react";
 import { PageHeader } from "@/components/web/WebShell";
 import { EvidenceViewer } from "@/components/web/EvidenceViewer";
 import { Sparkline, LineChart } from "@/components/charts/LineChart";
-import { Heatmap } from "@/components/charts/Heatmap";
 import { CountUp, Bar } from "@/components/ui/Progress";
 import { RiskBadge, Pill, OsaStatusPill, osaStatusOf } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { getStore } from "@/lib/mock/data";
-import {
-  DOW,
-  EVIDENCE_TIMELINE,
-  OOS_HEATMAP,
-  RISK_RANKING,
-  STORE_OSA_HISTORY,
-  type EvidenceItem,
-} from "@/lib/mock/analytics";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { fetchStore } from "@/lib/api/routes";
+import { fetchOsaTrend, fetchStoreHistory, type VisitCapture } from "@/lib/api/analytics";
+import { useResource } from "@/lib/api/useResource";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
+const POLICY_LABELS: Record<string, string> = {
+  ALLOWED: "อนุญาต",
+  RESTRICTED: "มีเงื่อนไข",
+  FORBIDDEN: "ไม่อนุญาต",
+};
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
-  const store = getStore(id);
-  const row = RISK_RANKING.find((r) => r.storeId === id);
-  const [evidence, setEvidence] = useState<EvidenceItem | null>(null);
 
-  // T8 replaces this whole screen with real history; until then the
-  // fallback keeps a never-measured store from crashing the render.
-  const osa = row?.osa ?? store.lastOsa ?? 0;
+  const store = useResource(() => fetchStore(id), [id]);
+  const history = useResource(() => fetchStoreHistory(id), [id]);
+  const trend = useResource(() => fetchOsaTrend({ storeId: id, days: 84 }), [id]);
+
+  const [evidence, setEvidence] = useState<{
+    capture: VisitCapture;
+    visitedAt: string | null;
+    gapsFound: number;
+    gapsFixed: number;
+  } | null>(null);
+
+  const visits = useMemo(() => history.data ?? [], [history.data]);
+  const points = useMemo(
+    () =>
+      (trend.data ?? []).map((p) => ({
+        label: new Date(p.bucket).toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+        value: p.osa,
+      })),
+    [trend.data],
+  );
+
+  const s = store.data;
+  const osa = s?.lastOsa ?? null;
+
+  if (store.state === "LOADING") return <LoadingBlock label="กำลังโหลดข้อมูลร้าน…" />;
+  if (store.state === "ERROR" || !s) {
+    return (
+      <div className="p-8">
+        <ErrorBlock message={store.error ?? ""} onRetry={store.reload} />
+      </div>
+    );
+  }
 
   return (
     <>
       <PageHeader
-        title={row?.name ?? store.name}
-        subtitle={`${row?.chain ?? store.chain} · ${store.externalCode} · ${store.address}`}
+        title={s.name}
+        subtitle={`${s.chain} · ${s.externalCode} · ${s.address}`}
         back={{ href: "/w", label: "ภาพรวมพื้นที่" }}
-        actions={
-          <>
-            <RiskBadge band={row?.risk ?? store.riskBand} />
-            <Button variant="secondary" size="sm">
-              เพิ่มเข้าเส้นทางสัปดาห์หน้า
-            </Button>
-          </>
-        }
+        actions={<RiskBadge band={s.riskBand} />}
       />
 
       <div className="px-6 py-6 lg:px-8">
@@ -58,33 +77,42 @@ export default function StoreDetail() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[13px] font-medium text-muted">OSA ล่าสุดของร้าน</p>
-                <p className="mt-1 flex items-baseline gap-1">
-                  <CountUp to={osa} className="text-[40px] font-bold leading-none tracking-tight" />
-                  <span className="text-[20px] font-bold text-muted">%</span>
-                </p>
+                {osa === null ? (
+                  <p className="mt-2 text-[15px] font-semibold text-muted">ยังไม่เคยตรวจ</p>
+                ) : (
+                  <p className="mt-1 flex items-baseline gap-1">
+                    <CountUp to={osa} className="text-[40px] font-bold leading-none tracking-tight" />
+                    <span className="text-[20px] font-bold text-muted">%</span>
+                  </p>
+                )}
               </div>
-              <OsaStatusPill status={osaStatusOf(osa)} />
+              {osa !== null && <OsaStatusPill status={osaStatusOf(osa)} />}
             </div>
 
-            <div className="mt-4 flex items-end justify-between gap-3 border-t border-line pt-4">
-              <div>
-                <p className="text-[12px] text-muted">12 สัปดาห์ย้อนหลัง</p>
-                <Sparkline values={STORE_OSA_HISTORY} width={150} height={40} color="#1b6fe8" />
+            {points.length >= 2 && (
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="text-[12px] text-muted">แนวโน้มรายสัปดาห์</p>
+                <Sparkline
+                  values={points.map((p) => p.value)}
+                  width={150}
+                  height={40}
+                  color="#1b6fe8"
+                />
               </div>
-              <div className="text-right">
-                <p className="text-[12px] text-muted">ค่าเฉลี่ยพื้นที่</p>
-                <p className="tnum text-[18px] font-semibold">83.4%</p>
-              </div>
-            </div>
+            )}
 
             <dl className="mt-4 space-y-2.5 border-t border-line pt-4">
-              <Fact label="SKU ที่ขาดซ้ำ" value={`${row?.repeatGapSkus ?? store.repeatGapSkus} รายการ`} />
-              <Fact label="เข้าตรวจครั้งล่าสุด" value={`${row?.lastVisit ?? "16 ส.ค."} (${row?.daysSince ?? store.daysSinceLastVisit} วันก่อน)`} />
-              <Fact label="รูปแบบร้าน" value={store.chain} />
+              <Fact label="SKU ที่ขาดซ้ำ" value={`${s.repeatGapSkus} รายการ`} />
               <Fact
-                label="นโยบายการถ่ายภาพ"
-                value={store.photoPolicy === "ALLOWED" ? "อนุญาต" : store.photoPolicy === "RESTRICTED" ? "มีเงื่อนไข" : "ไม่อนุญาต"}
+                label="เข้าตรวจครั้งล่าสุด"
+                value={
+                  s.daysSinceLastVisit === null
+                    ? "ยังไม่เคยเข้า"
+                    : `${s.daysSinceLastVisit} วันก่อน`
+                }
               />
+              <Fact label="รูปแบบร้าน" value={s.chain} />
+              <Fact label="นโยบายการถ่ายภาพ" value={POLICY_LABELS[s.photoPolicy] ?? s.photoPolicy} />
             </dl>
           </motion.section>
 
@@ -100,43 +128,28 @@ export default function StoreDetail() {
               </p>
             </div>
             <div className="px-3 py-4 sm:px-5">
-              <LineChart
-                data={STORE_OSA_HISTORY.map((v, i) => ({ label: `W${31 + i}`, value: v }))}
-                target={90}
-                targetLabel="เป้าหมาย 90%"
-                height={230}
-                decimals={0}
-              />
+              {trend.state === "LOADING" ? (
+                <LoadingBlock label="กำลังโหลดประวัติ…" />
+              ) : trend.state === "ERROR" ? (
+                <ErrorBlock message={trend.error ?? ""} onRetry={trend.reload} />
+              ) : points.length < 2 ? (
+                <p className="px-2 py-12 text-center text-[14px] leading-relaxed text-muted">
+                  ยังมีข้อมูลไม่พอสำหรับกราฟ
+                  <br />
+                  ต้องมีผลการตรวจอย่างน้อย 2 สัปดาห์
+                </p>
+              ) : (
+                <LineChart
+                  data={points}
+                  target={90}
+                  targetLabel="เป้าหมาย 90%"
+                  height={230}
+                  decimals={0}
+                />
+              )}
             </div>
           </motion.section>
         </motion.div>
-
-        {/* ---- heatmap ---- */}
-        <motion.section
-          variants={fadeUp}
-          initial="hidden"
-          animate="show"
-          transition={{ delay: 0.25 }}
-          className="mt-5 rounded-card border border-line bg-bg shadow-[var(--shadow-card)]"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
-            <div>
-              <h2 className="text-[16px] font-semibold">SKU ที่ขาดบ่อย แยกตามวันในสัปดาห์</h2>
-              <p className="mt-0.5 text-[13px] text-muted">
-                จำนวนครั้งที่ตรวจพบว่าขาดใน 12 สัปดาห์ล่าสุด · ตัวเลขในช่องคือจำนวนครั้ง
-              </p>
-            </div>
-            <Pill tone="danger">ขาดหนักช่วงศุกร์–เสาร์</Pill>
-          </div>
-          <div className="px-5 py-4">
-            <Heatmap rows={OOS_HEATMAP} columns={DOW} />
-            <p className="mt-4 rounded-card bg-surface px-3.5 py-3 text-[13px] leading-relaxed text-muted">
-              <strong className="font-semibold text-text">สิ่งที่อ่านได้จากตารางนี้:</strong>{" "}
-              สินค้ากลุ่มกาแฟพร้อมดื่มขาดหนักสุดในวันศุกร์และเสาร์
-              การเลื่อนรอบเติมของมาก่อนวันศุกร์น่าจะได้ผลมากกว่าการเพิ่มรอบเข้าร้าน
-            </p>
-          </div>
-        </motion.section>
 
         {/* ---- evidence timeline ---- */}
         <motion.section
@@ -153,57 +166,102 @@ export default function StoreDetail() {
             </p>
           </div>
 
-          <ol className="divide-y divide-line">
-            {EVIDENCE_TIMELINE.map((e, i) => (
-              <motion.li
-                key={e.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + i * 0.06, duration: 0.35, ease: easeOut }}
-                className="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-surface/60"
-              >
-                <div className="w-[112px] shrink-0">
-                  <p className="text-[14px] font-semibold">{e.date}</p>
-                  <p className="tnum text-[13px] text-muted">{e.time} น.</p>
-                </div>
+          {history.state === "LOADING" ? (
+            <LoadingBlock label="กำลังโหลดไทม์ไลน์…" />
+          ) : history.state === "ERROR" ? (
+            <div className="p-5">
+              <ErrorBlock message={history.error ?? ""} onRetry={history.reload} />
+            </div>
+          ) : visits.length === 0 ? (
+            <p className="px-5 py-14 text-center text-[14px] leading-relaxed text-muted">
+              ยังไม่มีการเข้าตรวจร้านนี้
+              <br />
+              ไทม์ไลน์จะเริ่มบันทึกตั้งแต่การเข้าร้านครั้งแรก
+            </p>
+          ) : (
+            <ol className="divide-y divide-line">
+              {visits.map((v, i) => {
+                const before = v.captures.find((c) => c.phase === "BEFORE") ?? v.captures[0];
+                const when = new Date(v.checkedInAt);
+                return (
+                  <motion.li
+                    key={v.visitId}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(0.5, 0.1 + i * 0.05), duration: 0.35, ease: easeOut }}
+                    className="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-surface/60"
+                  >
+                    <div className="w-[112px] shrink-0">
+                      <p className="text-[14px] font-semibold">
+                        {when.toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                      </p>
+                      <p className="tnum text-[13px] text-muted">
+                        {when.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+                      </p>
+                    </div>
 
-                <div className="min-w-[150px] flex-1">
-                  <p className="text-[14px]">
-                    {e.category} · ชั้น {e.bay}
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="tnum text-[13px] text-muted">{e.osaBefore}%</span>
-                    <span className="text-faint" aria-hidden>→</span>
-                    <span className="tnum text-[14px] font-semibold text-ok">{e.osaAfter}%</span>
-                    <Bar value={e.osaAfter ?? e.osaBefore} tone="ok" className="w-16" height={5} delay={0.5 + i * 0.06} />
-                  </div>
-                </div>
+                    <div className="min-w-[150px] flex-1">
+                      <p className="text-[14px]">
+                        {v.captures.length === 0
+                          ? "ไม่มีภาพในการเข้าร้านครั้งนี้"
+                          : `${v.captures.length} ภาพ · ${before?.shelfBayLabel || "ไม่ระบุชั้น"}`}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className="tnum text-[13px] text-muted">{v.osaBefore ?? "—"}%</span>
+                        <span className="text-faint" aria-hidden>→</span>
+                        {/* An open visit has no after-score yet, and a dash
+                            says so rather than repeating the before-score. */}
+                        <span className="tnum text-[14px] font-semibold text-ok">
+                          {v.osaAfter ?? "—"}%
+                        </span>
+                        {v.osaAfter !== null && (
+                          <Bar value={v.osaAfter} tone="ok" className="w-16" height={5} />
+                        )}
+                      </div>
+                    </div>
 
-                <div className="flex items-center gap-2">
-                  <Pill tone="danger" className="text-[12px]">
-                    พบ <span className="tnum">{e.gaps}</span>
-                  </Pill>
-                  <Pill tone="ok" className="text-[12px]">
-                    แก้ <span className="tnum">{e.fixed}</span>
-                  </Pill>
-                  {e.disputed && (
-                    <Pill tone="warn" className="text-[12px]">
-                      กำลังโต้แย้ง
-                    </Pill>
-                  )}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <Pill tone="danger" className="text-[12px]">
+                        พบ <span className="tnum">{v.gapsFound}</span>
+                      </Pill>
+                      <Pill tone="ok" className="text-[12px]">
+                        แก้ <span className="tnum">{v.gapsFixed}</span>
+                      </Pill>
+                      {!v.gpsMatch && (
+                        <Pill tone="warn" className="text-[12px]">
+                          พิกัดไม่ตรง
+                        </Pill>
+                      )}
+                      {v.status === "OPEN" && (
+                        <Pill tone="neutral" className="text-[12px]">
+                          ยังไม่ปิด
+                        </Pill>
+                      )}
+                    </div>
 
-                <div className="ml-auto flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setEvidence(e)}>
-                    ดูภาพหลักฐาน
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setEvidence(e)}>
-                    โต้แย้งผลนี้
-                  </Button>
-                </div>
-              </motion.li>
-            ))}
-          </ol>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={!before}
+                        onClick={() =>
+                          before &&
+                          setEvidence({
+                            capture: before,
+                            visitedAt: v.checkedInAt,
+                            gapsFound: v.gapsFound,
+                            gapsFixed: v.gapsFixed,
+                          })
+                        }
+                      >
+                        {before ? "ดูภาพหลักฐาน" : "ไม่มีภาพ"}
+                      </Button>
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </ol>
+          )}
         </motion.section>
 
         <p className="mt-5 flex items-start gap-2 rounded-card border border-line bg-bg px-4 py-3.5 text-[13px] leading-relaxed text-muted">
@@ -218,7 +276,14 @@ export default function StoreDetail() {
         </p>
       </div>
 
-      <EvidenceViewer item={evidence} storeName={row?.name ?? store.name} onClose={() => setEvidence(null)} />
+      <EvidenceViewer
+        capture={evidence?.capture ?? null}
+        storeName={s.name}
+        visitedAt={evidence?.visitedAt ?? null}
+        gapsFound={evidence?.gapsFound ?? 0}
+        gapsFixed={evidence?.gapsFixed ?? 0}
+        onClose={() => setEvidence(null)}
+      />
     </>
   );
 }

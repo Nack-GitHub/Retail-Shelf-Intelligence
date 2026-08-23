@@ -2,47 +2,62 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ShelfPhoto } from "@/components/shelf/ShelfPhoto";
+import Image from "next/image";
 import { DetectionOverlay, type OverlayFilter } from "@/components/shelf/DetectionOverlay";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Controls";
-import { Pill } from "@/components/ui/Badge";
-import { buildAnalysis, slotsAfter } from "@/lib/mock/shelf";
-import type { EvidenceItem } from "@/lib/mock/analytics";
+import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { fetchResult, type AnalysisResult } from "@/lib/api/captures";
+import { useResource } from "@/lib/api/useResource";
+import type { VisitCapture } from "@/lib/api/analytics";
 import { fade, scaleIn, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
-const analysis = buildAnalysis();
-const FIXED = ["gap-r0s2", "gap-r0s6", "gap-r1s1", "gap-r1s7"];
-
 /** W3 — Evidence Viewer.
- *  Metadata shows the capturer's ROLE, never their identity or any
- *  performance figure. This is the negotiation artefact, not an appraisal. */
+ *
+ *  Opens the actual photograph and the actual boxes the model drew on it.
+ *  A manager disputing a finding with a store needs the pixels, not a
+ *  reconstruction of them.
+ *
+ *  ⛔ Metadata shows the capturer's ROLE and never their identity. This is a
+ *  negotiation artefact, not an appraisal — and the API does not return a
+ *  rep's name for exactly this reason. */
 export function EvidenceViewer({
-  item,
+  capture,
   storeName,
+  visitedAt,
+  gapsFound,
+  gapsFixed,
   onClose,
 }: {
-  item: EvidenceItem | null;
+  capture: VisitCapture | null;
   storeName: string;
+  visitedAt: string | null;
+  gapsFound: number;
+  gapsFixed: number;
   onClose: () => void;
 }) {
   const [showOverlay, setShowOverlay] = useState(true);
-  const [phase, setPhase] = useState<"BEFORE" | "AFTER">("BEFORE");
   const [filter, setFilter] = useState<OverlayFilter>("ALL");
   const [disputed, setDisputed] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // opening a different piece of evidence resets the view to its "before"
+  const captureId = capture?.captureId ?? null;
+  const analysis = useResource<AnalysisResult | null>(
+    async () => (captureId ? fetchResult(captureId) : null),
+    [captureId],
+  );
+
+  // opening a different capture resets the view
   const [openedId, setOpenedId] = useState<string | null>(null);
-  if (item && item.id !== openedId) {
-    setOpenedId(item.id);
-    setDisputed(item.disputed);
-    setPhase("BEFORE");
+  if (captureId && captureId !== openedId) {
+    setOpenedId(captureId);
+    setDisputed(false);
+    setFilter("ALL");
   }
 
   useEffect(() => {
-    if (!item) return;
+    if (!capture) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     const t = window.setTimeout(() => panelRef.current?.focus(), 50);
@@ -50,11 +65,23 @@ export function EvidenceViewer({
       document.removeEventListener("keydown", onKey);
       window.clearTimeout(t);
     };
-  }, [item, onClose]);
+  }, [capture, onClose]);
+
+  const result = analysis.data;
+  const captured = capture?.capturedAt ?? visitedAt;
+  const capturedLabel = captured
+    ? new Date(captured).toLocaleString("th-TH", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 
   return (
     <AnimatePresence>
-      {item && (
+      {capture && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4 sm:p-6">
           <motion.button
             type="button"
@@ -71,7 +98,7 @@ export function EvidenceViewer({
             tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label={`หลักฐานการตรวจ ${item.date}`}
+            aria-label={`หลักฐานการตรวจ ${capturedLabel}`}
             variants={scaleIn}
             initial="hidden"
             animate="show"
@@ -80,81 +107,87 @@ export function EvidenceViewer({
           >
             {/* ---- photo ---- */}
             <div className="relative flex min-w-0 flex-1 items-center bg-ink">
-              <div className="relative aspect-[16/9] w-full">
-                {phase === "BEFORE" ? (
-                  <ShelfPhoto fit="contain" />
-                ) : (
-                  <ShelfPhoto slots={slotsAfter(FIXED)} fit="contain" />
-                )}
-                <AnimatePresence>
-                  {showOverlay && phase === "BEFORE" && (
-                    <motion.div
-                      variants={fade}
-                      initial="hidden"
-                      animate="show"
-                      exit="exit"
-                      className="absolute inset-0"
-                    >
-                      <DetectionOverlay
-                        detections={analysis.detections}
-                        filter={filter}
-                        fit="contain"
-                        imageWidth={analysis.imageWidth}
-                        imageHeight={analysis.imageHeight}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                {(["BEFORE", "AFTER"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPhase(p)}
-                    aria-pressed={phase === p}
-                    className={cn(
-                      "h-9 rounded-pill px-3.5 text-[13px] font-medium transition-colors",
-                      phase === p
-                        ? "bg-ink-text text-ink"
-                        : "bg-ink/70 text-ink-text backdrop-blur-sm hover:bg-ink/90",
-                    )}
-                  >
-                    {p === "BEFORE" ? `ก่อน · OSA ${item.osaBefore}%` : `หลัง · OSA ${item.osaAfter ?? "—"}%`}
-                  </button>
-                ))}
-              </div>
-
-              <div className="on-dark absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-btn bg-ink/75 px-3.5 py-2.5 backdrop-blur-sm">
-                <Toggle dark checked={showOverlay} onChange={setShowOverlay} label="แสดงกรอบตรวจจับ" />
-              </div>
-
-              {showOverlay && phase === "BEFORE" && (
-                <div className="scroll-x absolute inset-x-4 top-16 flex gap-1.5">
-                  {(
-                    [
-                      { id: "ALL", label: "ทั้งหมด" },
-                      { id: "GAP", label: "ช่องว่าง" },
-                      { id: "LOW_CONF", label: "ความมั่นใจต่ำ" },
-                    ] as { id: OverlayFilter; label: string }[]
-                  ).map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setFilter(c.id)}
-                      aria-pressed={filter === c.id}
-                      className={cn(
-                        "h-8 shrink-0 rounded-pill px-3 text-[12px] font-medium transition-colors",
-                        filter === c.id
-                          ? "bg-primary text-white"
-                          : "bg-ink/65 text-ink-muted backdrop-blur-sm hover:text-ink-text",
-                      )}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
+              {analysis.state === "LOADING" ? (
+                <LoadingBlock label="กำลังโหลดภาพหลักฐาน…" className="w-full" />
+              ) : analysis.state === "ERROR" ? (
+                <div className="w-full p-6">
+                  <ErrorBlock message={analysis.error ?? ""} onRetry={analysis.reload} />
                 </div>
+              ) : !result?.imageUrl ? (
+                <p className="w-full px-6 py-16 text-center text-[14px] text-ink-muted">
+                  ภาพนี้ถูกลบตามกำหนดการเก็บรักษาข้อมูลแล้ว
+                </p>
+              ) : (
+                <>
+                  <div className="relative aspect-[16/9] w-full">
+                    <Image
+                      src={result.imageUrl}
+                      alt="ภาพชั้นวางที่ใช้เป็นหลักฐาน"
+                      fill
+                      unoptimized
+                      sizes="(min-width: 1024px) 760px, 100vw"
+                      className="object-contain"
+                    />
+                    <AnimatePresence>
+                      {showOverlay && (
+                        <motion.div
+                          variants={fade}
+                          initial="hidden"
+                          animate="show"
+                          exit="exit"
+                          className="absolute inset-0"
+                        >
+                          <DetectionOverlay
+                            detections={result.detections}
+                            findings={result.gapFindings}
+                            filter={filter}
+                            fit="contain"
+                            imageWidth={result.imageWidth}
+                            imageHeight={result.imageHeight}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                    <span className="h-9 rounded-pill bg-ink-text px-3.5 text-[13px] font-medium leading-9 text-ink">
+                      {capture.phase === "AFTER" ? "หลังเติมของ" : "ก่อนเติมของ"} · OSA{" "}
+                      {result.osaScore}%
+                    </span>
+                  </div>
+
+                  <div className="on-dark absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-btn bg-ink/75 px-3.5 py-2.5 backdrop-blur-sm">
+                    <Toggle dark checked={showOverlay} onChange={setShowOverlay} label="แสดงกรอบตรวจจับ" />
+                  </div>
+
+                  {showOverlay && (
+                    <div className="scroll-x absolute inset-x-4 top-16 flex gap-1.5">
+                      {(
+                        [
+                          { id: "ALL", label: "ทั้งหมด" },
+                          { id: "GAP", label: "ช่องว่าง" },
+                          { id: "LOW_CONF", label: "ความมั่นใจต่ำ" },
+                        ] as { id: OverlayFilter; label: string }[]
+                      ).map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setFilter(c.id)}
+                          aria-pressed={filter === c.id}
+                          className={cn(
+                            "h-8 shrink-0 rounded-pill px-3 text-[12px] font-medium transition-colors",
+                            filter === c.id
+                              ? "bg-primary text-white"
+                              : "bg-ink/65 text-ink-muted backdrop-blur-sm hover:text-ink-text",
+                          )}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -163,9 +196,7 @@ export function EvidenceViewer({
               <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
                 <div>
                   <h2 className="text-[16px] font-semibold leading-snug">หลักฐานการตรวจ</h2>
-                  <p className="mt-0.5 text-[13px] text-muted">
-                    {item.date} · {item.time} น.
-                  </p>
+                  <p className="mt-0.5 text-[13px] text-muted">{capturedLabel}</p>
                 </div>
                 <button
                   type="button"
@@ -181,14 +212,20 @@ export function EvidenceViewer({
 
               <dl className="divide-y divide-line">
                 <Row label="ร้าน" value={storeName} />
-                <Row label="หมวด / ชั้นวาง" value={`${item.category} · ${item.bay}`} />
-                <Row label="วันและเวลา" value={`${item.date} ${item.time} น.`} />
-                <Row label="พิกัด GPS" value={item.gps} mono />
-                <Row label="ผู้ถ่าย" value={item.capturedByRole} hint="ระบุเป็นบทบาท ไม่ระบุตัวบุคคล" />
-                <Row label="โมเดลที่ใช้" value={item.modelVersion} mono />
                 <Row
-                  label="ผลลัพธ์"
-                  value={`พบช่องว่าง ${item.gaps} จุด · แก้ไขแล้ว ${item.fixed} จุด`}
+                  label="หมวด / ชั้นวาง"
+                  value={[capture.category, capture.shelfBayLabel].filter(Boolean).join(" · ")}
+                />
+                <Row label="วันและเวลา" value={capturedLabel} />
+                <Row
+                  label="ผู้ถ่าย"
+                  value="พนักงานภาคสนาม"
+                  hint="ระบุเป็นบทบาท ไม่ระบุตัวบุคคล"
+                />
+                <Row label="โมเดลที่ใช้" value={result?.modelVersion ?? capture.modelVersion ?? "—"} mono />
+                <Row
+                  label="ผลลัพธ์ของการเข้าร้านนี้"
+                  value={`พบช่องว่าง ${gapsFound} จุด · แก้ไขแล้ว ${gapsFixed} จุด`}
                 />
               </dl>
 
@@ -207,10 +244,10 @@ export function EvidenceViewer({
                           <path d="M12 3l9.5 16.5h-19L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                           <path d="M12 9.5v4M12 16.6h.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
                         </svg>
-                        อยู่ระหว่างโต้แย้งผล
+                        บันทึกการโต้แย้งไว้ในหน้าจอนี้แล้ว
                       </p>
                       <p className="mt-1 text-[13px] leading-relaxed text-[#95500a]">
-                        ส่งให้ทีมข้อมูลตรวจสอบแล้ว ผลนี้จะไม่ถูกนำไปใช้จนกว่าจะได้ข้อสรุป
+                        การส่งเรื่องให้ทีมข้อมูลยังไม่เปิดใช้งานในรุ่นสาธิตนี้
                       </p>
                     </motion.div>
                   ) : (
@@ -221,12 +258,9 @@ export function EvidenceViewer({
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <Button variant="ghost" full className="mt-2">
-                  <ExportIcon /> ส่งออกเป็น PDF สำหรับเจรจา
-                </Button>
                 <p className="mt-2.5 text-[12px] leading-relaxed text-faint">
-                  ไฟล์ PDF จะมีภาพ พิกัด และเวลา เพื่อใช้ประกอบการเจรจากับร้านค้า
-                  ระบบไม่ส่งเอกสารนี้ให้ร้านโดยอัตโนมัติ
+                  ระบบไม่ส่งเอกสารหรือข้อความใด ๆ ให้ร้านค้าโดยอัตโนมัติ
+                  ทุกการติดต่อร้านต้องทำโดยคนเท่านั้น
                 </p>
               </div>
             </div>
@@ -260,13 +294,3 @@ function Row({
     </div>
   );
 }
-
-function ExportIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 3v12M7 10l5 5 5-5M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export { Pill };

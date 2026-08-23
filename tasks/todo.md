@@ -130,13 +130,16 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `backend/app/api/v1/{analytics,areas}.py` · `lib/api/analytics.ts` · `app/w/page.tsx` · `components/web/WebShell.tsx`
 **Depends on:** T1 · **Scope:** M
 
-### - [ ] T8: Store detail
+### - [x] T8: Store detail
 **Description:** `/w/stores/[id]` from `GET /v1/stores/{id}` + the existing `/stores/{id}/history` + store-scoped OSA trend. The SKU×day heatmap card is removed (no backing data).
 
 **Acceptance:**
-- [ ] Timeline rows are real visits with real before/after OSA
-- [ ] A store with no history shows the empty state, not a flat-zero chart
-- [ ] `EvidenceViewer` opens a real capture
+- [x] Timeline rows are real visits with real before/after OSA, gap counts, and an open-visit pill
+- [x] A store with no history shows the empty state, not a flat-zero chart
+- [x] `EvidenceViewer` opens a real capture — presigned MinIO photo, boxes in the correct 1920×1080 space, model version from the DB
+- [x] Evidence metadata shows the capturer's ROLE, never their identity (⛔1)
+- [x] SKU×day heatmap dropped: no backing data
+- [x] `GET /v1/stores/{id}/history` now carries the captures behind each visit — a number a manager cannot open back to the photograph is a claim, not evidence
 
 **Verify:** browser check against `psql` rows
 **Files:** `app/w/stores/[id]/page.tsx` · `components/web/EvidenceViewer.tsx` · `lib/api/analytics.ts`

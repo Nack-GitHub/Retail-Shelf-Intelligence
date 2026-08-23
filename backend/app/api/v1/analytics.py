@@ -137,7 +137,16 @@ async def store_history(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(manager_only),
 ) -> dict:
-    """Visit timeline for one store, with before/after OSA per visit."""
+    """Visit timeline for one store, with the captures behind each row.
+
+    The captures travel with the visit because every number a manager sees has
+    to be openable back to the pixels that produced it. A timeline that shows
+    an OSA score with no way to reach the photograph is a claim, not evidence.
+
+    ⛔ Carries no identity. Who visited the store is not part of what a
+    manager reviews, and a per-visit rep name is a per-rep metric by another
+    route.
+    """
     visits = (
         (
             await db.execute(
@@ -150,17 +159,66 @@ async def store_history(
         .scalars()
         .all()
     )
+    visit_ids = [v.id for v in visits]
+
+    if not visit_ids:
+        return {"storeId": str(store_id), "visits": []}
 
     gap_counts = dict(
         (
             await db.execute(
                 select(Capture.visit_id, func.count(GapFindingRow.id))
                 .join(GapFindingRow, GapFindingRow.capture_id == Capture.id)
-                .where(Capture.visit_id.in_([v.id for v in visits]) if visits else False)
+                .where(Capture.visit_id.in_(visit_ids))
                 .group_by(Capture.visit_id)
             )
         ).all()
     )
+
+    fixed_counts = dict(
+        (
+            await db.execute(
+                select(TaskRow.visit_id, func.count(TaskRow.id))
+                .where(TaskRow.visit_id.in_(visit_ids), TaskRow.status == "FIXED")
+                .group_by(TaskRow.visit_id)
+            )
+        ).all()
+    )
+
+    # The newest analysis per capture — the table is append-only, so a
+    # re-inference adds a row rather than replacing one.
+    capture_rows = (
+        await db.execute(
+            select(
+                Capture.visit_id,
+                Capture.id,
+                Capture.category,
+                Capture.shelf_bay_label,
+                Capture.phase,
+                Capture.captured_at,
+                ShelfAnalysisRow.osa_score,
+                ShelfAnalysisRow.model_version,
+            )
+            .outerjoin(ShelfAnalysisRow, ShelfAnalysisRow.capture_id == Capture.id)
+            .where(Capture.visit_id.in_(visit_ids))
+            .distinct(Capture.id)
+            .order_by(Capture.id, ShelfAnalysisRow.computed_at.desc())
+        )
+    ).all()
+
+    captures_by_visit: dict[UUID, list[dict]] = {}
+    for visit_id, capture_id, category, bay, phase, captured_at, osa, model_version in capture_rows:
+        captures_by_visit.setdefault(visit_id, []).append(
+            {
+                "captureId": str(capture_id),
+                "category": category,
+                "shelfBayLabel": bay,
+                "phase": phase,
+                "capturedAt": captured_at.isoformat() if captured_at else None,
+                "osaScore": round(float(osa), 4) if osa is not None else None,
+                "modelVersion": model_version,
+            }
+        )
 
     return {
         "storeId": str(store_id),
@@ -172,8 +230,10 @@ async def store_history(
                 "osaBefore": float(v.osa_before) if v.osa_before is not None else None,
                 "osaAfter": float(v.osa_after) if v.osa_after is not None else None,
                 "gapsFound": gap_counts.get(v.id, 0),
+                "gapsFixed": fixed_counts.get(v.id, 0),
                 "gpsMatch": v.gps_match,
                 "status": v.status,
+                "captures": captures_by_visit.get(v.id, []),
             }
             for v in visits
         ],

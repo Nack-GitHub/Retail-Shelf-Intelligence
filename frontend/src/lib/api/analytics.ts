@@ -109,6 +109,17 @@ export async function fetchRoutePlan(areaId?: string): Promise<PlannedStop[]> {
   }));
 }
 
+export interface VisitCapture {
+  captureId: string;
+  category: string;
+  shelfBayLabel: string;
+  phase: "BEFORE" | "AFTER";
+  capturedAt: string | null;
+  /** percent 0-100, or null when the analysis has not landed yet */
+  osaScore: number | null;
+  modelVersion: string | null;
+}
+
 export interface StoreVisit {
   visitId: string;
   checkedInAt: string;
@@ -116,8 +127,11 @@ export interface StoreVisit {
   osaBefore: number | null;
   osaAfter: number | null;
   gapsFound: number;
+  gapsFixed: number;
   gpsMatch: boolean;
   status: string;
+  /** the photographs behind this row — every number must be openable */
+  captures: VisitCapture[];
 }
 
 /** One store's visit timeline. ⛔ Carries no identity — who visited is not
@@ -130,5 +144,6 @@ export async function fetchStoreHistory(storeId: string, limit = 30): Promise<St
     ...v,
     osaBefore: toPercent(v.osaBefore),
     osaAfter: toPercent(v.osaAfter),
+    captures: v.captures.map((c) => ({ ...c, osaScore: toPercent(c.osaScore) })),
   }));
 }

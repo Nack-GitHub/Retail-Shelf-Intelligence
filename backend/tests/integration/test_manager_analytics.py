@@ -79,3 +79,42 @@ def test_route_plan_carries_no_user_identifier(
     body = str(client.get("/v1/analytics/route-plan", headers=manager_auth).json()).lower()
     for banned in ("userid", "user_id", "repname", "repid"):
         assert banned not in body
+
+
+def test_store_history_carries_the_captures_behind_each_visit(
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
+) -> None:
+    """A number a manager cannot open back to the photograph is a claim, not
+    evidence. Each visit row carries the captures it produced."""
+    from tests.integration.conftest import upload_capture
+
+    upload_capture(client, rep_auth, visit["id"], bay="A2_gaps", category="cat-coffee")
+
+    history = client.get(
+        f"/v1/stores/{visit['storeId']}/history", headers=manager_auth
+    ).json()
+    row = next(v for v in history["visits"] if v["visitId"] == visit["id"])
+
+    assert row["captures"], "no captures on the visit that produced the score"
+    capture = row["captures"][0]
+    assert set(capture) == {
+        "captureId",
+        "category",
+        "shelfBayLabel",
+        "phase",
+        "capturedAt",
+        "osaScore",
+        "modelVersion",
+    }
+    assert row["gapsFound"] > 0
+
+
+def test_store_history_carries_no_user_identifier(
+    client: TestClient, manager_auth: dict[str, str], visit: dict
+) -> None:
+    """⛔ Who visited the store is not part of what a manager reviews."""
+    body = str(
+        client.get(f"/v1/stores/{visit['storeId']}/history", headers=manager_auth).json()
+    ).lower()
+    for banned in ("userid", "user_id", "repname", "capturedby", "verifiedby"):
+        assert banned not in body
