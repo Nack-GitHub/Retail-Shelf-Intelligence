@@ -92,7 +92,12 @@ async def check_out(
 
     if osa_after is not None:
         visit.osa_after = round(float(osa_after), 4)
-    visit.checked_out_at = datetime.now(UTC)
+    # Keep the original close time on a replay. The offline queue re-sends
+    # checkout, and the manager's average visit duration is computed from
+    # checked_out_at - checked_in_at: moving it stretches a visit that was
+    # already over.
+    if visit.checked_out_at is None:
+        visit.checked_out_at = datetime.now(UTC)
     visit.status = VisitStatus.CLOSED
     await db.commit()
 

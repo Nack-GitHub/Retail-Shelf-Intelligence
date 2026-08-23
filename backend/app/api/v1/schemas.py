@@ -114,9 +114,18 @@ class VisitCreate(ApiModel):
 
 
 class VisitOut(ApiModel):
+    """⛔ Deliberately carries NO user_id.
+
+    The column exists — a visit belongs to someone, and the evidence trail
+    needs that — but publishing it broke the prohibition by composition: the
+    store-history endpoint hands out visitIds, and anyone who could exchange
+    one for a user id could reconstruct, per named person, every score they
+    produced and every hour they worked. Each response was clean on its own;
+    the join was not. No client reads this field.
+    """
+
     id: UUID
     store_id: UUID
-    user_id: UUID
     checked_in_at: datetime
     checked_out_at: datetime | None
     gps_match: bool

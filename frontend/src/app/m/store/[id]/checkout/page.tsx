@@ -55,11 +55,14 @@ export default function CheckoutScreen() {
     };
   }, [closeOutVisit]);
 
+  /** Real elapsed time, or null. It used to add 17 minutes to make a
+   *  seconds-long demo visit look plausible — which put a fabricated duration
+   *  on the rep's screen while the manager's dashboard, computing
+   *  checked_out_at - checked_in_at for the same visit, read zero. Two screens
+   *  disagreeing about one visit is worse than one screen saying "<1". */
   const minutes = useMemo(() => {
-    if (!checkedInAt || !checkedOutAt) return 18;
-    const m = Math.max(1, Math.round((checkedOutAt - checkedInAt) / 60000));
-    // the demo visit lasts seconds, so pad it to a plausible store visit
-    return m < 60 ? m + 17 : m;
+    if (!checkedInAt || !checkedOutAt) return null;
+    return Math.round((checkedOutAt - checkedInAt) / 60000);
   }, [checkedInAt, checkedOutAt]);
 
   const osaBefore = checkout?.osaBefore ?? analysis?.osaScore ?? null;
@@ -156,7 +159,12 @@ export default function CheckoutScreen() {
           </motion.div>
 
           <motion.div variants={listItem} className="grid grid-cols-2 gap-3">
-            <SummaryTile label="เวลาที่ใช้ในร้าน" value={`${minutes}`} unit="นาที" icon={<ClockIcon />} />
+            <SummaryTile
+              label="เวลาที่ใช้ในร้าน"
+              value={minutes === null ? "—" : minutes < 1 ? "<1" : `${minutes}`}
+              unit="นาที"
+              icon={<ClockIcon />}
+            />
             <SummaryTile label="ช่องว่างที่พบ" value={`${stats.total}`} unit="จุด" icon={<GapIcon />} />
             <SummaryTile label="เติมของสำเร็จ" value={`${stats.fixed.length}`} unit="รายการ" tone="ok" icon={<CheckIcon />} />
             <SummaryTile label="ส่งต่อซัพพลายเชน" value={`${requests.length}`} unit="รายการ" tone="warn" icon={<TruckIcon />} />

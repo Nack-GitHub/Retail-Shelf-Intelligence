@@ -44,6 +44,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # The bucket is PRIVATE. It once carried `mc anonymous set download`, which
+  # made every shelf photograph world-readable and the bucket world-listable —
+  # and since the keys are date-partitioned and carry the bay label, the
+  # listing alone was a browsable index of which shelf was photographed when.
+  # That made presign_get, the entire access control for image evidence, a
+  # no-op. Nothing needs anonymous access: the ML service reads with
+  # credentials, and the app reads through presigned URLs.
   minio-init:
     image: minio/mc:RELEASE.2024-10-08T09-37-26Z
     container_name: shelfeye-minio-init
@@ -53,8 +60,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 shelfeye shelfeye123 &&
       mc mb --ignore-existing local/shelfeye-raw &&
-      mc anonymous set download local/shelfeye-raw &&
-      echo 'bucket ready'
+      mc anonymous set none local/shelfeye-raw &&
+      echo 'bucket ready (private)'
       "
 
   # ── Application services ───────────────────────────────────────────────

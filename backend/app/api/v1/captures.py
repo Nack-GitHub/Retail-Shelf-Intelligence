@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.storage_client import get_storage
-from app.api.v1.deps import current_user, get_db
+from app.api.v1.deps import current_user, get_db, owns_or_supervises
 from app.api.v1.schemas import (
     BBoxOut,
     CaptureCommit,
@@ -61,6 +61,12 @@ async def presign(
     visit = (await db.execute(select(Visit).where(Visit.id == body.visit_id))).scalar_one_or_none()
     if visit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบการเข้าร้าน")
+
+    # A write grant against someone else's visit would let any account attach
+    # a photograph — and the OSA score and findings derived from it — to a
+    # store they never entered, under another person's name.
+    if not owns_or_supervises(user, visit.user_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "ไม่สามารถถ่ายภาพในการเข้าร้านของผู้อื่นได้")
 
     capture = Capture(
         visit_id=visit.id,

@@ -61,8 +61,11 @@ export default function LoginScreen() {
                 <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
               <p className="text-[13px] leading-relaxed text-[#b45f04]">
-                ไม่มีสัญญาณ — จะเข้าสู่ระบบด้วยข้อมูลที่บันทึกไว้ในเครื่อง
-                และซิงก์เมื่อกลับมาออนไลน์
+                {/* Left over from the mock build. login() is a plain network
+                    call — there is no offline sign-in, and saying otherwise
+                    leaves a rep tapping a button that cannot work. */}
+                ไม่มีสัญญาณ — การเข้าสู่ระบบต้องใช้อินเทอร์เน็ต
+                เมื่อเข้าสู่ระบบแล้วจึงจะทำงานแบบออฟไลน์ได้
               </p>
             </div>
           </motion.div>

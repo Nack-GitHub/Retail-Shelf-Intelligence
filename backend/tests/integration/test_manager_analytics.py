@@ -14,7 +14,7 @@ def test_kpis_are_manager_only(client: TestClient, rep_auth: dict[str, str]) -> 
 
 
 def test_kpis_return_only_what_the_database_can_answer(
-    client: TestClient, manager_auth: dict[str, str]
+    client: TestClient, manager_auth: dict[str, str], measured_store: str
 ) -> None:
     """No card is invented.
 
@@ -25,6 +25,8 @@ def test_kpis_return_only_what_the_database_can_answer(
     payload = client.get("/v1/analytics/kpis", headers=manager_auth).json()
     ids = {k["id"] for k in payload["kpis"]}
 
+    # `measured_store` guarantees an analysis exists, so the osa card is the
+    # fixture's doing rather than a leftover from whichever test ran first.
     assert "osa" in ids
     assert "visits" in ids
     assert "cost" not in ids, "cost has no backing data and must not be reported"
@@ -119,10 +121,16 @@ def test_visits_kpi_counts_stores_not_visits(
     count STORES. Counting visit rows made an area of 5 stores report 483,
     which a manager reads as coverage and acts on.
     """
+    before = next(
+        k
+        for k in client.get("/v1/analytics/kpis?days=1", headers=manager_auth).json()["kpis"]
+        if k["id"] == "visits"
+    )["value"]
+
     stores = client.get("/v1/stores", headers=rep_auth).json()
     store_id = stores[0]["id"]
 
-    # Same store, three separate visits.
+    # Three separate visits to ONE store.
     for _ in range(3):
         response = client.post(
             "/v1/visits",
@@ -131,10 +139,16 @@ def test_visits_kpi_counts_stores_not_visits(
         )
         assert response.status_code == 201
 
-    payload = client.get("/v1/analytics/kpis?days=1", headers=manager_auth).json()
-    visits_kpi = next(k for k in payload["kpis"] if k["id"] == "visits")
+    after = next(
+        k
+        for k in client.get("/v1/analytics/kpis?days=1", headers=manager_auth).json()["kpis"]
+        if k["id"] == "visits"
+    )["value"]
 
-    assert visits_kpi["value"] <= len(stores), (
-        f"reported {visits_kpi['value']} stores inspected, but only "
-        f"{len(stores)} stores exist"
+    # Asserting on the DELTA, not the total. `value <= len(stores)` passed on a
+    # fresh database even with the bug present — 3 visits reads as 3, and
+    # 3 <= 5 — so the test could not catch its own regression.
+    assert after - before <= 1, (
+        f"three visits to one store moved the store count by {after - before}; "
+        "it counts visits, not stores"
     )

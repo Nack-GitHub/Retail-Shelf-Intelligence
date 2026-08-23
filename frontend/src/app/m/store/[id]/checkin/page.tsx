@@ -127,11 +127,14 @@ export default function CheckInScreen() {
               </span>
               <div className="min-w-0">
                 <p className={`text-[14px] font-medium ${gpsMatch ? "text-[#07794a]" : "text-[#b45f04]"}`}>
-                  {gpsMatch ? "อยู่ในพื้นที่ร้าน" : "อยู่ห่างจากร้าน 340 ม."}
+                  {gpsMatch ? "อยู่ในพื้นที่ร้าน" : "พิกัดไม่ตรงกับที่ตั้งร้าน"}
                 </p>
                 <p className={`mt-0.5 text-[13px] leading-relaxed ${gpsMatch ? "text-[#0a6b45]" : "text-[#95500a]"}`}>
                   {gpsMatch
-                    ? "ระยะห่างจากพิกัดร้าน 18 ม. · ความแม่นยำ ±12 ม."
+                    /* The exact distance is computed server-side but not
+                       returned, so quoting a figure here would be inventing
+                       one next to a flag that is real. */
+                    ? "พิกัดของคุณตรงกับที่ตั้งร้าน"
                     : "ยังเช็คอินได้ตามปกติ ระบบจะบันทึกไว้ในหลักฐานว่าพิกัดไม่ตรงเท่านั้น"}
                 </p>
               </div>

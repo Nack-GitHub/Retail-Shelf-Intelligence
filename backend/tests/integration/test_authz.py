@@ -69,3 +69,28 @@ def test_bay_label_cannot_inject_a_path_into_the_object_key(
     if response.status_code == 200:
         key = response.json()["objectKey"]
         assert ".." not in key, f"path traversal survived into the object key: {key}"
+
+
+def test_a_rep_cannot_presign_into_another_users_visit(
+    client: TestClient, rep_auth: dict[str, str], manager_auth: dict[str, str]
+) -> None:
+    """⛔ "Authenticated" is not "authorised".
+
+    Without this check any account could attach a capture — and the OSA score
+    and gap findings derived from it — to somebody else's visit at a store
+    they had never entered, and that fabricated work would flow into the
+    store's risk score and the area's analytics under another person's name.
+    """
+    stores = client.get("/v1/stores", headers=manager_auth).json()
+    foreign = client.post(
+        "/v1/visits",
+        headers=manager_auth,
+        json={"storeId": stores[0]["id"], "photoConsentConfirmed": True},
+    ).json()
+
+    response = client.post(
+        "/v1/captures/presign",
+        headers=rep_auth,
+        json={"visitId": foreign["id"], "category": "cat-coffee", "shelfBayLabel": "A1"},
+    )
+    assert response.status_code == 403, response.text

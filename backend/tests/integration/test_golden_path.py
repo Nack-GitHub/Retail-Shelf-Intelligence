@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 
 import pytest
@@ -384,3 +385,60 @@ def test_result_dimensions_are_the_space_the_boxes_live_in(
     for box in boxes:
         assert box["x"] + box["w"] <= result["imageWidth"], "box runs off the right edge"
         assert box["y"] + box["h"] <= result["imageHeight"], "box runs off the bottom edge"
+
+
+def test_replaying_a_task_close_does_not_move_its_completion_time(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """The offline queue replays PATCH /tasks/{id}. It must land once.
+
+    `completed_at` feeds the "time from detection to restock" KPI. A task
+    closed in the shop and drained an hour later would otherwise report a
+    one-hour restock that never happened — and that is the number trade
+    marketing argues about.
+    """
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_gaps")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+    finding = result["gapFindings"][0]
+
+    verified = client.post(
+        f"/v1/findings/{finding['id']}/verify", headers=rep_auth, json={"verdict": "CONFIRMED"}
+    ).json()
+    task_id = verified["taskId"]
+
+    first = client.patch(f"/v1/tasks/{task_id}", headers=rep_auth, json={"status": "FIXED"})
+    assert first.status_code == 200
+    completed_first = _completed_at(client, rep_auth, visit["id"], task_id)
+
+    time.sleep(1.1)
+    replay = client.patch(f"/v1/tasks/{task_id}", headers=rep_auth, json={"status": "FIXED"})
+    assert replay.status_code == 200
+    completed_again = _completed_at(client, rep_auth, visit["id"], task_id)
+
+    assert completed_first == completed_again, (
+        "replaying the same close moved completed_at, stretching time-to-restock"
+    )
+
+
+def _completed_at(client: TestClient, auth: dict[str, str], visit_id: str, task_id: str):
+    import uuid as _uuid
+
+    from app.db.models import TaskRow
+    from app.workers.session import SyncSessionFactory
+
+    with SyncSessionFactory() as session:
+        return session.get(TaskRow, _uuid.UUID(task_id)).completed_at
+
+
+def test_replaying_a_checkout_does_not_move_the_checkout_time(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Checkout is replayed by the offline queue too, and `checked_out_at`
+    is what the manager's average visit duration is computed from."""
+    first = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+    time.sleep(1.1)
+    replay = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    assert first["checkedOutAt"] == replay["checkedOutAt"], (
+        "replaying checkout stretched the recorded visit duration"
+    )

@@ -88,3 +88,19 @@ def test_store_responses_carry_no_user_identifier(
     serialised = str(client.get("/v1/stores", headers=rep_auth).json()).lower()
     for banned in ("userid", "user_id", "repname", "repid", "verifiedby"):
         assert banned not in serialised
+
+
+def test_single_store_response_carries_no_user_identifier(
+    client: TestClient, rep_auth: dict[str, str]
+) -> None:
+    listed = client.get("/v1/stores", headers=rep_auth).json()[0]
+    body = str(client.get(f"/v1/stores/{listed['id']}", headers=rep_auth).json()).lower()
+    for banned in ("userid", "user_id", "repname", "verifiedby"):
+        assert banned not in body
+
+
+def test_store_history_is_not_open_to_reps(client: TestClient, rep_auth: dict[str, str]) -> None:
+    """It exposes every visit's before/after OSA for one store."""
+    listed = client.get("/v1/stores", headers=rep_auth).json()[0]
+    response = client.get(f"/v1/stores/{listed['id']}/history", headers=rep_auth)
+    assert response.status_code == 403

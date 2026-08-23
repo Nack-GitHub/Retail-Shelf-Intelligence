@@ -24,7 +24,11 @@ const FALLBACK: Record<ApiErrorCode, string> = {
   VALIDATION: "ข้อมูลที่ส่งไปไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่",
   CONFLICT: "ข้อมูลนี้ถูกบันทึกไปแล้ว",
   SERVER: "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง",
-  OFFLINE: "ไม่มีสัญญาณอินเทอร์เน็ต งานถูกเก็บไว้ในเครื่องและจะส่งเมื่อกลับมาออนไลน์",
+  // Says only what is true of EVERY caller. Promising that the work was
+  // stored is the queue's promise to make, and only the paths that actually
+  // queued may make it — a rep told six confirmed gaps were safe will walk
+  // out of the shop, and they were not saved anywhere.
+  OFFLINE: "ไม่มีสัญญาณอินเทอร์เน็ต กรุณาลองใหม่อีกครั้งเมื่อมีสัญญาณ",
   TIMEOUT: "เซิร์ฟเวอร์ตอบกลับช้าเกินไป กรุณาลองใหม่อีกครั้ง",
 };
 
@@ -85,6 +89,10 @@ export class ApiError extends Error {
   static offline() {
     return new ApiError("OFFLINE", FALLBACK.OFFLINE);
   }
+
+  /** The offline message a path MAY use once it has actually queued the work. */
+  static readonly QUEUED_MESSAGE =
+    "ไม่มีสัญญาณ — บันทึกไว้ในเครื่องแล้ว และจะส่งให้อัตโนมัติเมื่อกลับมาออนไลน์";
 
   static timeout() {
     return new ApiError("TIMEOUT", FALLBACK.TIMEOUT);

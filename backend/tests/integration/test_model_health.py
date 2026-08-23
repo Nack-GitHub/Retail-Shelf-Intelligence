@@ -45,15 +45,54 @@ def test_model_health_reports_gate_failures_honestly(
         assert "passed" in gate and "detail" in gate
 
 
-def test_override_rate_is_computed_not_stored(
+def test_model_health_names_the_active_version_and_inference_mode(
     client: TestClient, manager_auth: dict[str, str]
+) -> None:
+    """Both fields drive the /w/model-health header, and neither was asserted."""
+    payload = client.get("/v1/model/health", headers=manager_auth).json()
+    assert payload["activeVersion"], "no model is marked active"
+    assert payload["mlClient"] in {"mock", "http"}
+
+
+def test_model_health_rejects_an_out_of_range_window(
+    client: TestClient, manager_auth: dict[str, str]
+) -> None:
+    assert client.get("/v1/model/health?weeks=0", headers=manager_auth).status_code == 422
+    assert client.get("/v1/model/health?weeks=99", headers=manager_auth).status_code == 422
+
+
+def test_model_health_carries_no_user_identifier(
+    client: TestClient, manager_auth: dict[str, str]
+) -> None:
+    """`metrics` is a free-form blob passed straight through from metrics.json,
+    and ModelVersion carries a `promoted_by` column one keystroke from being
+    serialised."""
+    body = str(client.get("/v1/model/health", headers=manager_auth).json()).lower()
+    for banned in ("userid", "user_id", "repname", "promoted_by", "promotedby", "@"):
+        assert banned not in body, f"model health leaked {banned}"
+
+
+def test_override_rate_is_computed_not_stored(
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
 ) -> None:
     """The rate reps reject the model's findings, weekly.
 
     This replaces a "drift" figure that had nothing behind it. Every point
     here is counted from gap_findings at request time.
+
+    The verdict below is this test's own arrangement: without it the list is
+    empty on a fresh database and the loop asserts nothing at all.
     """
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_gaps")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+    client.post(
+        f"/v1/findings/{result['gapFindings'][0]['id']}/verify",
+        headers=rep_auth,
+        json={"verdict": "CONFIRMED"},
+    )
+
     payload = client.get("/v1/model/health", headers=manager_auth).json()
+    assert payload["overrideRate"], "a verified finding should produce a bucket"
     for point in payload["overrideRate"]:
         assert set(point) == {"bucket", "rate", "reviewed"}
         assert 0.0 <= point["rate"] <= 1.0
@@ -81,10 +120,24 @@ def test_relabel_queue_never_says_who_rejected_a_finding(
         assert banned not in serialised, f"queue leaked {banned}"
 
 
+def test_relabel_queue_is_not_open_to_reps(client: TestClient, rep_auth: dict[str, str]) -> None:
+    """It hands out presigned image URLs for every flagged capture."""
+    assert client.get("/v1/model/relabel-queue", headers=rep_auth).status_code == 403
+
+
 def test_relabel_queue_carries_the_image_and_the_reason(
-    client: TestClient, manager_auth: dict[str, str]
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
 ) -> None:
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_gaps")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+    client.post(
+        f"/v1/findings/{result['gapFindings'][0]['id']}/verify",
+        headers=rep_auth,
+        json={"verdict": "REJECTED", "reason": "OCCLUDED"},
+    )
+
     payload = client.get("/v1/model/relabel-queue", headers=manager_auth).json()
+    assert payload["items"], "a rejected finding should reach the queue"
     for item in payload["items"]:
         assert set(item) == {
             "findingId",

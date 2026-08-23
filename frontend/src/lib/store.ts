@@ -8,6 +8,14 @@ import type { AnalysisResult } from "@/lib/api/captures";
 import { verifyFinding } from "@/lib/api/findings";
 import { fetchTasks, updateTask } from "@/lib/api/tasks";
 import { checkOut, type CheckoutSummary } from "@/lib/api/visits";
+import { ApiError } from "@/lib/api/errors";
+import { tryEnqueue } from "@/lib/offline/queue";
+
+/** Was this failure "no signal"? Those are the ones worth queueing; a 403 or
+ *  a 422 will fail again just as hard in ten minutes. */
+function isOffline(err: unknown): boolean {
+  return err instanceof ApiError && (err.code === "OFFLINE" || err.code === "TIMEOUT");
+}
 
 /* Demo-only state. When the API lands, everything under `visit` becomes
    server state (React Query) and this store keeps only UI concerns. */
@@ -186,6 +194,19 @@ export const useDemo = create<DemoState>((set, get) => ({
     try {
       await verifyFinding(findingId, verdict, reason);
     } catch (err) {
+      // No signal: keep the optimistic row and queue the verdict. Rolling it
+      // back would make the rep decide the same gap twice, and the decision
+      // is theirs — the network's opinion of it is not.
+      if (isOffline(err)) {
+        const queued = await tryEnqueue({
+          id: `verify-${findingId}-${verdict}`,
+          kind: "VERIFY",
+          label: `ผลตรวจสอบ ${verdict === "CONFIRMED" ? "ยืนยันว่าขาด" : "ตีกลับ"}`,
+          storeId: get().storeId ?? "",
+          payload: { findingId, verdict, reason: reason ?? null },
+        });
+        if (queued) return;
+      }
       if (previous) {
         set((s) => ({
           findings: s.findings.map((f) => (f.id === findingId ? previous : f)),
@@ -204,7 +225,31 @@ export const useDemo = create<DemoState>((set, get) => ({
   },
 
   setTask: async (taskId, status, reason) => {
-    const updated = await updateTask(taskId, status, reason);
+    let updated: Task;
+    try {
+      updated = await updateTask(taskId, status, reason);
+    } catch (err) {
+      if (isOffline(err)) {
+        const task = get().tasks.find((t) => t.id === taskId);
+        const queued = await tryEnqueue({
+          id: `task-${taskId}-${status}`,
+          kind: "TASK",
+          label: `ปิดงาน ${task?.skuName ?? taskId}`,
+          storeId: get().storeId ?? "",
+          payload: { taskId, status, blockedReason: reason ?? null },
+        });
+        if (queued) {
+          // Reflect the rep's decision locally; the server hears it on drain.
+          set((s) => ({
+            tasks: s.tasks.map((t) =>
+              t.id === taskId ? { ...t, status, blockedReason: reason } : t,
+            ),
+          }));
+          return;
+        }
+      }
+      throw err;
+    }
     set((s) => {
       const requests = [...s.replenishmentRequests];
       // Mirrors what the API just did: OUT_OF_BACKSTOCK raises a
@@ -223,9 +268,26 @@ export const useDemo = create<DemoState>((set, get) => ({
     const { visitId, checkout } = get();
     if (!visitId) return null;
     if (checkout) return checkout;
-    const summary = await checkOut(visitId);
-    set({ checkout: summary, checkedOutAt: Date.now() });
-    return summary;
+    try {
+      const summary = await checkOut(visitId);
+      set({ checkout: summary, checkedOutAt: Date.now() });
+      return summary;
+    } catch (err) {
+      if (isOffline(err)) {
+        const queued = await tryEnqueue({
+          id: `checkout-${visitId}`,
+          kind: "CHECKOUT",
+          label: "สรุปการเข้าร้าน",
+          storeId: get().storeId ?? "",
+          payload: { visitId },
+        });
+        if (queued) {
+          set({ checkedOutAt: Date.now() });
+          return null;
+        }
+      }
+      throw err;
+    }
   },
 
   markAfterCaptured: () => set({ afterCaptured: true }),

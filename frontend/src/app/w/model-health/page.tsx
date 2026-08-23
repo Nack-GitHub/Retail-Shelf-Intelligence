@@ -9,7 +9,7 @@ import { Bar, CountUp } from "@/components/ui/Progress";
 import { Pill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
-import { fetchModelHealth, type ModelVersion } from "@/lib/api/model";
+import { fetchModelHealth, type ModelMetrics, type ModelVersion } from "@/lib/api/model";
 import { useResource } from "@/lib/api/useResource";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -31,6 +31,15 @@ const GATE_LABELS: Record<string, string> = {
   recall_empty_shelf: "Recall — คลาสช่องว่าง",
   precision_empty_shelf: "Precision — คลาสช่องว่าง",
   map50_overall: "mAP@0.5 ทุกคลาส",
+};
+
+/** Where each gate's measured value actually lives on the metrics payload.
+ *  An unmapped gate falls back to showing the pipeline's own caption rather
+ *  than a number nobody can vouch for. */
+const GATE_VALUES: Record<string, (m: ModelMetrics) => number> = {
+  recall_empty_shelf: (m) => m.gap_class.recall,
+  precision_empty_shelf: (m) => m.gap_class.precision,
+  map50_overall: (m) => m.overall.map50,
 };
 
 const GATE_RATIONALES: Record<string, string> = {
@@ -119,9 +128,11 @@ export default function ModelHealth() {
             className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
           >
             {Object.entries(gates).map(([key, gate]) => {
-              // detail reads "0.4113 vs >= 0.9" — the measured value first
-              const [measured, threshold] = gate.detail.split(" vs ");
-              const value = Number(measured);
+              // `detail` is a caption ("0.4113 vs >= 0.9"), not a data source.
+              // Parsing it meant a formatting change on the ML side turned
+              // every gate into a confident, wrong "0.000 — ต่ำกว่าเกณฑ์".
+              const value = GATE_VALUES[key]?.(scored.metrics!) ?? null;
+              const threshold = gate.detail.split(" vs ")[1] ?? "";
               return (
                 <motion.li
                   key={key}
@@ -132,11 +143,17 @@ export default function ModelHealth() {
                     {GATE_LABELS[key] ?? key}
                   </p>
                   <p className="mt-2 flex items-baseline gap-1">
-                    <CountUp
-                      to={Number.isFinite(value) ? value : 0}
-                      decimals={3}
-                      className="text-[30px] font-bold leading-none tracking-tight"
-                    />
+                    {value === null ? (
+                      <span className="text-[20px] font-semibold text-muted">
+                        {gate.detail}
+                      </span>
+                    ) : (
+                      <CountUp
+                        to={value}
+                        decimals={3}
+                        className="text-[30px] font-bold leading-none tracking-tight"
+                      />
+                    )}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span
@@ -149,12 +166,14 @@ export default function ModelHealth() {
                     </span>
                     <span className="tnum text-[12px] text-faint">เกณฑ์ {threshold}</span>
                   </div>
-                  <Bar
-                    value={Math.min(100, (Number.isFinite(value) ? value : 0) * 100)}
-                    tone={gate.passed ? "ok" : "danger"}
-                    className="mt-3 w-full"
-                    height={5}
-                  />
+                  {value !== null && (
+                    <Bar
+                      value={Math.min(100, value * 100)}
+                      tone={gate.passed ? "ok" : "danger"}
+                      className="mt-3 w-full"
+                      height={5}
+                    />
+                  )}
                   {/* The rationale ships with the metrics: a gate nobody can
                       explain is a gate someone will quietly lower. */}
                   <p className="mt-3 border-t border-line pt-3 text-[12px] leading-relaxed text-muted">

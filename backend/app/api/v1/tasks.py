@@ -95,7 +95,14 @@ async def update_task(
 
     task.status = new_status
     task.after_capture_id = body.after_capture_id
-    task.completed_at = datetime.now(UTC) if new_status != TaskStatus.OPEN else None
+    # Stamp the FIRST time this task left OPEN, not the latest write. The
+    # offline queue replays this endpoint, and completed_at feeds the
+    # detection-to-restock KPI: a task closed in the shop and drained an hour
+    # later would otherwise report a one-hour restock that never happened.
+    if new_status == TaskStatus.OPEN:
+        task.completed_at = None
+    elif task.completed_at is None:
+        task.completed_at = datetime.now(UTC)
     await db.commit()
 
     finding = (

@@ -120,6 +120,24 @@ export async function purgeCompleted(now = Date.now()): Promise<void> {
   }
 }
 
+/** Queues an operation and returns true, or returns false if it could not be
+ *  stored.
+ *
+ *  Callers MUST branch on the result. Telling a rep their work is safe when
+ *  the queue refused it is worse than telling them it failed: they walk out of
+ *  the shop believing six confirmed gaps are on their way to the server. */
+export async function tryEnqueue(
+  operation: Omit<QueuedOperation, "queuedAt" | "attempts" | "status">,
+): Promise<boolean> {
+  if (!(await isAvailable())) return false;
+  try {
+    await enqueue(operation);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Is IndexedDB usable at all?
  *
  *  Private browsing in some browsers exposes the API and then fails on open.

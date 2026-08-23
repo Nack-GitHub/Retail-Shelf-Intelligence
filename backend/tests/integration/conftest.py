@@ -149,3 +149,23 @@ def unvisited_store() -> Iterator[str]:
     with SyncSessionFactory() as session:
         session.delete(session.get(Store, store_id))
         session.commit()
+
+
+@pytest.fixture
+def measured_store(client: TestClient, rep_auth: dict[str, str]) -> str:
+    """A store with at least one analysed capture, arranged by this fixture.
+
+    Tests that assert on aggregate analytics need an analysis to exist. Relying
+    on one left behind by an alphabetically-earlier test file makes them pass
+    on a used database and fail on a fresh one — the same order-dependence the
+    `unvisited_store` fixture exists to avoid, in the other direction.
+    """
+    stores = client.get("/v1/stores", headers=rep_auth).json()
+    store_id = stores[0]["id"]
+    visit = client.post(
+        "/v1/visits",
+        headers=rep_auth,
+        json={"storeId": store_id, "photoConsentConfirmed": True},
+    ).json()
+    upload_capture(client, rep_auth, visit["id"], bay="A2_gaps", category="cat-coffee")
+    return store_id

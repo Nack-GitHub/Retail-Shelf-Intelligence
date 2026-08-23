@@ -186,3 +186,49 @@ def test_osa_thresholds_are_not_hardcoded_in_the_engine() -> None:
     )
     for literal in ("0.75", "0.90", "0.35", "0.55"):
         assert literal not in body, f"threshold {literal} hardcoded in the OSA engine"
+
+
+# ── 8. Identity must not be reachable by COMPOSING endpoints ─────────────────
+
+
+def test_no_response_field_is_a_user_identifier(client: TestClient) -> None:
+    """Field-by-field, across every schema the API publishes.
+
+    The earlier version of this test banned `repname` and `repscore` but not
+    `userid` — so `VisitOut.userId` passed it, and the prohibition was broken
+    by a field whose name nobody thought to ban.
+    """
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    offenders = [
+        f"{name}.{field}"
+        for name, schema in schemas.items()
+        for field in schema.get("properties", {})
+        if field.lower() in {"userid", "user_id", "repid", "repname", "verifiedby", "createdby"}
+    ]
+    assert not offenders, f"response schemas expose a user identifier: {offenders}"
+
+
+def test_identity_is_not_reachable_by_following_ids_the_api_hands_out(
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
+) -> None:
+    """The constraint has to hold across JOINS, not just per response.
+
+    Every individual payload can be clean while the graph between them is not:
+    the store history publishes a visitId, and if fetching that visit returns
+    a user id then the pair reconstructs, per named person, every score they
+    produced and every hour they worked. That is precisely the outcome this
+    prohibition exists to prevent, and a per-response check cannot see it.
+    """
+    history = client.get(f"/v1/stores/{visit['storeId']}/history", headers=manager_auth).json()
+    assert history["visits"], "no visits to walk"
+
+    banned = ("userid", "user_id", "repname", "verifiedby")
+    for row in history["visits"][:5]:
+        followed = client.get(f"/v1/visits/{row['visitId']}", headers=rep_auth)
+        if followed.status_code != 200:
+            continue  # scoped away entirely is also a valid answer
+        body = str(followed.json()).lower()
+        for term in banned:
+            assert term not in body, (
+                f"following visitId {row['visitId']} from store history reached {term}"
+            )

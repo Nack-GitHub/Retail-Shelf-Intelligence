@@ -1,4 +1,5 @@
 import { request } from "@/lib/api/client";
+import { messageOf } from "@/lib/api/errors";
 import { commit, presign, uploadToStorage } from "@/lib/api/captures";
 import { verifyFinding } from "@/lib/api/findings";
 import { updateTask } from "@/lib/api/tasks";
@@ -146,7 +147,10 @@ async function runDrain(
       await queue.update(operation.id, {
         status: "FAILED",
         attempts: operation.attempts + 1,
-        errorCode: err instanceof Error ? err.name : "UNKNOWN",
+        // `err.name` is the literal "ApiError" for every failure — English,
+        // uninformative, and rendered straight to the rep. The Thai sentence
+        // saying what to do next is already on the error.
+        errorCode: messageOf(err),
       });
       report.failed += 1;
       onProgress?.({ ...operation, status: "FAILED" });
@@ -184,7 +188,7 @@ export async function retry(id: string): Promise<boolean> {
     await queue.update(id, {
       status: "FAILED",
       attempts: operation.attempts + 1,
-      errorCode: err instanceof Error ? err.name : "UNKNOWN",
+      errorCode: messageOf(err),
     });
     return false;
   }

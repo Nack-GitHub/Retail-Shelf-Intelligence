@@ -91,7 +91,7 @@ export default function ProcessingScreen() {
       // No signal. The photo is kept — with its bytes — and replayed when the
       // connection comes back. Losing a rep's shelf photo because the shop has
       // concrete walls is the one failure this whole queue exists to prevent.
-      if (err instanceof ApiError && err.code === "OFFLINE" && (await isAvailable())) {
+      if (err instanceof ApiError && (err.code === "OFFLINE" || err.code === "TIMEOUT") && (await isAvailable())) {
         await enqueue({
           id: photo.idempotencyKey,
           kind: "CAPTURE",
