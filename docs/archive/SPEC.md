@@ -1,6 +1,6 @@
 # SPEC: ShelfEye — Backend API + ML Model
 
-> Source requirements: [backend.md](backend.md) (prompts C1, B1–B5, B7.1, M1, M3) · [ui.md](ui.md) (screen inventory, guardrails)
+> Source requirements: [backend.md](../backend.md) (prompts C1, B1–B5, B7.1, M1, M3) · [ui.md](../ui.md) (screen inventory, guardrails)
 > Dataset: `model/shelf-product.v1i.yolov11.zip` — [roboflow-ngkro/shelf-product v1](https://universe.roboflow.com/roboflow-ngkro/shelf-product/dataset/1)
 > Status: **DRAFT — awaiting approval** · Created 2026-08-22
 
@@ -336,7 +336,7 @@ All under `/v1`, JWT bearer, RBAC by `role ∈ {REP, MANAGER, ADMIN, DATA}`.
 
 ### 6.6 JSON casing
 
-- **Public `/v1`** — **camelCase** (`osaScore`, `gapFindings`, `shelfRowIndex`) via a Pydantic `alias_generator`, matching [frontend/src/types/index.ts](frontend/src/types/index.ts) verbatim so `lib/mock` swaps out with zero component changes.
+- **Public `/v1`** — **camelCase** (`osaScore`, `gapFindings`, `shelfRowIndex`) via a Pydantic `alias_generator`, matching [frontend/src/types/index.ts](../../frontend/src/types/index.ts) verbatim so `lib/mock` swaps out with zero component changes.
 - **Internal `/internal/v1`** — **snake_case**, exactly as `contracts/inference-v1.yaml` specifies.
 
 ---

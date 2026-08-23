@@ -1,6 +1,6 @@
 # Task List: ShelfEye Backend + ML
 
-> Plan: [tasks/plan.md](plan.md) · Spec: [SPEC.md](../SPEC.md)
+> Plan: [plan.md](plan.md) · Spec: [SPEC.md](SPEC.md)
 > Mode: **DEMO** · ⛔ no `git push` · ⛔ no deleting other containers
 
 Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
