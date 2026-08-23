@@ -8,7 +8,8 @@ import { ProgressRing } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
 import { useDemo } from "@/lib/store";
 import { fetchResult, pollJob, uploadCapture, type Job } from "@/lib/api/captures";
-import { messageOf } from "@/lib/api/errors";
+import { ApiError, messageOf } from "@/lib/api/errors";
+import { enqueue, isAvailable } from "@/lib/offline/queue";
 import { easeOut, springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -19,7 +20,7 @@ import { cn } from "@/lib/cn";
    gaps found" are different answers, and rendering a failure as a full shelf
    would poison every trend built on this data. */
 
-type Phase = "UPLOADING" | "ANALYSING" | "FAILED";
+type Phase = "UPLOADING" | "ANALYSING" | "FAILED" | "QUEUED";
 
 const STEPS = [
   { id: "upload", label: "อัปโหลดภาพขึ้นเซิร์ฟเวอร์" },
@@ -87,6 +88,31 @@ export default function ProcessingScreen() {
       consumeCapture();
       router.replace(`/m/store/${id}/result`);
     } catch (err) {
+      // No signal. The photo is kept — with its bytes — and replayed when the
+      // connection comes back. Losing a rep's shelf photo because the shop has
+      // concrete walls is the one failure this whole queue exists to prevent.
+      if (err instanceof ApiError && err.code === "OFFLINE" && (await isAvailable())) {
+        await enqueue({
+          id: photo.idempotencyKey,
+          kind: "CAPTURE",
+          label: `ภาพชั้นวาง ${categoryId} · ชั้น ${bay}`,
+          storeId: id,
+          payload: {
+            visitId,
+            category: categoryId,
+            shelfBayLabel: bay,
+            phase: "BEFORE",
+            contentType: photo.mimeType || "image/jpeg",
+            imageWidth: photo.width,
+            imageHeight: photo.height,
+            capturedAt: photo.capturedAt,
+            device: photo.device,
+          },
+          blob: photo.blob,
+        });
+        setPhase("QUEUED");
+        return;
+      }
       setFailure(messageOf(err));
       setPhase("FAILED");
     } finally {
@@ -123,6 +149,38 @@ export default function ProcessingScreen() {
         >
           {visitId ? "เปิดกล้อง" : "ไปหน้าเช็คอิน"}
         </Button>
+      </div>
+    );
+  }
+
+  if (phase === "QUEUED") {
+    return (
+      <div className="on-dark flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-ink px-6 text-center">
+        <div className="grid size-16 place-items-center rounded-full bg-warn/15">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" className="text-warn" aria-hidden>
+            <path d="M2 8.8a16 16 0 0120 0M5.5 12.4a11 11 0 0113 0M9 16a6 6 0 016 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M12 20h.01" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h1 className="text-[19px] font-semibold text-ink-text">ไม่มีสัญญาณ — เก็บภาพไว้ในเครื่องแล้ว</h1>
+        <p className="max-w-[300px] text-[14px] leading-relaxed text-ink-muted">
+          ภาพนี้จะถูกส่งขึ้นเซิร์ฟเวอร์และวิเคราะห์ให้อัตโนมัติเมื่อกลับมาออนไลน์
+          ไม่ต้องถ่ายซ้ำ
+        </p>
+        <div className="mt-2 flex w-full max-w-[300px] flex-col gap-2.5">
+          <Button size="lg" full onClick={() => router.replace("/m/sync")}>
+            ดูคิวที่รอส่ง
+          </Button>
+          <Button
+            variant="outlineDark"
+            size="lg"
+            full
+            onClick={() => router.replace(`/m/store/${id}/category`)}
+          >
+            ตรวจชั้นวางถัดไป
+          </Button>
+        </div>
       </div>
     );
   }

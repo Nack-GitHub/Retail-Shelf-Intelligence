@@ -80,11 +80,39 @@ export async function uploadToStorage(
   }
 }
 
+/** What the commit endpoint needs to know about a photo.
+ *
+ *  Named separately from `CapturedPhoto` because the offline queue replays a
+ *  commit from a stored record rather than a live photo object, and casting
+ *  one shape into the other would hide a real difference between them. */
+export interface CommitDetails {
+  /** the Idempotency-Key this commit is sent with */
+  idempotencyKey: string;
+  width: number;
+  height: number;
+  capturedAt: string;
+  device: { userAgent: string; viewport: string; pixelRatio: number };
+  faceBlurApplied: boolean;
+  faceBlurCount: number;
+}
+
+export function commitDetailsOf(photo: CapturedPhoto): CommitDetails {
+  return {
+    idempotencyKey: photo.idempotencyKey,
+    width: photo.width,
+    height: photo.height,
+    capturedAt: photo.capturedAt,
+    device: photo.device,
+    faceBlurApplied: photo.faceBlur.applied,
+    faceBlurCount: photo.faceBlur.count,
+  };
+}
+
 /** Records that the upload finished and queues analysis.
  *
  *  Idempotent by header: a phone that loses signal mid-request will retry,
  *  and that must not produce two jobs — or two OSA scores — for one photo. */
-export async function commit(captureId: string, photo: CapturedPhoto): Promise<Job> {
+export async function commit(captureId: string, photo: CommitDetails): Promise<Job> {
   const accepted = await request<{ jobId: string; captureId: string; status: string }>(
     `/v1/captures/${captureId}/commit`,
     {
@@ -97,8 +125,8 @@ export async function commit(captureId: string, photo: CapturedPhoto): Promise<J
         deviceInfo: photo.device,
         // Reported honestly: no browser face detector is wired up, so nothing
         // downstream may mistake a demo capture for a redacted one.
-        faceBlurApplied: photo.faceBlur.applied,
-        faceBlurCount: photo.faceBlur.count,
+        faceBlurApplied: photo.faceBlurApplied,
+        faceBlurCount: photo.faceBlurCount,
       },
     },
   );
@@ -208,5 +236,5 @@ export async function uploadCapture(input: {
   });
 
   await uploadToStorage(grant.uploadUrl, input.photo.blob, input.photo.mimeType || "image/jpeg");
-  return commit(grant.captureId, input.photo);
+  return commit(grant.captureId, commitDetailsOf(input.photo));
 }

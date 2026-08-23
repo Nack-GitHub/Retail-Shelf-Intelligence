@@ -1,12 +1,16 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { Button } from "@/components/ui/Button";
-import { Toggle } from "@/components/ui/Controls";
-import { useDemo } from "@/lib/store";
-import type { SyncItem } from "@/types";
+import { drain, retry as retryOne } from "@/lib/api/sync";
+import { fetchTodaysRoute } from "@/lib/api/routes";
+import { useResource } from "@/lib/api/useResource";
+import * as queue from "@/lib/offline/queue";
+import type { QueuedOperation } from "@/lib/offline/queue";
+import { useOnline } from "@/lib/offline/useOnline";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -18,18 +22,69 @@ const KIND_LABEL = {
 } as const;
 
 export default function SyncQueueScreen() {
-  const items = useDemo((s) => s.sync);
-  const syncAll = useDemo((s) => s.syncAll);
-  const retry = useDemo((s) => s.retrySync);
-  const online = useDemo((s) => s.online);
-  const setOnline = useDemo((s) => s.setOnline);
+  const online = useOnline();
+  const [items, setItems] = useState<QueuedOperation[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  // Store names are not stored on the queue rows — the route already knows
+  // them, and duplicating a name into every queued operation means it goes
+  // stale the moment a store is renamed.
+  const route = useResource(() => fetchTodaysRoute(), []);
+  const storeNames = useMemo(
+    () => new Map((route.data ?? []).map((s) => [s.id, s.name])),
+    [route.data],
+  );
+
+  const refresh = useCallback(async () => {
+    if (!(await queue.isAvailable())) return;
+    setItems(await queue.list());
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // Drain automatically the moment the connection returns. A rep should not
+  // have to remember to press a button for work they already did.
+  useEffect(() => {
+    if (!online) return;
+    let cancelled = false;
+    (async () => {
+      if (!(await queue.isAvailable())) return;
+      const pendingNow = (await queue.list()).filter((o) => o.status !== "DONE");
+      if (pendingNow.length === 0 || cancelled) return;
+      setBusy(true);
+      await drain();
+      if (!cancelled) {
+        await refresh();
+        setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [online, refresh]);
+
+  async function sendAll() {
+    setBusy(true);
+    await drain();
+    await refresh();
+    setBusy(false);
+  }
+
+  async function retry(id: string) {
+    setBusy(true);
+    await retryOne(id);
+    await refresh();
+    setBusy(false);
+  }
 
   const pending = items.filter((i) => i.status === "PENDING").length;
   const failed = items.filter((i) => i.status === "FAILED").length;
   const uploading = items.filter((i) => i.status === "UPLOADING").length;
-  const totalKb = items
+  const totalBytes = items
     .filter((i) => i.status !== "DONE")
-    .reduce((sum, i) => sum + i.sizeKb, 0);
+    .reduce((sum, i) => sum + (i.blob?.size ?? 0), 0);
 
   return (
     <>
@@ -38,7 +93,7 @@ export default function SyncQueueScreen() {
         subtitle={
           pending + failed + uploading === 0
             ? "ส่งข้อมูลครบแล้ว"
-            : `${pending + failed + uploading} รายการ · ${(totalKb / 1024).toFixed(1)} MB`
+            : `${pending + failed + uploading} รายการ · ${(totalBytes / 1024 / 1024).toFixed(1)} MB`
         }
       />
 
@@ -59,9 +114,26 @@ export default function SyncQueueScreen() {
 
         <motion.ul variants={stagger(0.05)} initial="hidden" animate="show" className="flex flex-col gap-2.5">
           <AnimatePresence initial={false}>
-            {items.map((item) => (
-              <SyncRow key={item.id} item={item} onRetry={() => retry(item.id)} />
-            ))}
+            {items.length === 0 ? (
+              <motion.li
+                variants={listItem}
+                className="rounded-card border border-line bg-bg px-6 py-12 text-center"
+              >
+                <p className="text-[15px] font-semibold">ไม่มีรายการค้างส่ง</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+                  งานที่ทำตอนไม่มีสัญญาณจะมาอยู่ที่นี่ และส่งเองเมื่อกลับมาออนไลน์
+                </p>
+              </motion.li>
+            ) : (
+              items.map((item) => (
+                <SyncRow
+                  key={item.id}
+                  item={item}
+                  storeName={storeNames.get(item.storeId) ?? ""}
+                  onRetry={() => void retry(item.id)}
+                />
+              ))
+            )}
           </AnimatePresence>
         </motion.ul>
 
@@ -87,21 +159,35 @@ export default function SyncQueueScreen() {
           </svg>
         </Link>
 
-        <div className="mt-3 flex items-center justify-between rounded-card border border-dashed border-line-strong px-4 py-3">
-          <Toggle checked={online} onChange={setOnline} label="จำลองสถานะออนไลน์" />
-        </div>
       </Scroll>
 
       <BottomBar>
-        <Button size="lg" full disabled={!online || pending + failed === 0} onClick={syncAll}>
-          {pending + failed === 0 ? "ส่งข้อมูลครบแล้ว" : `ส่งทั้งหมด (${pending + failed})`}
+        <Button
+          size="lg"
+          full
+          disabled={!online || busy || pending + failed === 0}
+          onClick={() => void sendAll()}
+        >
+          {busy
+            ? "กำลังส่ง…"
+            : pending + failed === 0
+              ? "ส่งข้อมูลครบแล้ว"
+              : `ส่งทั้งหมด (${pending + failed})`}
         </Button>
       </BottomBar>
     </>
   );
 }
 
-function SyncRow({ item, onRetry }: { item: SyncItem; onRetry: () => void }) {
+function SyncRow({
+  item,
+  storeName,
+  onRetry,
+}: {
+  item: QueuedOperation;
+  storeName: string;
+  onRetry: () => void;
+}) {
   const meta = {
     PENDING: { label: "รอส่ง", tone: "text-muted", bg: "bg-surface-2" },
     UPLOADING: { label: "กำลังส่ง", tone: "text-primary-ink", bg: "bg-primary-soft" },
@@ -142,12 +228,21 @@ function SyncRow({ item, onRetry }: { item: SyncItem; onRetry: () => void }) {
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-semibold leading-snug">{item.label}</p>
-          <p className="truncate text-[13px] text-muted">{item.storeName}</p>
+          <p className="truncate text-[13px] text-muted">{storeName}</p>
           <p className="mt-0.5 text-[12px] text-faint">
-            {KIND_LABEL[item.kind]} · <span className="tnum">{item.queuedAt}</span> ·{" "}
+            {KIND_LABEL[item.kind]} ·{" "}
             <span className="tnum">
-              {item.sizeKb > 1024 ? `${(item.sizeKb / 1024).toFixed(1)} MB` : `${item.sizeKb} KB`}
+              {new Date(item.queuedAt).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
+            {item.blob && (
+              <>
+                {" · "}
+                <span className="tnum">{(item.blob.size / 1024 / 1024).toFixed(1)} MB</span>
+              </>
+            )}
           </p>
         </div>
 
@@ -167,7 +262,8 @@ function SyncRow({ item, onRetry }: { item: SyncItem; onRetry: () => void }) {
           >
             <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
               <p className="text-[12px] text-[#a52218]">
-                {item.errorCode} · ลองแล้ว <span className="tnum">{item.attempts}</span> ครั้ง
+                {item.errorCode ?? "ส่งไม่สำเร็จ"} · ลองแล้ว{" "}
+                <span className="tnum">{item.attempts}</span> ครั้ง
               </p>
               <Button size="sm" variant="secondary" onClick={onRetry}>
                 ลองใหม่

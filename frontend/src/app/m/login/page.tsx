@@ -5,16 +5,14 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Logo, Wordmark } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
-import { Toggle } from "@/components/ui/Controls";
-import { useDemo } from "@/lib/store";
+import { useOnline } from "@/lib/offline/useOnline";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { login } from "@/lib/api/auth";
 import { messageOf } from "@/lib/api/errors";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const online = useDemo((s) => s.online);
-  const setOnline = useDemo((s) => s.setOnline);
+  const online = useOnline();
 
   // Prefilled with the seeded demo rep so a reviewer is one field from the
   // route screen — the password is still typed, and still checked by the API.
@@ -157,8 +155,7 @@ export default function LoginScreen() {
         </motion.p>
       </motion.form>
 
-      <div className="mt-auto flex items-center justify-between border-t border-line pt-4">
-        <Toggle checked={online} onChange={setOnline} label="จำลองสถานะออนไลน์" />
+      <div className="mt-auto flex items-center justify-end border-t border-line pt-4">
         <span className="text-[12px] text-faint">v0.9.0 · demo</span>
       </div>
     </div>

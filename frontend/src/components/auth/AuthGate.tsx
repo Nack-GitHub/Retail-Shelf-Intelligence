@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { usePathname, useRouter } from "next/navigation";
 import { me, type CurrentUser } from "@/lib/api/auth";
 import { SESSION_EXPIRED_EVENT, hasValidToken } from "@/lib/api/client";
-import { messageOf } from "@/lib/api/errors";
+import { ApiError, messageOf } from "@/lib/api/errors";
 
 /* One place decides whether a screen may render.
  *
@@ -46,6 +46,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setState("READY");
       setError(null);
     } catch (err) {
+      // A rep in a shop with concrete walls is not logged out. Blocking the
+      // whole app because /v1/me could not be reached would strand them on a
+      // login wall holding photos they cannot send — which is the exact
+      // failure the offline queue exists to prevent. The token is still valid
+      // locally, so carry on; a genuine 401 fires SESSION_EXPIRED instead.
+      if (err instanceof ApiError && (err.code === "OFFLINE" || err.code === "TIMEOUT")) {
+        setState("READY");
+        setError(null);
+        return;
+      }
       setError(messageOf(err));
       setState("ERROR");
     }

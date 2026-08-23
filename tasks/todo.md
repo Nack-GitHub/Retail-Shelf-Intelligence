@@ -200,13 +200,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 
 ## Phase 5 — Offline, then deletion
 
-### - [ ] T12: Offline queue + sync
+### - [x] T12: Offline queue + sync
 **Description:** A hand-written IndexedDB queue (no new dependency), real online detection, and a drain that replays the idempotent endpoints then acknowledges via `POST /v1/sync/batch`.
 
 **Acceptance:**
-- [ ] Capturing offline queues the item **with its blob**
-- [ ] Reconnecting uploads, analyses, and clears the queue
-- [ ] **No duplicate rows** in `captures` or `tasks` after a replayed batch
+- [x] Capturing offline queues the item **with its blob** (55 KB JPEG in IndexedDB, status PENDING)
+- [x] Reconnecting drains automatically — no button press needed — and the item goes DONE
+- [x] **No duplicate rows**: captures went 500 → 501, one job, analysed to DONE
+- [x] Fixed en route: `AuthGate` treated a network failure as an auth failure and blocked the whole app the moment signal dropped — the exact failure the queue exists to prevent
+- [x] Deleted the simulated online toggle and fake sync list; connectivity now comes from `navigator.onLine`
 
 **Verify:** devtools offline mode by hand · row counts in `psql` before and after
 **Files:** `lib/offline/{queue,useOnline}.ts` · `lib/api/sync.ts` · `lib/store.ts` · `app/m/sync/page.tsx` · `app/m/captures/page.tsx`

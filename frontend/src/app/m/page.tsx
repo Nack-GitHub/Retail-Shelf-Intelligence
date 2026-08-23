@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -17,6 +17,8 @@ import { useSession } from "@/components/auth/AuthGate";
 import { areaName } from "@/lib/api/auth";
 import { currentPosition, fetchTodaysRoute } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
+import { isAvailable, list as queueList } from "@/lib/offline/queue";
+import { useOnline } from "@/lib/offline/useOnline";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import type { Store } from "@/types";
 
@@ -32,7 +34,15 @@ export default function TodayRouteScreen() {
   const router = useRouter();
   const [view, setView] = useState<View>("LIST");
   const beginVisit = useDemo((s) => s.beginVisit);
-  const pendingSync = useDemo((s) => s.sync.filter((i) => i.status !== "DONE").length);
+  // Read straight from the offline queue: a badge driven by a separate
+  // in-memory list would disagree with the sync screen the moment either moved.
+  const [pendingSync, setPendingSync] = useState(0);
+  useEffect(() => {
+    void (async () => {
+      if (!(await isAvailable())) return;
+      setPendingSync((await queueList()).filter((o) => o.status !== "DONE").length);
+    })();
+  }, []);
   const { user } = useSession();
 
   const route = useResource<Store[]>(async () => {
@@ -222,7 +232,7 @@ export default function TodayRouteScreen() {
 }
 
 function SyncChip({ count }: { count: number }) {
-  const online = useDemo((s) => s.online);
+  const online = useOnline();
   return (
     <Link
       href="/m/sync"

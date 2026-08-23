@@ -2,15 +2,7 @@
 
 import { useMemo } from "react";
 import { create } from "zustand";
-import type {
-  BlockedReason,
-  GapFinding,
-  RejectReason,
-  ShelfAnalysis,
-  SyncItem,
-  Task,
-} from "@/types";
-import { SYNC_ITEMS } from "@/lib/mock/data";
+import type { BlockedReason, GapFinding, RejectReason, Task } from "@/types";
 import { revokePhoto, type CapturedPhoto } from "@/lib/capture";
 import type { AnalysisResult } from "@/lib/api/captures";
 import { verifyFinding } from "@/lib/api/findings";
@@ -21,9 +13,6 @@ import { checkOut, type CheckoutSummary } from "@/lib/api/visits";
    server state (React Query) and this store keeps only UI concerns. */
 
 interface DemoState {
-  online: boolean;
-  setOnline: (v: boolean) => void;
-
   storeId: string | null;
   /** the server's visit id — every capture, verification and task hangs off it */
   visitId: string | null;
@@ -50,8 +39,6 @@ interface DemoState {
   tasks: Task[];
   afterCaptured: boolean;
   replenishmentRequests: string[];
-
-  sync: SyncItem[];
 
   beginVisit: (storeId: string) => void;
   setConsent: (v: boolean) => void;
@@ -87,16 +74,11 @@ interface DemoState {
   checkout: CheckoutSummary | null;
   markAfterCaptured: () => void;
   resetVisit: () => void;
-  syncAll: () => void;
-  retrySync: (id: string) => void;
 }
 
 const PRIORITY_ORDER = { 1: 0, 2: 1, 3: 2 } as const;
 
 export const useDemo = create<DemoState>((set, get) => ({
-  online: true,
-  setOnline: (online) => set({ online }),
-
   storeId: null,
   visitId: null,
   consent: false,
@@ -118,8 +100,6 @@ export const useDemo = create<DemoState>((set, get) => ({
   afterCaptured: false,
   replenishmentRequests: [],
   checkout: null,
-
-  sync: SYNC_ITEMS,
 
   beginVisit: (storeId) =>
     set((s) => {
@@ -270,43 +250,6 @@ export const useDemo = create<DemoState>((set, get) => ({
       replenishmentRequests: [],
       checkout: null,
     }),
-
-  syncAll: () => {
-    const pending = get().sync.filter((i) => i.status !== "DONE");
-    set((s) => ({
-      sync: s.sync.map((i) =>
-        i.status === "DONE" ? i : { ...i, status: "UPLOADING" as const },
-      ),
-    }));
-    pending.forEach((item, i) => {
-      setTimeout(
-        () =>
-          set((s) => ({
-            sync: s.sync.map((x) =>
-              x.id === item.id
-                ? { ...x, status: "DONE" as const, attempts: x.attempts + 1 }
-                : x,
-            ),
-          })),
-        500 + i * 700,
-      );
-    });
-  },
-
-  retrySync: (id) => {
-    set((s) => ({
-      sync: s.sync.map((i) => (i.id === id ? { ...i, status: "UPLOADING" as const } : i)),
-    }));
-    setTimeout(
-      () =>
-        set((s) => ({
-          sync: s.sync.map((i) =>
-            i.id === id ? { ...i, status: "DONE" as const, attempts: i.attempts + 1 } : i,
-          ),
-        })),
-      1400,
-    );
-  },
 }));
 
 /* ---- derived selectors ----
