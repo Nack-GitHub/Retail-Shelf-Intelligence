@@ -284,12 +284,20 @@ export default function AreaDashboard() {
                         <RiskBadge band={r.riskBand} />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="inline-flex items-center gap-1 text-[13px] font-medium text-primary">
-                          ดูหลักฐาน
+                        {/* A real link, not a decorated span. The row's onClick
+                            serves a mouse; without this a keyboard or screen
+                            reader user has no way into a store at all — and
+                            this is the only route to the evidence. */}
+                        <Link
+                          href={`/w/stores/${r.storeId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 rounded-btn text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          ดูหลักฐาน<span className="sr-only"> ของ {r.storeName}</span>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
                             <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                        </span>
+                        </Link>
                       </td>
                     </motion.tr>
                   ))}
