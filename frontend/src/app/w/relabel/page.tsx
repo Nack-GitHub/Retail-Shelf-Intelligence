@@ -175,7 +175,14 @@ function RelabelCard({
         )}
       >
         <div className="relative">
-          <CropView bbox={det.bbox} detections={analysis.detections} focusId={det.detectionId} zoomTarget={0.42} />
+          <CropView
+            bbox={det.bbox}
+            detections={analysis.detections}
+            focusId={det.detectionId}
+            zoomTarget={0.42}
+            imageWidth={analysis.imageWidth}
+            imageHeight={analysis.imageHeight}
+          />
           <label
             className="absolute left-3 top-3 flex cursor-pointer items-center gap-2 rounded-pill bg-ink/70 px-2.5 py-1.5 backdrop-blur-sm"
           >

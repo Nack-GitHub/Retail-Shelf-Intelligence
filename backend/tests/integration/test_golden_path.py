@@ -345,3 +345,42 @@ def test_result_carries_a_signed_url_for_the_photograph(
 
     assert result["imageUrl"], "no signed URL — the result screen has nothing to draw on"
     assert result["imageWidth"] > 0 and result["imageHeight"] > 0
+
+
+def test_result_dimensions_are_the_space_the_boxes_live_in(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """The overlay draws boxes against imageWidth/imageHeight from this payload.
+
+    If those describe a different image than the one the detections were
+    computed against, every box lands *almost* right — the failure the
+    contract's coordinate-space warning exists to prevent. The client commits
+    the size it believes it uploaded; the ML service reports the size it
+    actually decoded, and that is the one that has to win.
+    """
+    presign = client.post(
+        "/v1/captures/presign",
+        headers=rep_auth,
+        json={"visitId": visit["id"], "category": "cat-coffee", "shelfBayLabel": "A2_gaps"},
+    ).json()
+
+    import httpx
+
+    httpx.put(
+        presign["uploadUrl"], content=b"fake-jpeg-bytes", headers={"Content-Type": "image/jpeg"}
+    ).raise_for_status()
+
+    # Deliberately wrong: half the size the mock reports for its detections.
+    client.post(
+        f"/v1/captures/{presign['captureId']}/commit",
+        headers={**rep_auth, "Idempotency-Key": f"dims-{uuid.uuid4()}"},
+        json={"imageWidth": 960, "imageHeight": 540},
+    )
+
+    result = client.get(f"/v1/captures/{presign['captureId']}/result", headers=rep_auth).json()
+
+    boxes = [d["bbox"] for d in result["detections"]]
+    assert boxes, "no detections to check"
+    for box in boxes:
+        assert box["x"] + box["w"] <= result["imageWidth"], "box runs off the right edge"
+        assert box["y"] + box["h"] <= result["imageHeight"], "box runs off the bottom edge"

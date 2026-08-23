@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { OsaStatusPill, Pill } from "@/components/ui/Badge";
 import { CountUp } from "@/components/ui/Progress";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
-import { getStore, CATEGORIES } from "@/lib/mock/data";
+import { fetchStore } from "@/lib/api/routes";
+import { fetchCategories } from "@/lib/api/catalog";
+import { useResource } from "@/lib/api/useResource";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -20,14 +22,16 @@ type View = "NORMAL" | "LOW_CONF" | "NO_SHELF";
 export default function ResultScreen() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const store = getStore(id);
 
   const analysis = useDemo((s) => s.analysis);
   const photo = useDemo((s) => s.photo);
   const findings = useDemo((s) => s.findings);
   const categoryId = useDemo((s) => s.categoryId);
   const bay = useDemo((s) => s.bay);
-  const cat = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
+
+  const store = useResource(() => fetchStore(id), [id]).data;
+  const catalog = useResource(() => fetchCategories(id), [id]).data;
+  const cat = catalog?.find((c) => c.id === categoryId) ?? null;
 
   const [view, setView] = useState<View>("NORMAL");
   const [filter, setFilter] = useState<OverlayFilter>("ALL");
@@ -52,13 +56,29 @@ export default function ResultScreen() {
     return <NoShelfState onRetake={() => router.push(`/m/store/${id}/capture`)} onSwitch={setView} view={view} />;
   }
 
-  if (!analysis) return null;
+  // No analysis in memory — a reload, or someone deep-linking here. Say so and
+  // offer the way back, rather than rendering an empty shell.
+  if (!analysis) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
+        <h1 className="text-[18px] font-semibold">ยังไม่มีผลการตรวจ</h1>
+        <p className="max-w-[280px] text-[14px] leading-relaxed text-muted">
+          ผลการตรวจจะแสดงที่นี่หลังถ่ายภาพชั้นวาง
+        </p>
+        <Button size="lg" onClick={() => router.replace(`/m/store/${id}/capture`)}>
+          เปิดกล้อง
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <>
       <MobileHeader
         title="ผลการตรวจชั้นวาง"
-        subtitle={`${store.name} · ${cat.name} ชั้น ${bay ?? "A2"}`}
+        subtitle={[store?.name, cat && `${cat.name} ชั้น ${bay ?? ""}`.trim()]
+          .filter(Boolean)
+          .join(" · ")}
         progress={0.62}
         right={
           <Pill tone="neutral" className="text-[12px]">
@@ -80,7 +100,7 @@ export default function ResultScreen() {
           className="relative w-full"
           style={{ aspectRatio: `${analysis.imageWidth} / ${analysis.imageHeight}` }}
         >
-          <CaptureFrame photo={photo} fit="contain" />
+          <CaptureFrame photo={photo} imageUrl={analysis.imageUrl} fit="contain" />
           <DetectionOverlay
             detections={analysis.detections}
             findings={findings}
@@ -113,11 +133,6 @@ export default function ResultScreen() {
             <span className="size-1.5 rounded-full bg-ok" aria-hidden />
             <span className="text-[12px] font-medium text-ink-text">{analysis.modelVersion}</span>
           </span>
-          {photo && (
-            <span className="rounded-pill bg-warn/90 px-2.5 py-1.5 text-[12px] font-semibold text-white">
-              กรอบจำลอง · ยังไม่ต่อโมเดล
-            </span>
-          )}
         </div>
       </motion.div>
 

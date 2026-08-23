@@ -1,11 +1,16 @@
 "use client";
 
 import { motion } from "motion/react";
-import { IMAGE_H, IMAGE_W } from "@/lib/mock/shelf";
 import type { Detection, GapFinding } from "@/types";
 import { easeOut } from "@/lib/motion";
 
 export type OverlayFilter = "ALL" | "GAP" | "PRODUCT" | "LOW_CONF" | "TAG";
+
+/* Stroke widths and badge sizes below are authored against a 1920-wide frame.
+   A 4000px phone photo would otherwise get hairline boxes and unreadable
+   labels, so every dimension is multiplied by the ratio to this reference —
+   the boxes themselves are always absolute pixels in the source image. */
+const STROKE_REFERENCE_WIDTH = 1920;
 
 const COLORS = {
   PRODUCT: "#12b76a",
@@ -44,8 +49,8 @@ export function DetectionOverlay({
   animate: shouldAnimate = true,
   showLabels = true,
   fit = "cover",
-  imageWidth = IMAGE_W,
-  imageHeight = IMAGE_H,
+  imageWidth,
+  imageHeight,
 }: {
   detections: Detection[];
   findings?: GapFinding[];
@@ -54,13 +59,12 @@ export function DetectionOverlay({
   animate?: boolean;
   showLabels?: boolean;
   fit?: "cover" | "contain";
-  /** pixel space the bounding boxes are expressed in */
-  imageWidth?: number;
-  imageHeight?: number;
+  /** pixel space the bounding boxes are expressed in — required, because a
+   *  wrong guess here draws every box in the wrong place */
+  imageWidth: number;
+  imageHeight: number;
 }) {
-  // stroke and badge sizes are authored against the 1920-wide mock, so they
-  // scale with whatever resolution the real photo came in at
-  const pxScale = imageWidth / IMAGE_W;
+  const pxScale = imageWidth / STROKE_REFERENCE_WIDTH;
   const verdictOf = new Map(
     findings.map((f) => [f.detectionId, f.verificationStatus] as const),
   );

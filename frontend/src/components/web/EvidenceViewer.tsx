@@ -99,6 +99,8 @@ export function EvidenceViewer({
                         detections={analysis.detections}
                         filter={filter}
                         fit="contain"
+                        imageWidth={analysis.imageWidth}
+                        imageHeight={analysis.imageHeight}
                       />
                     </motion.div>
                   )}

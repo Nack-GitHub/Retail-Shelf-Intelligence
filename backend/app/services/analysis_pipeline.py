@@ -152,9 +152,17 @@ def _persist(
         image_height=response.image_height,
     )
 
-    if not capture.image_width:
-        capture.image_width = response.image_width
-        capture.image_height = response.image_height
+    # The ML service decoded the actual bytes, so it — not the phone — is the
+    # authority on the image's size. The client's numbers are a claim made
+    # before upload; these are a measurement, and they are the space every
+    # stored bbox is expressed in.
+    #
+    # Trusting the client here is what put the result screen's overlay in the
+    # wrong coordinate space: boxes computed against one size, drawn against
+    # another, landing *almost* right — the exact failure the contract's
+    # coordinate-space warning exists to prevent.
+    capture.image_width = response.image_width
+    capture.image_height = response.image_height
 
     # Keyed by the ML service's id so findings can be resolved back to the row
     # we actually persisted; the row's own primary key is generated here.

@@ -4,26 +4,39 @@ import type { Slot } from "@/lib/mock/shelf";
 import type { CapturedPhoto } from "@/lib/capture";
 import { cn } from "@/lib/cn";
 
-/** Shows the photo the rep actually took. Falls back to the drawn stand-in
- *  shelf when there is none — a desktop reviewer with no camera still gets
- *  the whole flow. */
+/** Shows the shelf, in order of preference:
+ *
+ *  1. the blob still in memory from this session — paints instantly, no
+ *     network, and it is byte-for-byte what was uploaded
+ *  2. the server's signed URL — for a manager reviewing evidence later, or a
+ *     rep who reloaded the page
+ *  3. the drawn stand-in — a reviewer on a machine with no camera can still
+ *     walk the whole flow
+ *
+ *  The order matters on a phone with poor signal: re-downloading a photo the
+ *  device just took would leave the result screen grey for seconds. */
 export function CaptureFrame({
   photo,
+  imageUrl,
   slots,
   fit = "contain",
   className,
   alt = "ภาพชั้นวางที่ถ่ายไว้",
 }: {
   photo?: CapturedPhoto | null;
+  /** presigned GET from the API, used when the local blob is gone */
+  imageUrl?: string | null;
   slots?: Slot[];
   fit?: "cover" | "contain";
   className?: string;
   alt?: string;
 }) {
-  if (photo) {
+  const src = photo?.objectUrl ?? imageUrl ?? null;
+
+  if (src) {
     return (
       <Image
-        src={photo.objectUrl}
+        src={src}
         alt={alt}
         fill
         unoptimized

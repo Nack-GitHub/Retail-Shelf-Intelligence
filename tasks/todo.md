@@ -78,14 +78,15 @@ Legend — scope: **XS** 1 file · **S** 1–2 · **M** 3–5 · **L** 5–8
 **Files:** `lib/api/captures.ts` · `lib/store.ts` · `app/m/store/[id]/{capture,processing}/page.tsx`
 **Depends on:** T3 · **Scope:** M
 
-### - [ ] T5: Real result screen — real photo, real boxes
+### - [x] T5: Real result screen — real photo, real boxes
 **Description:** Add `imageUrl` (presigned GET) to `ShelfAnalysisOut`; `/result` renders the real analysis with boxes drawn over the actual photograph.
 
 **Acceptance:**
-- [ ] Boxes land on the correct pixels at any capture resolution
-- [ ] `modelVersion` comes from the DB row
-- [ ] Filters still branch on `semanticType` only (⛔2)
-- [ ] The "กรอบจำลอง · ยังไม่ต่อโมเดล" badge is gone
+- [x] Boxes land on the correct pixels at any capture resolution — verified: viewBox 1920×1080 matches the detection space, every box inside it
+- [x] `modelVersion` comes from the DB row (`mock-v1`)
+- [x] Filters still branch on `semanticType` only (⛔2)
+- [x] The "กรอบจำลอง · ยังไม่ต่อโมเดล" badge is gone
+- [x] Fixed en route: the result reported the client's claimed image size while the boxes were computed against the size the model decoded — boxes landed *almost* right
 
 **Verify:** screenshot the overlay on a real photo · `grep -rn 'className ===' frontend/src/components/shelf/` → nothing
 **Files:** `backend/app/api/v1/{schemas,captures}.py` · `lib/api/captures.ts` · `app/m/store/[id]/result/page.tsx` · `components/shelf/{DetectionOverlay,CaptureFrame,CropView}.tsx`

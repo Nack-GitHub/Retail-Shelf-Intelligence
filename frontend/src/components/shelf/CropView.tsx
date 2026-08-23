@@ -3,7 +3,6 @@
 import { motion } from "motion/react";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { DetectionOverlay } from "@/components/shelf/DetectionOverlay";
-import { IMAGE_H, IMAGE_W } from "@/lib/mock/shelf";
 import type { CapturedPhoto } from "@/lib/capture";
 import type { BBox, Detection } from "@/types";
 import { cn } from "@/lib/cn";
@@ -18,8 +17,8 @@ export function CropView({
   zoomTarget = 0.28,
   className,
   photo,
-  imageWidth = IMAGE_W,
-  imageHeight = IMAGE_H,
+  imageWidth,
+  imageHeight,
 }: {
   bbox: BBox;
   detections: Detection[];
@@ -27,8 +26,9 @@ export function CropView({
   zoomTarget?: number;
   className?: string;
   photo?: CapturedPhoto | null;
-  imageWidth?: number;
-  imageHeight?: number;
+  /** pixel space the bbox is expressed in */
+  imageWidth: number;
+  imageHeight: number;
 }) {
   // capped deliberately: the rep must still see the shelf either side of the
   // gap, otherwise the crop stops being evidence and becomes a Rorschach test
