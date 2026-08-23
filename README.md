@@ -159,6 +159,7 @@ v1 — 1,349 images, 45 classes, pinned by version and archive SHA.
 
 | Document | Contents |
 | :-- | :-- |
+| **[SPEC.md](SPEC.md)** | **Current work** — connecting the frontend to the backend API |
 | [docs/archive/SPEC.md](docs/archive/SPEC.md) | Specification the build was delivered against — contract rules, schema, boundaries |
 | [docs/archive/plan.md](docs/archive/plan.md) | Implementation plan, dependency graph, demo simplifications, outcome |
 | [docs/archive/todo.md](docs/archive/todo.md) | The 18 tasks, all complete |
