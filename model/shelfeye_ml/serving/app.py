@@ -33,7 +33,7 @@ from shelfeye_ml.serving.preprocess import (
 from shelfeye_ml.serving.storage import S3Reader
 
 ROOT = Path(__file__).resolve().parents[2]
-ARTIFACT_DIR = Path(os.environ.get("MODEL_ARTIFACT_DIR", ROOT / "artifacts" / "shelf-product-v1"))
+ARTIFACT_DIR = Path(os.environ.get("MODEL_ARTIFACT_DIR", ROOT / "artifacts" / "shelf-product-yolo11s-960"))
 MODEL_VERSION = os.environ.get("MODEL_VERSION", ARTIFACT_DIR.name)
 CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
 

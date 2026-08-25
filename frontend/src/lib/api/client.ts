@@ -8,7 +8,7 @@
 
 import { ApiError } from "@/lib/api/errors";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const TOKEN_KEY = "shelfeye.token";
 const EXPIRY_KEY = "shelfeye.token.expiresAt";

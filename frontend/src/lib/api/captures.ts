@@ -48,6 +48,12 @@ export async function presign(input: {
   });
 }
 
+/** Resolves storage URL to relative path if pointing to localhost/127.0.0.1 MinIO port */
+export function resolveStorageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.replace(/^https?:\/\/(localhost|127\.0\.0\.1):9000/, "");
+}
+
 /** PUTs the bytes to the presigned URL.
  *
  *  THE ONE SANCTIONED `fetch` OUTSIDE client.ts. It has to be: the presigned
@@ -60,9 +66,10 @@ export async function uploadToStorage(
   blob: Blob,
   contentType: string,
 ): Promise<void> {
+  const targetUrl = resolveStorageUrl(uploadUrl) ?? uploadUrl;
   let res: Response;
   try {
-    res = await fetch(uploadUrl, {
+    res = await fetch(targetUrl, {
       method: "PUT",
       body: blob,
       headers: { "Content-Type": contentType },
@@ -206,6 +213,7 @@ export async function fetchResult(captureId: string): Promise<AnalysisResult> {
   const wire = await request<AnalysisWire>(`/v1/captures/${encodeURIComponent(captureId)}/result`);
   return {
     ...wire,
+    imageUrl: resolveStorageUrl(wire.imageUrl),
     // 0.875 → 88, the same conversion every other screen's numbers get.
     osaScore: toPercent(wire.osaScore) ?? 0,
     gapRatio: wire.gapRatio,

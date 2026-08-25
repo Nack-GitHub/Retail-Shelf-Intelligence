@@ -14,6 +14,18 @@ const nextConfig: NextConfig = {
     "10.*.*.*",
     "172.16.*.*",
   ],
+  async rewrites() {
+    return [
+      {
+        source: "/v1/:path*",
+        destination: "http://localhost:8000/v1/:path*",
+      },
+      {
+        source: "/shelfeye-raw/:path*",
+        destination: "http://localhost:9000/shelfeye-raw/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -81,7 +81,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT_URL: http://minio:9000
       S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
-      ML_CLIENT: ${ML_CLIENT:-mock}
+      ML_CLIENT: ${ML_CLIENT:-http}
       ML_SERVICE_URL: http://ml:8001
     ports: ["8000:8000"]
 
@@ -96,7 +96,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://shelfeye:shelfeye@postgres:5432/shelfeye
       REDIS_URL: redis://redis:6379/0
       S3_ENDPOINT_URL: http://minio:9000
-      ML_CLIENT: ${ML_CLIENT:-mock}
+      ML_CLIENT: ${ML_CLIENT:-http}
       ML_SERVICE_URL: http://ml:8001
     command: celery -A app.workers.celery_app worker --loglevel=info -c 2
 
@@ -110,8 +110,8 @@ services:
       minio: {condition: service_healthy}
     environment:
       S3_ENDPOINT_URL: http://minio:9000
-      MODEL_ARTIFACT_DIR: /srv/model/artifacts/shelf-product-v1
-      MODEL_VERSION: shelf-product-v1
+      MODEL_ARTIFACT_DIR: /srv/model/artifacts/shelf-product-yolo11s-960
+      MODEL_VERSION: shelf-product-yolo11s-960
     volumes:
       - ./model/artifacts:/srv/model/artifacts:ro
     ports: ["8001:8001"]
