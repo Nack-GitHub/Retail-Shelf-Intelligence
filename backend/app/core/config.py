@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Flipping this from "mock" to "http" is the ENTIRE change required to go
     # from fake detections to the real model. If anything else needs editing,
     # the boundary has leaked.
-    ml_client: Literal["mock", "http"] = "mock"
+    ml_client: Literal["mock", "http"] = "http"
     ml_service_url: str = "http://localhost:8001"
     ml_timeout_seconds: float = 15.0
     ml_max_retries: int = 3

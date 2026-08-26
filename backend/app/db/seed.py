@@ -25,7 +25,7 @@ from app.workers.session import SyncSessionFactory
 # stands in for a promotion step that a real deployment performs from the ML
 # side — the backend never imports a CV library or learns a class name, which
 # is what the boundary rule actually protects.
-ARTIFACT_DIR = Path(__file__).resolve().parents[3] / "model" / "artifacts" / "shelf-product-v1"
+ARTIFACT_DIR = Path(__file__).resolve().parents[3] / "model" / "artifacts" / "shelf-product-yolo11s-960"
 
 AREA_ID = "area-bke"
 
@@ -137,7 +137,7 @@ def _seed_model_versions(session: Session) -> None:
         return
 
     if session.execute(
-        select(ModelVersion).where(ModelVersion.version == "shelf-product-v1")
+        select(ModelVersion).where(ModelVersion.version == ARTIFACT_DIR.name)
     ).scalar_one_or_none():
         return
 
@@ -148,7 +148,7 @@ def _seed_model_versions(session: Session) -> None:
 
     session.add(
         ModelVersion(
-            version="shelf-product-v1",
+            version=ARTIFACT_DIR.name,
             sha=sha,
             source_dataset="roboflow-ngkro/shelf-product",
             dataset_version="v1",

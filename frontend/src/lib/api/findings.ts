@@ -1,3 +1,4 @@
+import { resolveStorageUrl } from "@/lib/api/captures";
 import { request } from "@/lib/api/client";
 import type { RejectReason, VerificationStatus } from "@/types";
 
@@ -46,6 +47,10 @@ export interface Evidence {
  *
  *  ⛔ Deliberately carries no identity: who verified it is not part of the
  *  evidence a manager reviews. */
-export function fetchEvidence(findingId: string): Promise<Evidence> {
-  return request<Evidence>(`/v1/evidence/${encodeURIComponent(findingId)}`);
+export async function fetchEvidence(findingId: string): Promise<Evidence> {
+  const evidence = await request<Evidence>(`/v1/evidence/${encodeURIComponent(findingId)}`);
+  return {
+    ...evidence,
+    imageUrl: resolveStorageUrl(evidence.imageUrl),
+  };
 }

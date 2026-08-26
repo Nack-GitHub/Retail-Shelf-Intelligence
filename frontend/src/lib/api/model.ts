@@ -1,3 +1,4 @@
+import { resolveStorageUrl } from "@/lib/api/captures";
 import { request } from "@/lib/api/client";
 import type { BBox } from "@/types";
 
@@ -77,7 +78,10 @@ export async function fetchRelabelQueue(limit = 50): Promise<RelabelItem[]> {
   const payload = await request<{ items: RelabelItem[] }>(
     `/v1/model/relabel-queue?limit=${limit}`,
   );
-  return payload.items;
+  return payload.items.map((item) => ({
+    ...item,
+    imageUrl: resolveStorageUrl(item.imageUrl),
+  }));
 }
 
 /** Thai labels for the reasons a rep gives when rejecting a finding. */
