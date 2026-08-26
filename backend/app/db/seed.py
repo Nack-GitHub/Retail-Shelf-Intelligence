@@ -25,7 +25,7 @@ from app.workers.session import SyncSessionFactory
 # stands in for a promotion step that a real deployment performs from the ML
 # side — the backend never imports a CV library or learns a class name, which
 # is what the boundary rule actually protects.
-ARTIFACT_DIR = Path(__file__).resolve().parents[3] / "model" / "artifacts" / "shelf-product-yolo11s-960"
+ARTIFACT_DIR = Path(__file__).resolve().parents[3] / "model" / "artifacts" / "shelf-product-yolo26l-960"
 
 AREA_ID = "area-bke"
 

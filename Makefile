@@ -107,15 +107,15 @@ train: ## Full run, detached (hours)
 
 evaluate: ## Evaluate on the test split against the promotion gates
 	cd $(MODEL) && PYTHONPATH=. .venv/bin/python -m shelfeye_ml.eval.evaluate \
-	  --weights artifacts/shelf-product-yolo11s-960/weights/best.pt --split test --imgsz 960
+	  --weights artifacts/shelf-product-yolo26l-960/weights/best.pt --split test --imgsz 960
 
 export: ## Export ONNX (opset 17) into the artifact directory
 	cd $(MODEL) && PYTHONPATH=. .venv/bin/python -m shelfeye_ml.training.export_onnx \
-	  --weights artifacts/shelf-product-yolo11s-960/weights/best.pt --imgsz 960
+	  --weights artifacts/shelf-product-yolo26l-960/weights/best.pt --imgsz 960
 
 card: ## Generate model_card.md
 	cd $(MODEL) && PYTHONPATH=. .venv/bin/python -m shelfeye_ml.eval.model_card \
-	  --artifact-dir artifacts/shelf-product-yolo11s-960
+	  --artifact-dir artifacts/shelf-product-yolo26l-960
 
 demo: ## Walk the golden path against a running API
 	cd $(BACKEND) && python3 scripts/demo_golden_path.py

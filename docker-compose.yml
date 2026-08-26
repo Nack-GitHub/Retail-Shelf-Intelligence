@@ -110,8 +110,8 @@ services:
       minio: {condition: service_healthy}
     environment:
       S3_ENDPOINT_URL: http://minio:9000
-      MODEL_ARTIFACT_DIR: /srv/model/artifacts/shelf-product-yolo11s-960
-      MODEL_VERSION: shelf-product-yolo11s-960
+      MODEL_ARTIFACT_DIR: /srv/model/artifacts/shelf-product-yolo26l-960
+      MODEL_VERSION: shelf-product-yolo26l-960
     volumes:
       - ./model/artifacts:/srv/model/artifacts:ro
     ports: ["8001:8001"]
