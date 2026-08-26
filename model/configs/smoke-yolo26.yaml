@@ -1,0 +1,9 @@
+# Smoke config for YOLO26 — fast verification of pipeline
+run_name: smoke-yolo26
+model: yolo26n.pt
+imgsz: 320
+epochs: 1
+batch: 8
+patience: 10
+workers: 4
+seed: 42

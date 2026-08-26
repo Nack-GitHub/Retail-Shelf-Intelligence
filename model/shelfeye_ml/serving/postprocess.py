@@ -20,17 +20,95 @@ from shelfeye_ml.artifact.class_map import ClassMap
 from shelfeye_ml.serving.preprocess import LetterboxTransform
 
 
+def _get_threshold(
+    class_id: int,
+    class_map: ClassMap,
+    default_thresh: float,
+    class_thresholds: dict | None,
+) -> float:
+    if not class_thresholds:
+        return default_thresh
+    if class_id in class_thresholds:
+        return float(class_thresholds[class_id])
+    if class_id in class_map:
+        entry = class_map.entry(class_id)
+        if entry.name in class_thresholds:
+            return float(class_thresholds[entry.name])
+        if entry.semantic_type in class_thresholds:
+            return float(class_thresholds[entry.semantic_type])
+        if entry.semantic_type.value in class_thresholds:
+            return float(class_thresholds[entry.semantic_type.value])
+    return float(class_thresholds.get("default", default_thresh))
+
+
 def decode(
     raw: np.ndarray,
     transform: LetterboxTransform,
     class_map: ClassMap,
     *,
     conf_threshold: float = 0.25,
+    class_thresholds: dict | None = None,
     iou_threshold: float = 0.45,
     max_detections: int = 300,
 ) -> list[Detection]:
-    """Turn a (1, 4+nc, N) YOLO head into contract detections."""
+    """Turn YOLO head (end-to-end (1, N, 6) or raw (1, 4+nc, N)) into contract detections."""
     predictions = raw[0] if raw.ndim == 3 else raw
+
+    if predictions.size == 0 or predictions.shape[0] == 0:
+        return []
+
+    # End-to-End NMS-Free format (YOLO26): shape (N, 6) -> [x1, y1, x2, y2, conf, cls]
+    if predictions.ndim == 2 and predictions.shape[1] == 6:
+        xyxy = predictions[:, :4]
+        confidences = predictions[:, 4]
+        class_ids = predictions[:, 5].astype(int)
+
+        # Apply per-class threshold filtering
+        keep_mask = np.zeros(len(confidences), dtype=bool)
+        for i in range(len(confidences)):
+            c_id = int(class_ids[i])
+            thresh = _get_threshold(c_id, class_map, conf_threshold, class_thresholds)
+            if confidences[i] >= thresh:
+                keep_mask[i] = True
+
+        xyxy = xyxy[keep_mask]
+        confidences = confidences[keep_mask]
+        class_ids = class_ids[keep_mask]
+
+        order = np.argsort(-confidences)[:max_detections]
+        xyxy = xyxy[order]
+        confidences = confidences[order]
+        class_ids = class_ids[order]
+
+        detections: list[Detection] = []
+        for i in range(len(confidences)):
+            class_id = int(class_ids[i])
+            if class_id not in class_map:
+                continue
+
+            x1, y1 = transform.to_original(xyxy[i][0], xyxy[i][1])
+            x2, y2 = transform.to_original(xyxy[i][2], xyxy[i][3])
+
+            x1 = max(0.0, min(x1, transform.original_width))
+            y1 = max(0.0, min(y1, transform.original_height))
+            x2 = max(0.0, min(x2, transform.original_width))
+            y2 = max(0.0, min(y2, transform.original_height))
+            if x2 - x1 <= 1 or y2 - y1 <= 1:
+                continue
+
+            entry = class_map.entry(class_id)
+            detections.append(
+                Detection(
+                    detection_id=uuid.uuid4(),
+                    class_id=class_id,
+                    class_name=entry.name,
+                    semantic_type=entry.semantic_type,
+                    bbox=BBox(x=round(x1, 2), y=round(y1, 2),
+                              w=round(x2 - x1, 2), h=round(y2 - y1, 2)),
+                    confidence=round(float(confidences[i]), 4),
+                )
+            )
+        return detections
 
     # Orient to (N, 4+nc). Decide by matching the KNOWN feature count, not by
     # comparing the two axis lengths: with fewer detections than features — a
@@ -53,11 +131,18 @@ def decode(
     class_ids = class_scores.argmax(axis=1)
     confidences = class_scores.max(axis=1)
 
-    keep = confidences >= conf_threshold
+    # Per-class threshold filtering for raw format
+    keep_mask = np.zeros(len(confidences), dtype=bool)
+    for i in range(len(confidences)):
+        c_id = int(class_ids[i])
+        thresh = _get_threshold(c_id, class_map, conf_threshold, class_thresholds)
+        if confidences[i] >= thresh:
+            keep_mask[i] = True
+
     boxes_cxcywh, class_ids, confidences = (
-        boxes_cxcywh[keep],
-        class_ids[keep],
-        confidences[keep],
+        boxes_cxcywh[keep_mask],
+        class_ids[keep_mask],
+        confidences[keep_mask],
     )
     if len(confidences) == 0:
         return []

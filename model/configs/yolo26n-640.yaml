@@ -1,0 +1,10 @@
+# YOLO26 Nano config at 640px resolution.
+run_name: shelf-product-yolo26n-640
+model: yolo26n.pt
+imgsz: 640
+epochs: 30
+batch: 8
+patience: 15
+val: false
+workers: 4
+seed: 42

@@ -1,0 +1,11 @@
+# Production-grade run matching docs/archive/backend-and-ml/SPEC.md Section 7.2
+# Uses YOLO26 Small backbone (yolo26s.pt) and 960px resolution for maximum recall.
+run_name: shelf-product-yolo26s-960
+model: yolo26s.pt
+imgsz: 960
+epochs: 100
+batch: 4
+patience: 25
+val: false
+workers: 4
+seed: 42

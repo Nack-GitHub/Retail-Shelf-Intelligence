@@ -135,7 +135,7 @@ def main() -> None:
     print_report(summary)
 
     out = args.out or weights.parent.parent / "metrics.json"
-    out.write_text(json.dumps(summary, indent=2))
+    out.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\nwritten: {out}")
 
 

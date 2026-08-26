@@ -49,13 +49,22 @@ class InferenceEngine:
         self.is_ready = True
         return (time.perf_counter() - started) * 1000
 
-    def infer(self, image, conf_threshold: float = 0.25) -> tuple[list, int, LetterboxTransform]:
+    def infer(
+        self,
+        image,
+        conf_threshold: float = 0.25,
+        class_thresholds: dict | None = None,
+    ) -> tuple[list, int, LetterboxTransform]:
         tensor, transform = letterbox(image, self.imgsz)
         started = time.perf_counter()
         raw = self.session.run(None, {self.input_name: tensor})[0]
         elapsed_ms = int((time.perf_counter() - started) * 1000)
 
         detections = decode(
-            np.asarray(raw), transform, self.class_map, conf_threshold=conf_threshold
+            np.asarray(raw),
+            transform,
+            self.class_map,
+            conf_threshold=conf_threshold,
+            class_thresholds=class_thresholds,
         )
         return detections, elapsed_ms, transform

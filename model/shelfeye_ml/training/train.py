@@ -65,6 +65,10 @@ def _resolve_device() -> str:
 
 def train(config_path: Path) -> Path:
     from ultralytics import YOLO
+    from shelfeye_ml.training.prepare_dataset import prepare_dataset
+
+    if not DATA_YAML.exists():
+        prepare_dataset()
 
     cfg = yaml.safe_load(config_path.read_text())
     run_name = cfg["run_name"]
@@ -114,7 +118,7 @@ def train(config_path: Path) -> Path:
         "seconds_per_epoch": round(elapsed / max(cfg["epochs"], 1), 1),
         "weights": str(weights.relative_to(ROOT)) if weights.exists() else None,
     }
-    (out_dir / "run_manifest.json").write_text(json.dumps(manifest, indent=2))
+    (out_dir / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     print(f"[train] done in {elapsed / 60:.1f} min "
           f"({manifest['seconds_per_epoch']}s/epoch) -> {weights}")

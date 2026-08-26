@@ -1,6 +1,6 @@
 # shelfeye-ml — model training and serving.
 # This service never learns the words "store", "visit" or "OSA".
-ultralytics==8.3.40
+ultralytics>=8.4.0
 torch>=2.5,<3
 torchvision>=0.20,<1
 onnx>=1.17

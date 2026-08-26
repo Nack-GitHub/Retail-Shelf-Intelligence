@@ -142,3 +142,51 @@ def test_decode_rejects_a_head_whose_class_count_disagrees_with_the_artifact() -
 def test_decode_returns_empty_for_an_empty_head() -> None:
     _, transform = letterbox(Image.new("RGB", (640, 640)), 640)
     assert decode(np.zeros((1, 4 + len(CLASS_MAP), 0), np.float32), transform, CLASS_MAP) == []
+    assert decode(np.zeros((1, 0, 6), np.float32), transform, CLASS_MAP) == []
+
+
+# ── YOLO26 End-to-End Format ──────────────────────────────────────────────────
+
+
+def test_decode_handles_yolo26_end_to_end_format() -> None:
+    image = Image.new("RGB", (1920, 1080))
+    _, transform = letterbox(image, 640)
+
+    # YOLO26 ONNX outputs (1, N, 6) where cols are [x1, y1, x2, y2, conf, class_id]
+    # In letterboxed 640x640:
+    # y pad is (640 - 1080 * (640/1920)) / 2 = (640 - 360) / 2 = 140
+    # A box from letterbox (270, 110, 370, 170) -> cx=320, cy=140 in letterbox -> original cx=960, cy=0
+    raw = np.array([
+        [[270.0, 110.0, 370.0, 170.0, 0.95, 19.0],  # Empty Shelf (GAP)
+         [100.0, 150.0, 200.0, 250.0, 0.85, 31.0],  # Price (PRICE_TAG)
+         [50.0, 50.0, 80.0, 80.0, 0.10, 0.0]],     # Low confidence -> filtered
+    ], dtype=np.float32)
+
+    detections = decode(raw, transform, CLASS_MAP, conf_threshold=0.25)
+    assert len(detections) == 2
+    assert detections[0].semantic_type == SemanticType.GAP
+    assert detections[0].class_name == "Empty Shelf"
+    assert detections[0].confidence == 0.95
+    assert detections[1].semantic_type == SemanticType.PRICE_TAG
+    assert detections[1].class_name == "Price"
+
+
+def test_decode_supports_per_class_thresholds() -> None:
+    image = Image.new("RGB", (640, 640))
+    _, transform = letterbox(image, 640)
+
+    # Empty Shelf with conf 0.16 (above 0.15 gap threshold, below 0.25 default)
+    # Product with conf 0.20 (below 0.25 product threshold)
+    raw = np.array([
+        [[100.0, 100.0, 200.0, 200.0, 0.16, 19.0],  # Empty Shelf
+         [300.0, 300.0, 400.0, 400.0, 0.20, 0.0]],   # AB Bohne (Product)
+    ], dtype=np.float32)
+
+    class_thresholds = {"Empty Shelf": 0.15, "default": 0.25}
+    detections = decode(raw, transform, CLASS_MAP, conf_threshold=0.25, class_thresholds=class_thresholds)
+
+    assert len(detections) == 1
+    assert detections[0].class_name == "Empty Shelf"
+    assert detections[0].semantic_type == SemanticType.GAP
+
+

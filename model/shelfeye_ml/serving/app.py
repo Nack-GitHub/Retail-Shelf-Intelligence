@@ -36,6 +36,15 @@ ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_DIR = Path(os.environ.get("MODEL_ARTIFACT_DIR", ROOT / "artifacts" / "shelf-product-v1"))
 MODEL_VERSION = os.environ.get("MODEL_VERSION", ARTIFACT_DIR.name)
 CONF_THRESHOLD = float(os.environ.get("CONF_THRESHOLD", "0.25"))
+GAP_CONF_THRESHOLD = float(os.environ.get("GAP_CONF_THRESHOLD", "0.15"))
+PRICE_CONF_THRESHOLD = float(os.environ.get("PRICE_CONF_THRESHOLD", "0.20"))
+
+CLASS_THRESHOLDS: dict[str, float] = {
+    "Empty Shelf": GAP_CONF_THRESHOLD,
+    "Price": PRICE_CONF_THRESHOLD,
+    "Discount Price": PRICE_CONF_THRESHOLD,
+    "default": CONF_THRESHOLD,
+}
 
 # Below this many detections we treat the image as having no visible shelf
 # structure. One stray box on a photo of the ceiling is not a shelf.
@@ -94,7 +103,9 @@ async def infer(body: InferRequest) -> Response:
     except ImageUnreadableError as exc:
         return _error(422, InferErrorCode.UNREADABLE_IMAGE, str(exc), body.request_id)
 
-    detections, inference_ms, transform = _engine.infer(image, CONF_THRESHOLD)
+    detections, inference_ms, transform = _engine.infer(
+        image, conf_threshold=CONF_THRESHOLD, class_thresholds=CLASS_THRESHOLDS
+    )
 
     if len(detections) < MIN_DETECTIONS_FOR_SHELF:
         # ⚠️ An image where the model finds nothing must NEVER be reported as a

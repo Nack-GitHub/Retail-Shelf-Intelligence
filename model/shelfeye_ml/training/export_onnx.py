@@ -48,7 +48,7 @@ def export(weights: Path, imgsz: int = 640, opset: int = 17) -> Path:
         "model_sha": _sha8(target),
         "weights_sha": _sha8(weights),
     }
-    (artifact_dir / "artifact.json").write_text(json.dumps(meta, indent=2))
+    (artifact_dir / "artifact.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"[export] {target}  sha={meta['model_sha']}  opset={opset}  imgsz={imgsz}")
     return target
 

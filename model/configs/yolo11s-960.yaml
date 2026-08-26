@@ -1,0 +1,11 @@
+# Production configuration for higher confidence and fine-grained shelf detection.
+# Uses YOLO11 Small backbone (yolo11s.pt) and 960px resolution.
+run_name: shelf-product-yolo11s-960
+model: yolo11s.pt
+imgsz: 960
+epochs: 100
+batch: 8
+patience: 20
+workers: 4
+seed: 42
+val: true

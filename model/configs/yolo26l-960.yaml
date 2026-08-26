@@ -1,0 +1,10 @@
+# Large backbone run (YOLO26l) at 960px resolution for maximum SKU feature representation.
+run_name: shelf-product-yolo26l-960
+model: yolo26l.pt
+imgsz: 960
+epochs: 100
+batch: 4
+patience: 25
+val: false
+workers: 4
+seed: 42

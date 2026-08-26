@@ -44,7 +44,8 @@ def build(artifact_dir: Path) -> Path:
     metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
     config = manifest["config"]
 
-    zip_path = ROOT / "shelf-product.v1i.yolov11.zip"
+    zip_candidates = list((ROOT / "data").glob("*.zip")) + list(ROOT.glob("*.zip"))
+    zip_path = zip_candidates[0] if zip_candidates else ROOT / "shelf-product.v1i.yolo26.zip"
     lines = [
         f"# Model Card — {manifest['run_name']}",
         "",
@@ -191,7 +192,7 @@ def build(artifact_dir: Path) -> Path:
     ]
 
     out = artifact_dir / "model_card.md"
-    out.write_text("\n".join(lines) + "\n")
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
 
 

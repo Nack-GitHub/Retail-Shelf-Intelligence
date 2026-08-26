@@ -1,0 +1,11 @@
+# YOLO26 Small backbone config at 640px resolution.
+# Uses higher capacity YOLO26s backbone to improve Recall on small SKUs and Empty Shelf gaps.
+run_name: shelf-product-yolo26s-640
+model: yolo26s.pt
+imgsz: 640
+epochs: 30
+batch: 8
+patience: 15
+val: false
+workers: 4
+seed: 42
