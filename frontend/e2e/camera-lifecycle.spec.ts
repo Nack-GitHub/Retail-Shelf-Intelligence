@@ -10,6 +10,7 @@ import {
   liveTrackCount,
   grantedCount,
   killCameraTracks,
+  breakCamera,
 } from "./fixtures/test";
 import { STORE_ID } from "./fixtures/api";
 
@@ -127,9 +128,14 @@ test("the shutter works as soon as the viewfinder is live", async ({ page }) => 
 test("backing out mid-shutter does not record an after-photo that was never taken", async ({
   page,
 }) => {
+  await installCameraAudit(page);
   await seedSession(page);
   await walkToCompare(page);
   await expectCameraLive(page);
+
+  // With no camera the shutter falls back to a delayed stand-in rather than a
+  // real photograph, and that delay is what a rep can walk out of.
+  await breakCamera(page);
 
   await page.getByRole("button", { name: "ถ่ายภาพ" }).click();
   await page.goBack();

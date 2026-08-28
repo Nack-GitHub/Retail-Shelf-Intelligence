@@ -102,6 +102,7 @@ declare global {
       liveCount: () => number;
       granted: number;
       stopAll: () => void;
+      breakDevice: () => void;
     };
   }
 }
@@ -112,10 +113,12 @@ declare global {
 export async function installCameraAudit(page: Page, grantDelayMs = 0): Promise<void> {
   await page.addInitScript((delay) => {
     const tracks: MediaStreamTrack[] = [];
+    let broken = false;
     const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
     navigator.mediaDevices.getUserMedia = async (constraints) => {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+      if (broken) throw new DOMException("no camera", "NotFoundError");
       const stream = await original(constraints);
       stream.getTracks().forEach((t) => tracks.push(t));
       window.__cameraAudit!.granted += 1;
@@ -127,6 +130,12 @@ export async function installCameraAudit(page: Page, grantDelayMs = 0): Promise<
       liveCount: () => tracks.filter((t) => t.readyState === "live").length,
       // Simulates the OS reclaiming the camera — what iOS does on app switch.
       stopAll: () => tracks.forEach((t) => t.stop()),
+      // Simulates the camera going away for good, so recovery cannot succeed
+      // and the screen falls back to its no-camera path.
+      breakDevice: () => {
+        broken = true;
+        tracks.forEach((t) => t.stop());
+      },
     };
   }, grantDelayMs);
 }
@@ -146,6 +155,17 @@ export async function grantedCount(page: Page): Promise<number> {
 /** Ends every track the page was granted, the way the OS does on app switch. */
 export async function killCameraTracks(page: Page): Promise<void> {
   await page.evaluate(() => window.__cameraAudit?.stopAll());
+}
+
+/** Takes the camera away permanently and waits for the screen to give up on
+ *  it, so the no-camera path is the one under test.
+ *
+ *  Waiting on the screen's own message rather than on the track: the track dies
+ *  first, and a shutter pressed in between still takes the live path off the
+ *  last decoded frame. */
+export async function breakCamera(page: Page): Promise<void> {
+  await page.evaluate(() => window.__cameraAudit?.breakDevice());
+  await expect(page.getByText("ไม่พบกล้องบนอุปกรณ์นี้")).toBeVisible({ timeout: 20_000 });
 }
 
 /* ---- deeper walks ----

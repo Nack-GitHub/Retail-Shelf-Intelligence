@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
@@ -45,6 +45,13 @@ export default function CompareScreen() {
   const [uploading, setUploading] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const timers = useRef<number[]>([]);
+
+  /* The shutter's timers outlive a rep who backs out mid-press. One of them
+     records that the after-photo was taken, so without this the visit ends up
+     holding a photograph nobody ever took — and coming back to this screen
+     shows the comparison instead of the camera. */
+  useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
 
   // the After shot uses the same camera and the same intake function as
   // the Before shot, so both photos are recorded identically
@@ -87,10 +94,10 @@ export default function CompareScreen() {
     if (busy) return;
     setError(null);
     setFlash(true);
-    window.setTimeout(() => setFlash(false), 170);
+    timers.current.push(window.setTimeout(() => setFlash(false), 170));
 
     if (!live) {
-      window.setTimeout(markAfterCaptured, 420);
+      timers.current.push(window.setTimeout(markAfterCaptured, 420));
       return;
     }
     setBusy(true);
