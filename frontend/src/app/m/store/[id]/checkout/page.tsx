@@ -38,6 +38,11 @@ export default function CheckoutScreen() {
   const stats = useVisitStats();
 
   const [closing, setClosing] = useState(true);
+  /* Set the moment the rep chooses to move on. Leaving throws the visit away,
+     and the guard below reads the visit — so without this the screen spends the
+     frames before the route changes telling the rep that the visit they just
+     finished is closed. */
+  const [leaving, setLeaving] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
 
   // Checkout is what makes the visit real: it closes the row and computes
@@ -74,6 +79,7 @@ export default function CheckoutScreen() {
   const blocked = tasks.filter((t) => t.status === "BLOCKED");
 
   function goNext() {
+    setLeaving(true);
     // Replace, not push: this visit is closed, and its summary reads off state
     // that has just been thrown away. Leaving it one back press behind put a
     // page of blank figures in front of the rep for a shop they had finished.
@@ -86,7 +92,7 @@ export default function CheckoutScreen() {
     }
   }
 
-  if (flow.blocked) return <FlowGuardBlock flow={flow} />;
+  if (flow.blocked && !leaving) return <FlowGuardBlock flow={flow} />;
 
   return (
     <>

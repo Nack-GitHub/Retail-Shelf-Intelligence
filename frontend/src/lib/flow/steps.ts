@@ -56,12 +56,12 @@ export interface Step {
   /** how this step is normally arrived at */
   arriveWith: "push" | "replace";
   blocked: BlockedCopy;
-  /** the flow ends here; going back means starting the day's list again */
-  terminal?: boolean;
 }
 
 const storePath = (segment: string) => (storeId: string | null) =>
-  storeId ? `/m/store/${storeId}/${segment}` : null;
+  // Encoded for the same reason the api layer encodes it: a store id is data,
+  // and building a path by concatenation is how data becomes a different path.
+  storeId ? `/m/store/${encodeURIComponent(storeId)}/${segment}` : null;
 
 const NO_VISIT: BlockedCopy = {
   title: "ยังไม่ได้เริ่มการเข้าร้านนี้",
@@ -199,7 +199,6 @@ export const STEPS: Record<StepId, Step> = {
     fallback: "ROUTE",
     back: "ROUTE",
     arriveWith: "push",
-    terminal: true,
     blocked: {
       title: "การเข้าร้านนี้ปิดแล้ว",
       body: "สรุปของการเข้าร้านที่ปิดไปแล้ว ดูย้อนหลังได้จากหน้าเว็บของผู้จัดการพื้นที่",

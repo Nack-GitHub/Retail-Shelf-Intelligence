@@ -14,7 +14,6 @@ import { STEPS, type BlockedCopy, type StepId, type VisitSnapshot } from "@/lib/
 export interface Flow {
   /** the step this screen is */
   id: StepId;
-  storeId: string | null;
   /** move on; the map decides push or replace unless told otherwise.
    *  `storeId` is for the moves that open a different store than the one on
    *  screen — starting the next stop on the route, say — where reading it off
@@ -26,8 +25,6 @@ export interface Flow {
   exit: (href: string) => void;
   /** where this step goes back to — not where history came from */
   back: () => void;
-  /** null when the screen is the start of the flow and shows no back control */
-  canGoBack: boolean;
   /** true when the visit cannot support this screen; render FlowGuardBlock */
   blocked: boolean;
   blockedCopy: BlockedCopy;
@@ -100,15 +97,13 @@ export function useFlow(id: StepId): Flow {
   return useMemo(
     () => ({
       id,
-      storeId,
       go,
       exit,
       back,
-      canGoBack: step.back !== null,
       blocked: !step.canEnter(visit),
       blockedCopy: step.blocked,
       goFallback,
     }),
-    [id, storeId, go, exit, back, goFallback, step, visit],
+    [id, go, exit, back, goFallback, step, visit],
   );
 }
