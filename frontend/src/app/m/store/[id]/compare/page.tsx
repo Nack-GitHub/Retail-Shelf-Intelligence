@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Controls";
 import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill } from "@/components/ui/Badge";
-import { osaStatusOf } from "@/components/ui/Badge";
+import { osaStatusOf } from "@/lib/osa";
 import { useFlow } from "@/lib/flow/useFlow";
 import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";

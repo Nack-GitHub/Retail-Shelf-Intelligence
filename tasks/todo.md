@@ -18,7 +18,7 @@
 
 ## Phase 1 — เกณฑ์เดียว
 
-- [ ] **Task 1: รวมเกณฑ์ OSA ของ frontend ไว้ที่ `lib/osa.ts` ที่เดียว**
+- [x] **Task 1: รวมเกณฑ์ OSA ของ frontend ไว้ที่ `lib/osa.ts` ที่เดียว**
 
   ตอนนี้ frontend มีเกณฑ์ซ้อนกันสองชุดและไม่มีชุดไหนตรงกับ backend:
   `osaStatusOf` ใช้ OK≥90 / LOW≥70 ([Badge.tsx:73-75](../frontend/src/components/ui/Badge.tsx#L73-L75))
@@ -28,22 +28,23 @@
   ในหน้าเช็คเอาต์ (คำนวณเอง)
 
   - Acceptance:
-    - [ ] มีไฟล์ `frontend/src/lib/osa.ts` ที่ export `OSA_THRESHOLDS`, `osaStatusOf`,
+    - [x] มีไฟล์ `frontend/src/lib/osa.ts` ที่ export `OSA_THRESHOLDS`, `osaStatusOf`,
           `osaTone` และเป็น **ที่เดียว** ในฝั่ง frontend ที่มีตัวเลขเกณฑ์
-    - [ ] ค่าใน `OSA_THRESHOLDS` ตรงกับ backend (critical 75, low 90) พร้อมคอมเมนต์
+    - [x] ค่าใน `OSA_THRESHOLDS` ตรงกับ backend (critical 75, low 90) พร้อมคอมเมนต์
           ชี้ว่า source of truth อยู่ที่ `backend/app/core/config.py`
-    - [ ] `osaStatusOf` ถูกย้ายออกจาก [Badge.tsx](../frontend/src/components/ui/Badge.tsx)
+    - [x] `osaStatusOf` ถูกย้ายออกจาก [Badge.tsx](../frontend/src/components/ui/Badge.tsx)
           และผู้เรียกทั้งสามจุดชี้มาที่ `lib/osa.ts`
           ([checkout:139](../frontend/src/app/m/store/[id]/checkout/page.tsx#L139) ·
           [compare:409](../frontend/src/app/m/store/[id]/compare/page.tsx#L409) ·
           [w/stores:96](../frontend/src/app/w/stores/[id]/page.tsx#L96))
-    - [ ] หน้าไหนที่ server ส่ง `status` มาให้แล้วยังใช้ของ server ต่อไป ไม่คำนวณซ้ำ
-    - [ ] `osaTone(osa)` ถูก export ไว้พร้อมใช้ แต่ผู้เรียกยังไม่เปลี่ยนในงานนี้ (Task 2)
+    - [x] หน้าไหนที่ server ส่ง `status` มาให้แล้วยังใช้ของ server ต่อไป ไม่คำนวณซ้ำ
+    - [x] `osaTone(osa)` ถูก export ไว้พร้อมใช้ แต่ผู้เรียกยังไม่เปลี่ยนในงานนี้ (Task 2)
   - Verify:
-    - [ ] `grep -rn "osaStatusOf" frontend/src` → นิยามอยู่ใน `lib/osa.ts` ที่เดียว
-    - [ ] `grep -rn ">= 70 ?" frontend/src` → ไม่พบ
-    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ baseline 18 issues
-    - [ ] manual: ชั้นวางที่ได้ 72% แสดง CRITICAL เหมือนกันทั้งหน้าผลและหน้าเช็คเอาต์
+    - [x] `grep -rn "osaStatusOf" frontend/src` → นิยามอยู่ใน `lib/osa.ts` ที่เดียว
+    - [x] `grep -rn ">= 70 ?" frontend/src` → ไม่พบ
+    - [x] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ baseline 18 issues
+    - [x] e2e `osa-consistency.spec.ts`: ค่า 72% ขึ้น "วิกฤต" ไม่ใช่ "ต่ำ"
+          (พิสูจน์แล้วว่าแดงกับเกณฑ์เดิม 70 และเขียวกับ 75)
   - Dependencies: None
   - Files: `frontend/src/lib/osa.ts` (ใหม่), `frontend/src/components/ui/Badge.tsx`,
     `frontend/src/app/m/store/[id]/checkout/page.tsx`,
@@ -74,21 +75,21 @@
     `frontend/src/app/w/page.tsx`, `frontend/src/app/w/routes/page.tsx`
   - Scope: **S**
 
-- [ ] **Task 3: contract test กันเกณฑ์ frontend/backend drift**
+- [x] **Task 3: contract test กันเกณฑ์ frontend/backend drift**
 
   เกณฑ์สองฝั่งเพี้ยนกันได้เงียบ ๆ มาแล้วครั้งหนึ่ง การ mirror ค่าอย่างเดียวไม่พอ
   ต้องมีอะไรที่แดงเมื่อฝั่งใดฝั่งหนึ่งขยับ
 
   - Acceptance:
-    - [ ] มี `backend/tests/unit/test_osa_thresholds_contract.py` ที่อ่าน
+    - [x] มี `backend/tests/unit/test_osa_thresholds_contract.py` ที่อ่าน
           `frontend/src/lib/osa.ts` แล้วเทียบกับ `settings.critical_threshold` /
           `settings.low_threshold` (คูณ 100)
-    - [ ] ข้อความ assert บอกชื่อไฟล์ทั้งสองฝั่งและค่าที่ไม่ตรง ไม่ใช่แค่ `assert a == b`
-    - [ ] test หาไฟล์เจอโดยไม่ขึ้นกับ cwd ที่รัน pytest
-    - [ ] ถ้าหาไฟล์ frontend ไม่เจอให้ fail ไม่ใช่ skip เงียบ ๆ
+    - [x] ข้อความ assert บอกชื่อไฟล์ทั้งสองฝั่งและค่าที่ไม่ตรง ไม่ใช่แค่ `assert a == b`
+    - [x] test หาไฟล์เจอโดยไม่ขึ้นกับ cwd ที่รัน pytest
+    - [x] ถ้าหาไฟล์ frontend ไม่เจอให้ fail ไม่ใช่ skip เงียบ ๆ
   - Verify:
-    - [ ] `pytest backend/tests/unit/test_osa_thresholds_contract.py` เขียว
-    - [ ] แก้ `critical_threshold` เป็น 0.70 ชั่วคราว → test แดง แล้วแก้กลับ
+    - [x] `pytest backend/tests/unit/test_osa_thresholds_contract.py` เขียว
+    - [x] แก้ `critical_threshold` เป็น 0.70 ชั่วคราว → test แดง แล้วแก้กลับ
   - Dependencies: Task 1
   - Files: `backend/tests/unit/test_osa_thresholds_contract.py` (ใหม่)
   - Scope: **XS**

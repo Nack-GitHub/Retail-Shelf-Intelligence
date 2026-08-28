@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { OSA_TONE, type OsaTone } from "@/lib/osa";
 import type { OsaStatus, RiskBand } from "@/types";
 
 export function Pill({
@@ -48,28 +49,27 @@ export function RiskBadge({ band, className }: { band: RiskBand; className?: str
   );
 }
 
-const OSA_META: Record<OsaStatus, { label: string; tone: "ok" | "warn" | "danger" }> = {
-  OK: { label: "ปกติ", tone: "ok" },
-  LOW: { label: "ต่ำ", tone: "warn" },
-  CRITICAL: { label: "วิกฤต", tone: "danger" },
+const OSA_LABEL: Record<OsaStatus, string> = {
+  OK: "ปกติ",
+  LOW: "ต่ำ",
+  CRITICAL: "วิกฤต",
 };
 
+// Written out rather than composed, because Tailwind only ships the classes it
+// can see spelled in full.
+const OSA_DOT: Record<OsaTone, string> = {
+  ok: "bg-ok",
+  warn: "bg-warn",
+  danger: "bg-danger",
+};
+
+/** Never colour alone — always a dot and a word, like RiskBadge. */
 export function OsaStatusPill({ status, className }: { status: OsaStatus; className?: string }) {
-  const m = OSA_META[status];
+  const tone = OSA_TONE[status];
   return (
-    <Pill tone={m.tone} className={className}>
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          status === "OK" ? "bg-ok" : status === "LOW" ? "bg-warn" : "bg-danger",
-        )}
-        aria-hidden
-      />
-      {m.label}
+    <Pill tone={tone} className={className}>
+      <span className={cn("size-1.5 rounded-full", OSA_DOT[tone])} aria-hidden />
+      {OSA_LABEL[status]}
     </Pill>
   );
-}
-
-export function osaStatusOf(osa: number): OsaStatus {
-  return osa >= 90 ? "OK" : osa >= 70 ? "LOW" : "CRITICAL";
 }
