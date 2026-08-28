@@ -13,6 +13,11 @@ export const CAPTURE_ID = "capture-001";
 export const FINDING_ID = "finding-001";
 export const TASK_ID = "task-001";
 
+/* Enough gaps that the task list overflows the phone and has to be scrolled.
+   One row would leave "going back keeps my place in the list" untestable, and
+   a shelf with a single gap is not the day a rep complains about anyway. */
+export const GAP_COUNT = 8;
+
 function storeWire(id: string, name: string, distanceKm: number) {
   return {
     id,
@@ -40,52 +45,55 @@ const CATEGORIES = [
   { id: "cat-milk", name: "นม", bays: ["B1"], skuCount: 18, lastOsa: 0.9 },
 ];
 
+const nth = (n: number) => String(n + 1).padStart(3, "0");
+const findingIdOf = (n: number) => (n === 0 ? FINDING_ID : `finding-${nth(n)}`);
+const taskIdOf = (n: number) => (n === 0 ? TASK_ID : `task-${nth(n)}`);
+const skuNameOf = (n: number) => `กาแฟกระป๋องทดสอบ ${180 + n * 10}ml`;
+
 const DETECTIONS = [
   {
-    detectionId: "det-1",
+    detectionId: "det-product",
     classId: 0,
     className: "product",
     semanticType: "PRODUCT",
-    bbox: { x: 40, y: 60, w: 120, h: 180 },
+    bbox: { x: 20, y: 60, w: 120, h: 180 },
     confidence: 0.94,
     shelfRowIndex: 0,
   },
-  {
-    detectionId: "det-2",
+  ...Array.from({ length: GAP_COUNT }, (_, n) => ({
+    detectionId: `det-gap-${nth(n)}`,
     classId: 1,
     className: "gap",
     semanticType: "GAP",
-    bbox: { x: 200, y: 60, w: 110, h: 180 },
+    bbox: { x: 160 + n * 130, y: 60, w: 110, h: 180 },
     confidence: 0.81,
     shelfRowIndex: 0,
-  },
+  })),
 ];
 
-const GAP_FINDINGS = [
-  {
-    id: FINDING_ID,
-    detectionId: "det-2",
-    shelfRowIndex: 0,
-    positionLabel: "ชั้น 1 ตำแหน่ง 3",
-    confidence: 0.81,
-    isLowConfidence: false,
-    verificationStatus: "PENDING",
-    skuCode: "SKU-1001",
-    skuName: "กาแฟกระป๋องทดสอบ 180ml",
-    skuBrand: "TestBrand",
-    priority: 1,
-    facings: 2,
-  },
-];
+const GAP_FINDINGS = Array.from({ length: GAP_COUNT }, (_, n) => ({
+  id: findingIdOf(n),
+  detectionId: `det-gap-${nth(n)}`,
+  shelfRowIndex: 0,
+  positionLabel: `ชั้น 1 ตำแหน่ง ${n + 1}`,
+  confidence: 0.81,
+  isLowConfidence: false,
+  verificationStatus: "PENDING",
+  skuCode: `SKU-${1001 + n}`,
+  skuName: skuNameOf(n),
+  skuBrand: "TestBrand",
+  priority: 1,
+  facings: 2,
+}));
 
-function taskWire(status: "OPEN" | "FIXED" | "BLOCKED") {
+function taskWire(n: number, status: "OPEN" | "FIXED" | "BLOCKED") {
   return {
-    id: TASK_ID,
-    findingId: FINDING_ID,
-    skuCode: "SKU-1001",
-    skuName: "กาแฟกระป๋องทดสอบ 180ml",
+    id: taskIdOf(n),
+    findingId: findingIdOf(n),
+    skuCode: `SKU-${1001 + n}`,
+    skuName: skuNameOf(n),
     skuBrand: "TestBrand",
-    positionLabel: "ชั้น 1 ตำแหน่ง 3",
+    positionLabel: `ชั้น 1 ตำแหน่ง ${n + 1}`,
     priority: 1,
     facings: 2,
     status,
@@ -230,14 +238,19 @@ export async function installApiStubs(page: Page): Promise<StubState> {
 
     if (path.endsWith("/verify") && method === "POST") {
       const body = route.request().postDataJSON() as { verdict: string };
-      if (body.verdict === "CONFIRMED" && state.tasks.length === 0) {
-        state.tasks = [taskWire("OPEN")];
+      const findingId = decodeURIComponent(path.split("/")[3]);
+      const n = GAP_FINDINGS.findIndex((f) => f.id === findingId);
+
+      // A confirmed gap is what creates a replenishment task, server-side.
+      const already = state.tasks.some((t) => t.findingId === findingId);
+      if (body.verdict === "CONFIRMED" && n >= 0 && !already) {
+        state.tasks = [...state.tasks, taskWire(n, "OPEN")];
       }
       return json(route, {
-        findingId: FINDING_ID,
+        findingId,
         verdict: body.verdict,
-        taskId: state.tasks.length ? TASK_ID : null,
-        idempotent: false,
+        taskId: n >= 0 && body.verdict === "CONFIRMED" ? taskIdOf(n) : null,
+        idempotent: already,
       });
     }
 
@@ -245,8 +258,10 @@ export async function installApiStubs(page: Page): Promise<StubState> {
 
     if (path.startsWith("/v1/tasks/") && method === "PATCH") {
       const body = route.request().postDataJSON() as { status: "OPEN" | "FIXED" | "BLOCKED" };
-      const updated = taskWire(body.status);
-      state.tasks = state.tasks.map((t) => (t.id === TASK_ID ? updated : t));
+      const taskId = decodeURIComponent(path.slice("/v1/tasks/".length));
+      const n = state.tasks.findIndex((t) => t.id === taskId);
+      const updated = taskWire(n < 0 ? 0 : n, body.status);
+      state.tasks = state.tasks.map((t) => (t.id === taskId ? updated : t));
       return json(route, updated);
     }
 

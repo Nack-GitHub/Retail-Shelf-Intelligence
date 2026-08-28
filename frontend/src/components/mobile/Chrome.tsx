@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 
@@ -96,6 +98,14 @@ export function BottomBar({
   );
 }
 
+/* Where each screen was scrolled to, by path.
+ *
+ * The browser restores scroll for the window, and nothing here scrolls the
+ * window: the phone frame is exactly one viewport tall and the content scrolls
+ * inside this element. So going back to a long task list always landed at the
+ * top, however far down the rep had worked. */
+const scrollPositions = new Map<string, number>();
+
 export function Scroll({
   children,
   className,
@@ -105,8 +115,66 @@ export function Scroll({
   className?: string;
   dark?: boolean;
 }) {
+  const pathname = usePathname();
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // The day's route list is the boundary between visits. Anything below it
+    // belongs to a shop the rep has left, and restoring those offsets on a
+    // later visit to the same store would be a memory of the wrong morning.
+    if (pathname === "/m") {
+      for (const key of [...scrollPositions.keys()]) {
+        if (key.startsWith("/m/store/")) scrollPositions.delete(key);
+      }
+    }
+
+    const target = scrollPositions.get(pathname) ?? 0;
+    // Restoring cannot happen in one go: the list is usually still loading, so
+    // the element is too short to hold the offset and the assignment clamps to
+    // zero. Keep trying as the content grows, and do not record anything until
+    // the position has actually been reached — otherwise the clamped value
+    // overwrites the real one.
+    let restored = target === 0;
+
+    const restore = () => {
+      if (restored) return;
+      el.scrollTop = target;
+      if (Math.abs(el.scrollTop - target) < 2) restored = true;
+    };
+    restore();
+
+    const growth = new ResizeObserver(restore);
+    growth.observe(el);
+    if (el.firstElementChild) growth.observe(el.firstElementChild);
+    // Content that never grows enough should not leave an observer running for
+    // the life of the screen, nor block recording from then on.
+    const giveUp = window.setTimeout(() => {
+      restored = true;
+      growth.disconnect();
+    }, 2000);
+
+    let frame = 0;
+    const onScroll = () => {
+      if (!restored) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => scrollPositions.set(pathname, el.scrollTop));
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      window.clearTimeout(giveUp);
+      window.cancelAnimationFrame(frame);
+      growth.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [pathname]);
+
   return (
     <main
+      ref={ref}
       className={cn(
         "min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-y-thin",
         dark ? "on-dark bg-ink" : "bg-surface",

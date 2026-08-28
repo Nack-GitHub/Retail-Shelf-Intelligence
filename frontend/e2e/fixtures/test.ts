@@ -1,5 +1,5 @@
 import { test as base, expect, type Page } from "@playwright/test";
-import { installApiStubs, STORE_ID } from "./api";
+import { GAP_COUNT, installApiStubs, STORE_ID } from "./api";
 
 /* Every test gets the API stubs installed before its first navigation, and a
    handful of helpers for reaching a given screen. Walking the UI to get there
@@ -192,15 +192,40 @@ export async function walkToTasks(page: Page): Promise<void> {
   await page.getByRole("button", { name: "ตรวจสอบทีละจุด" }).click();
   await page.waitForURL(`**/m/store/${STORE_ID}/verify`);
 
-  await page.getByRole("button", { name: "ใช่ ขาดจริง" }).first().click();
+  // Every gap has to be decided before the screen hands over, which is the
+  // point of it — the rep is the ground truth, not the model. Each verdict is
+  // held on screen for a beat before the next gap slides in, so both edges
+  // have to be waited on: the card arriving, and the count moving. Clicking
+  // straight through just records the first gap eight times.
+  for (let n = 1; n <= GAP_COUNT; n += 1) {
+    await expect(page.getByText(`ชั้น 1 ตำแหน่ง ${n}`).first()).toBeVisible();
+    await page.getByRole("button", { name: "ใช่ ขาดจริง" }).first().click();
+    await expect(page.getByText(`ตัดสินใจแล้ว ${n} จาก ${GAP_COUNT} จุด`)).toBeVisible();
+  }
+
   await page.getByRole("button", { name: "ไปยังรายการที่ต้องทำ" }).click();
   await page.waitForURL(`**/m/store/${STORE_ID}/tasks`);
 }
 
-export async function walkToCompare(page: Page): Promise<void> {
-  await walkToTasks(page);
+/** The task list's primary action. It reads "ถ่ายภาพหลังเติมของ" once every
+ *  task is settled and "เหลืออีก N รายการ" before that — the same button
+ *  either way, and reachable as soon as one task has been fixed. */
+export const AFTER_PHOTO_CTA = /ถ่ายภาพหลังเติมของ|เหลืออีก \d+ รายการ/;
+
+/** Marks the first task restocked. The after-photo stays locked until at
+ *  least one is settled, which is the screen's own rule. */
+export async function fixFirstTask(page: Page): Promise<void> {
+  // The row shows brand and name in one paragraph, so this is a substring
+  // match; "180ml" belongs to the first SKU alone.
   await page.getByText("กาแฟกระป๋องทดสอบ 180ml").first().click();
   await page.getByRole("button", { name: "เติมของแล้ว" }).click();
-  await page.getByRole("button", { name: "ถ่ายภาพหลังเติมของ" }).click();
+  await expect(page.getByRole("button", { name: AFTER_PHOTO_CTA })).toBeEnabled();
+}
+
+export async function walkToCompare(page: Page): Promise<void> {
+  await walkToTasks(page);
+  await fixFirstTask(page);
+
+  await page.getByRole("button", { name: AFTER_PHOTO_CTA }).click();
   await page.waitForURL(`**/m/store/${STORE_ID}/compare`);
 }

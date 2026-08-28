@@ -7,6 +7,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  /* A full walk crosses nine screens and decides eight gaps one at a time, and
+     the verification screen deliberately holds each verdict on screen for a
+     beat. Thirty seconds is a budget for a unit test, not for that. */
+  timeout: 90_000,
+  expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

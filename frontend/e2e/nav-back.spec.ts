@@ -9,6 +9,8 @@ import {
   walkToResult,
   walkToTasks,
   walkToCompare,
+  fixFirstTask,
+  AFTER_PHOTO_CTA,
 } from "./fixtures/test";
 import { STORE_ID } from "./fixtures/api";
 
@@ -180,4 +182,28 @@ test("retaking a shot does not stack the old result behind the camera", async ({
 
   await page.goBack();
   await expect(page).not.toHaveURL(/result/);
+});
+
+test("going back returns the rep to where they were in a long list", async ({ page }) => {
+  await seedSession(page);
+  await walkToTasks(page);
+  await fixFirstTask(page);
+
+  const scroller = page.locator("main").first();
+  await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  const before = await scroller.evaluate((el) => el.scrollTop);
+  expect(before).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: AFTER_PHOTO_CTA }).click();
+  await page.waitForURL(`**/m/store/${STORE_ID}/compare`);
+
+  await page.getByRole("button", { name: "ย้อนกลับ" }).click();
+  await page.waitForURL(`**/m/store/${STORE_ID}/tasks`);
+
+  await expect
+    .poll(() => page.locator("main").first().evaluate((el) => el.scrollTop), {
+      timeout: 5000,
+      message: "the list came back scrolled to the top",
+    })
+    .toBeGreaterThan(before / 2);
 });

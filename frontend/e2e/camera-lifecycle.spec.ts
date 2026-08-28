@@ -11,6 +11,7 @@ import {
   grantedCount,
   killCameraTracks,
   breakCamera,
+  AFTER_PHOTO_CTA,
 } from "./fixtures/test";
 import { STORE_ID } from "./fixtures/api";
 
@@ -141,7 +142,7 @@ test("backing out mid-shutter does not record an after-photo that was never take
   await page.goBack();
   await page.waitForURL(`**/m/store/${STORE_ID}/tasks`);
 
-  await page.getByRole("button", { name: "ถ่ายภาพหลังเติมของ" }).click();
+  await page.getByRole("button", { name: AFTER_PHOTO_CTA }).click();
   await page.waitForURL(`**/m/store/${STORE_ID}/compare`);
 
   // Still the capture screen: nothing was photographed, so there is nothing
