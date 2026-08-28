@@ -1,6 +1,10 @@
 # SPEC: Front-end Navigation & Camera Lifecycle Hardening
 
-> สถานะ: **DRAFT — รอ review** · ขอบเขต: `frontend/` เท่านั้น (ไม่แตะ backend / model)
+> สถานะ: **ทำเสร็จแล้ว — รอ review** · ขอบเขต: `frontend/` เท่านั้น (ไม่แตะ backend / model)
+>
+> defect ระดับ C/H/M ทั้งหมดใน §5.2 แก้แล้วและมี Playwright คุมไว้ (39 tests)
+> รายการที่เหลือให้ทำด้วยมือคือเช็คลิสต์บนมือถือจริงใน §8 ซึ่ง Chromium
+> แทนไม่ได้ (bfcache และการยึดกล้องของ iOS Safari)
 > เอกสารอ้างอิง: [docs/ui.md](docs/ui.md) §1.3 End-to-End Flow, §1.5 Guardrails
 
 ---
