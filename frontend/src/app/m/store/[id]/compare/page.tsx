@@ -424,7 +424,11 @@ export default function CompareScreen() {
       </Scroll>
 
       <BottomBar>
-        <Button size="lg" full onClick={() => flow.go("CHECKOUT")}>
+        {/* The upload is what makes the after-photo a measurement rather than a
+            picture on a phone. Leaving the way on open during it lets a rep
+            reach a summary that reports no after-photo at all, for a shelf they
+            have just photographed. The card above says what is happening. */}
+        <Button size="lg" full disabled={uploading} onClick={() => flow.go("CHECKOUT")}>
           สรุปและเช็คเอาต์
         </Button>
       </BottomBar>
