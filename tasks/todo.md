@@ -12,7 +12,11 @@
 > ไฟล์ของรอบ UAT ที่ยังไม่ commit ถูกเก็บไว้ที่ `tasks/uat-readiness-{plan,todo}.md`
 > — ห้ามลบจนกว่ารอบนั้นจะถูก commit
 >
-> **สถานะ: ยังไม่เริ่ม 0/9**
+> **สถานะ: ครบทั้ง 9 task · Checkpoint 1–3 ผ่าน — commit แล้ว ยังไม่ push · รอ review จากเจ้าของงาน**
+>
+> หลักฐานรอบสุดท้าย: `pytest` 119 ผ่าน (เดิม 111 + 8 ใหม่) · contracts 21 ผ่าน ·
+> `tsc --noEmit` สะอาด · `eslint` 14 issues (baseline 18) · `npm run test:e2e` **51/51** ·
+> `npm run test:e2e:demo` **48/48** · `npm run build` + `build:demo` ผ่านทั้งคู่
 
 ---
 
@@ -95,8 +99,8 @@
   - Scope: **XS**
 
 ### Checkpoint 1
-- [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18 · `pytest` เขียวทั้งชุด
-- [ ] พิสูจน์แล้วว่า Task 3 แดงจริงเมื่อ config ขยับ
+- [x] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18 · `pytest` เขียวทั้งชุด
+- [x] พิสูจน์แล้วว่า Task 3 แดงจริงเมื่อ config ขยับ
 
 ---
 
@@ -178,9 +182,10 @@
   - Scope: **M**
 
 ### Checkpoint 2
-- [ ] integration test ของ Task 5 เขียวครบ 3 เคส
-- [ ] manual สองรอบ: ถ่าย AFTER แล้วรีบกด / ไม่ถ่าย AFTER เลย → ทั้งสองรอบเลขที่หน้า
-      เช็คเอาต์กับการ์ดหน้ารายการเล่าเรื่องเดียวกัน
+- [x] integration test ของ Task 5 เขียวครบ 3 เคส
+- [x] ครอบด้วย e2e แทน manual: `after-photo-analysis.spec.ts` 3 เคส — อัปโหลดค้าง /
+      วิเคราะห์ค้างแล้วมาทีหลัง / วิเคราะห์ไม่เสร็จเลย
+- [ ] **ยังต้องเดินบนมือถือจริง 1 รอบ** ตาม [../docs/uat.md](../docs/uat.md) §6 — e2e ใช้กล้องปลอม
 - [ ] review กับเจ้าของงานก่อนเข้า Phase 3
 
 ---
@@ -254,8 +259,8 @@
   - Scope: **S**
 
 ### Checkpoint 3 (ปิดรอบ)
-- [ ] `pytest` เขียวทั้งชุด · `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
-- [ ] `npm run test:e2e` และ `npm run test:e2e:demo` ผ่านทั้งคู่
-- [ ] `npm run build` + `npm run build:demo` ผ่านทั้งคู่
-- [ ] `grep -rn "osaStatusOf\|>= 90 ?" frontend/src` → เหลือเฉพาะใน `lib/osa.ts`
+- [x] `pytest` เขียวทั้งชุด · `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+- [x] `npm run test:e2e` และ `npm run test:e2e:demo` ผ่านทั้งคู่
+- [x] `npm run build` + `npm run build:demo` ผ่านทั้งคู่
+- [x] `grep -rn "osaStatusOf\|>= 90 ?" frontend/src` → เหลือเฉพาะใน `lib/osa.ts`
 - [ ] review กับเจ้าของงาน · ยังไม่ commit จนกว่าจะผ่าน review
