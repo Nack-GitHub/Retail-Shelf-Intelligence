@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
-import { useCamera } from "@/hooks/useCamera";
+import { CameraGrabError, useCamera } from "@/hooks/useCamera";
 import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Controls";
@@ -95,15 +95,17 @@ export default function CompareScreen() {
     }
     setBusy(true);
     try {
-      const blob = await grab();
-      if (!blob) throw new Error("grab failed");
-      const p = await intakePhoto(blob, "CAMERA", "AFTER");
+      const p = await intakePhoto(await grab(), "CAMERA", "AFTER");
       logPhoto(p);
       setAfterPhoto(p);
       markAfterCaptured();
       void uploadAfter(p);
     } catch (err) {
-      setError(err instanceof PhotoIntakeError ? err.message : "ถ่ายภาพไม่สำเร็จ ลองอีกครั้ง");
+      setError(
+        err instanceof PhotoIntakeError || err instanceof CameraGrabError
+          ? err.message
+          : "ถ่ายภาพไม่สำเร็จ ลองอีกครั้ง",
+      );
     } finally {
       setBusy(false);
     }

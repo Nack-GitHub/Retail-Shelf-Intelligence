@@ -13,7 +13,7 @@ import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
 import { LoadingBlock } from "@/components/ui/AsyncState";
 import { useDemo } from "@/lib/store";
-import { useCamera } from "@/hooks/useCamera";
+import { CameraGrabError, useCamera } from "@/hooks/useCamera";
 import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
 import { easeOut, springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -94,16 +94,16 @@ export default function CaptureScreen() {
 
     setBusy(true);
     try {
-      const blob = await grab();
-      if (!blob) throw new Error("grab failed");
-      const p = await intakePhoto(blob, "CAMERA", "BEFORE");
+      const p = await intakePhoto(await grab(), "CAMERA", "BEFORE");
       logPhoto(p);
       setPhoto(p);
       setShots((s) => [p, ...s]);
       setPhase("PREVIEW");
     } catch (err) {
       setError(
-        err instanceof PhotoIntakeError ? err.message : "ถ่ายภาพไม่สำเร็จ ลองอีกครั้ง",
+        err instanceof PhotoIntakeError || err instanceof CameraGrabError
+          ? err.message
+          : "ถ่ายภาพไม่สำเร็จ ลองอีกครั้ง",
       );
     } finally {
       setBusy(false);
