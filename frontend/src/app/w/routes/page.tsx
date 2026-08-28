@@ -13,6 +13,7 @@ import { useArea } from "@/components/web/WebShell";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { fadeUp, easeOut, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { osaTone } from "@/lib/osa";
 
 /* Sorting by distance is deliberately not offered: a weekly plan has no
    "current position" to measure from, and the only honest second axis is how
@@ -140,7 +141,7 @@ export default function RoutePlanning() {
                           <span className="tnum text-[14px] font-semibold">{s.lastOsa}%</span>
                           <Bar
                             value={s.lastOsa}
-                            tone={s.lastOsa >= 90 ? "ok" : s.lastOsa >= 75 ? "warn" : "danger"}
+                            tone={osaTone(s.lastOsa)}
                             className="flex-1"
                             height={5}
                           />

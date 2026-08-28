@@ -16,6 +16,7 @@ import { fetchKpis, fetchOsaTrend, fetchRiskRanking } from "@/lib/api/analytics"
 import { useArea } from "@/components/web/WebShell";
 import { listItem, stagger, fadeUp, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { osaTone } from "@/lib/osa";
 
 type Range = "4W" | "12W" | "26W";
 
@@ -278,7 +279,7 @@ export default function AreaDashboard() {
                             <span className="tnum text-[15px] font-semibold">{r.lastOsa}%</span>
                             <Bar
                               value={r.lastOsa}
-                              tone={r.lastOsa >= 90 ? "ok" : r.lastOsa >= 75 ? "warn" : "danger"}
+                              tone={osaTone(r.lastOsa)}
                               className="w-16"
                               height={5}
                               delay={0.45 + i * 0.03}

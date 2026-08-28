@@ -52,23 +52,23 @@
     `frontend/src/app/w/stores/[id]/page.tsx`
   - Scope: **S**
 
-- [ ] **Task 2: ให้สีแถบ OSA ทั้ง 4 จุดใช้เกณฑ์เดียวกับสถานะ**
+- [x] **Task 2: ให้สีแถบ OSA ทั้ง 4 จุดใช้เกณฑ์เดียวกับสถานะ**
 
   สีแถบถูกคัดลอกเป็น ternary `>= 90 ? ok : >= 75 ? warn : danger` อยู่ 4 ไฟล์ ค่าบังเอิญ
   ตรงกับ backend แต่ไม่มีอะไรบังคับให้ตรงต่อไป และมันคือเกณฑ์ชุดที่สองที่ทำให้สีกับ pill
   เล่าคนละเรื่องในช่วง 70–75% มาแล้ว
 
   - Acceptance:
-    - [ ] ทั้ง 4 จุดเรียก `osaTone(...)` จาก `lib/osa.ts`
+    - [x] ทั้ง 4 จุดเรียก `osaTone(...)` จาก `lib/osa.ts`
           ([m/page:218](../frontend/src/app/m/page.tsx#L218) ·
           [category:123](../frontend/src/app/m/store/[id]/category/page.tsx#L123) ·
           [w/page:281](../frontend/src/app/w/page.tsx#L281) ·
           [w/routes:143](../frontend/src/app/w/routes/page.tsx#L143))
-    - [ ] สีที่แสดงจริงไม่เปลี่ยนสำหรับค่าที่ ≥75 หรือ ≥90 (เกณฑ์เดิมตรงกับ backend อยู่แล้ว)
+    - [x] สีที่แสดงจริงไม่เปลี่ยนสำหรับค่าที่ ≥75 หรือ ≥90 (เกณฑ์เดิมตรงกับ backend อยู่แล้ว)
   - Verify:
-    - [ ] `grep -rn ">= 90 ?\|>= 75 ?" frontend/src` → ไม่พบนอก `lib/osa.ts`
-    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
-    - [ ] `npm run test:e2e` ผ่าน
+    - [x] `grep -rn ">= 90 ?\|>= 75 ?" frontend/src` → ไม่พบนอก `lib/osa.ts`
+    - [x] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+    - [x] `npm run test:e2e` ผ่าน
   - Dependencies: Task 1
   - Files: `frontend/src/app/m/page.tsx`,
     `frontend/src/app/m/store/[id]/category/page.tsx`,

@@ -15,6 +15,7 @@ import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, springSnappy, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { osaTone } from "@/lib/osa";
 import type { ShelfCategory, Store } from "@/types";
 
 export default function CategoryScreen() {
@@ -120,7 +121,7 @@ export default function CategoryScreen() {
                     {!c.supported ? (
                       <Pill tone="neutral">รุ่นนี้ยังอ่านไม่ได้</Pill>
                     ) : c.lastOsa !== null ? (
-                      <Pill tone={c.lastOsa >= 90 ? "ok" : c.lastOsa >= 75 ? "warn" : "danger"}>
+                      <Pill tone={osaTone(c.lastOsa)}>
                         <span className="tnum">OSA {c.lastOsa}%</span>
                       </Pill>
                     ) : (

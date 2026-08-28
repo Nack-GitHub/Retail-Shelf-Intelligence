@@ -25,6 +25,7 @@ import { currentPosition, fetchTodaysRoute } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { isAvailable, list as queueList } from "@/lib/offline/queue";
 import { useOnline } from "@/lib/offline/useOnline";
+import { osaTone } from "@/lib/osa";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import type { Store } from "@/types";
 
@@ -215,7 +216,7 @@ export default function TodayRouteScreen() {
                             <span className="text-[13px] text-muted">OSA ครั้งก่อน</span>
                             <Bar
                               value={s.lastOsa}
-                              tone={s.lastOsa >= 90 ? "ok" : s.lastOsa >= 75 ? "warn" : "danger"}
+                              tone={osaTone(s.lastOsa)}
                               className="flex-1"
                               delay={0.12 + i * 0.05}
                             />
