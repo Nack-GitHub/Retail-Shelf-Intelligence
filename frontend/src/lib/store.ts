@@ -20,7 +20,7 @@ function isOffline(err: unknown): boolean {
 /* Demo-only state. When the API lands, everything under `visit` becomes
    server state (React Query) and this store keeps only UI concerns. */
 
-interface DemoState {
+export interface DemoState {
   storeId: string | null;
   /** the server's visit id — every capture, verification and task hangs off it */
   visitId: string | null;
