@@ -97,6 +97,15 @@ function taskWire(status: "OPEN" | "FIXED" | "BLOCKED") {
 interface StubState {
   tasks: ReturnType<typeof taskWire>[];
   jobPolls: number;
+  /** Slows the store and category lookups. On a phone on 4G these are far
+   *  slower than a getUserMedia whose permission was granted on a previous
+   *  screen, and screens that gate their markup on this data have to survive
+   *  the stream arriving first. Instant stubs hide that ordering entirely. */
+  screenDataDelayMs: number;
+}
+
+function delay(ms: number) {
+  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
 function json(route: Route, body: unknown, status = 200) {
@@ -112,7 +121,7 @@ function json(route: Route, body: unknown, status = 200) {
  * Call once per page, before the first navigation.
  */
 export async function installApiStubs(page: Page): Promise<StubState> {
-  const state: StubState = { tasks: [], jobPolls: 0 };
+  const state: StubState = { tasks: [], jobPolls: 0, screenDataDelayMs: 0 };
 
   // The presigned PUT goes straight to object storage, bypassing the api
   // client — it has to be stubbed separately or the upload hangs.
@@ -146,10 +155,14 @@ export async function installApiStubs(page: Page): Promise<StubState> {
 
     if (path.startsWith("/v1/stores/")) {
       const id = decodeURIComponent(path.slice("/v1/stores/".length));
+      await delay(state.screenDataDelayMs);
       return json(route, storeWire(id, `ShelfMart สาขาทดสอบ ${id.slice(-1)}`, 1.2));
     }
 
-    if (path === "/v1/categories") return json(route, CATEGORIES);
+    if (path === "/v1/categories") {
+      await delay(state.screenDataDelayMs);
+      return json(route, CATEGORIES);
+    }
     if (path === "/v1/areas") return json(route, [{ id: "area-bke", name: "กรุงเทพฯ ตะวันออก" }]);
 
     if (path === "/v1/visits" && method === "POST") {
