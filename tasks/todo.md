@@ -187,7 +187,7 @@
 
 ## Phase 3 — การ์ดบอกที่มาของเลข
 
-- [ ] **Task 7: ส่ง `lastOsaPhase` / `lastOsaCategory` / `lastOsaAt` ออกมาจาก API**
+- [x] **Task 7: ส่ง `lastOsaPhase` / `lastOsaCategory` / `lastOsaAt` ออกมาจาก API**
 
   `last_osa` คือแถววิเคราะห์ล่าสุดของร้าน ไม่กรองเฟส ไม่กรองหมวด ไม่กรอง visit
   ([store_risk.py:63-68](../backend/app/repositories/store_risk.py#L63-L68)) — นิยามนี้
@@ -195,16 +195,16 @@
   แถวที่ต้องการถูก DISTINCT ON เลือกไว้อยู่แล้ว เพิ่มแค่คอลัมน์ที่ select ออกมา
 
   - Acceptance:
-    - [ ] `StoreRisk` มี `last_osa_phase` ("BEFORE"/"AFTER"), `last_osa_category`,
+    - [x] `StoreRisk` มี `last_osa_phase` ("BEFORE"/"AFTER"), `last_osa_category`,
           `last_osa_at` — เป็น `None` ทั้งหมดใน `NEVER_MEASURED`
-    - [ ] ค่าที่ได้มาจาก **แถวเดียวกัน** กับ `last_osa` ไม่ใช่ query แยก
-    - [ ] `StoreRiskOut` (จึงรวม `RouteStopOut`) และ rows ของ `analytics/risk-ranking`
+    - [x] ค่าที่ได้มาจาก **แถวเดียวกัน** กับ `last_osa` ไม่ใช่ query แยก
+    - [x] `StoreRiskOut` (จึงรวม `RouteStopOut`) และ rows ของ `analytics/risk-ranking`
           ส่งสามฟิลด์นี้ออกไป
-    - [ ] `last_osa` ตัวเลขเดิมไม่เปลี่ยนแม้แต่ร้านเดียว และลำดับการเรียงไม่เปลี่ยน
+    - [x] `last_osa` ตัวเลขเดิมไม่เปลี่ยนแม้แต่ร้านเดียว และลำดับการเรียงไม่เปลี่ยน
   - Verify:
-    - [ ] integration test: ร้านที่ภาพล่าสุดเป็น AFTER → `lastOsaPhase == "AFTER"`
-    - [ ] integration test: ร้านที่ไม่เคยตรวจ → ทั้งสามฟิลด์เป็น null
-    - [ ] `pytest` เขียวทั้งชุด
+    - [x] integration test: ร้านที่ภาพล่าสุดเป็น AFTER → `lastOsaPhase == "AFTER"`
+    - [x] integration test: ร้านที่ไม่เคยตรวจ → ทั้งสามฟิลด์เป็น null
+    - [x] `pytest` เขียวทั้งชุด
   - Dependencies: None
   - Files: `backend/app/repositories/store_risk.py`, `backend/app/api/v1/schemas.py`,
     `backend/app/api/v1/stores.py`, `backend/app/api/v1/routes.py`,

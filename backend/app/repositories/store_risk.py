@@ -25,9 +25,19 @@ from app.services.risk import risk_band, risk_score
 
 @dataclass(frozen=True)
 class StoreRisk:
-    """`None` means never measured — which is not the same as zero."""
+    """`None` means never measured — which is not the same as zero.
+
+    `last_osa` is one photograph's reading, and the three fields beside it say
+    which photograph: the shelf it was, the side of the restock it was taken
+    on, and when it was read. A screen showing the number without them cannot
+    tell a rep whether they are looking at their own result or at the state of
+    the shelf before they touched it.
+    """
 
     last_osa: float | None
+    last_osa_phase: str | None
+    last_osa_category: str | None
+    last_osa_at: datetime | None
     days_since_last_visit: int | None
     repeat_gap_skus: int
     score: float
@@ -36,6 +46,9 @@ class StoreRisk:
 
 NEVER_MEASURED = StoreRisk(
     last_osa=None,
+    last_osa_phase=None,
+    last_osa_category=None,
+    last_osa_at=None,
     days_since_last_visit=None,
     repeat_gap_skus=0,
     score=risk_score(None, None, 0),
@@ -61,7 +74,13 @@ async def load(db: AsyncSession, store_ids: list[UUID] | None = None) -> dict[UU
     # to nothing. DISTINCT ON takes the first row per store under the ORDER BY,
     # which is the most recent computation.
     osa_query = (
-        select(Visit.store_id, ShelfAnalysisRow.osa_score)
+        select(
+            Visit.store_id,
+            ShelfAnalysisRow.osa_score,
+            ShelfAnalysisRow.computed_at,
+            Capture.phase,
+            Capture.category,
+        )
         .join(Capture, Capture.visit_id == Visit.id)
         .join(ShelfAnalysisRow, ShelfAnalysisRow.capture_id == Capture.id)
         .distinct(Visit.store_id)
@@ -95,20 +114,24 @@ async def load(db: AsyncSession, store_ids: list[UUID] | None = None) -> dict[UU
     grouped = repeated_skus.subquery()
     repeat_query = select(grouped.c.store_id, func.count()).group_by(grouped.c.store_id)
 
-    last_osa = dict((await db.execute(osa_query)).all())
+    measurements = {row.store_id: row for row in (await db.execute(osa_query)).all()}
     last_seen = dict((await db.execute(visit_query)).all())
     repeats = dict((await db.execute(repeat_query)).all())
 
     now = datetime.now(UTC)
     facts: dict[UUID, StoreRisk] = {}
-    for store_id in set(last_osa) | set(last_seen) | set(repeats):
+    for store_id in set(measurements) | set(last_seen) | set(repeats):
         seen_at = last_seen.get(store_id)
         days = (now - seen_at).days if seen_at else None
-        osa = last_osa.get(store_id)
+        measured = measurements.get(store_id)
+        osa = measured.osa_score if measured is not None else None
         repeat = repeats.get(store_id, 0)
         score = risk_score(osa, days, repeat)
         facts[store_id] = StoreRisk(
             last_osa=round(osa, 4) if osa is not None else None,
+            last_osa_phase=measured.phase if measured is not None else None,
+            last_osa_category=measured.category if measured is not None else None,
+            last_osa_at=measured.computed_at if measured is not None else None,
             days_since_last_visit=days,
             repeat_gap_skus=repeat,
             score=score,

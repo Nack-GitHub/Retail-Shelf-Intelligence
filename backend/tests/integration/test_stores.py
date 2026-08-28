@@ -11,6 +11,8 @@ import uuid
 
 from fastapi.testclient import TestClient
 
+from tests.integration.conftest import upload_capture
+
 
 def test_list_returns_the_seeded_stores(client: TestClient, rep_auth: dict[str, str]) -> None:
     response = client.get("/v1/stores", headers=rep_auth)
@@ -42,6 +44,60 @@ def test_list_is_camel_case_and_carries_risk(client: TestClient, rep_auth: dict[
 
     assert store["riskBand"] in {"HIGH", "MEDIUM", "LOW"}
     assert 0.0 <= store["riskScore"] <= 1.0
+
+
+def test_last_osa_says_which_photograph_it_came_from(
+    client: TestClient, rep_auth: dict[str, str]
+) -> None:
+    """A card showing a bare percentage cannot be read honestly.
+
+    `lastOsa` is the store's most recent analysis, whichever shelf it was and
+    whichever side of a restock — so a rep who has just finished a visit can be
+    looking at the before-photo's figure and read it as their result. The
+    screens need to know what they are showing.
+    """
+    stores = client.get("/v1/stores", headers=rep_auth).json()
+    store_id = stores[0]["id"]
+    visit = client.post(
+        "/v1/visits",
+        headers=rep_auth,
+        json={"storeId": store_id, "photoConsentConfirmed": True},
+    ).json()
+    upload_capture(client, rep_auth, visit["id"], bay="A2_gaps", category="cat-coffee")
+
+    store = client.get(f"/v1/stores/{store_id}", headers=rep_auth).json()
+
+    assert store["lastOsa"] is not None
+    assert store["lastOsaPhase"] == "BEFORE"
+    assert store["lastOsaCategory"] == "cat-coffee"
+    assert store["lastOsaAt"]
+
+    upload_capture(
+        client, rep_auth, visit["id"], bay="BAY_full", phase="AFTER", category="cat-milk"
+    )
+    after = client.get(f"/v1/stores/{store_id}", headers=rep_auth).json()
+
+    assert after["lastOsaPhase"] == "AFTER"
+    assert after["lastOsaCategory"] == "cat-milk"
+    assert after["lastOsaAt"] >= store["lastOsaAt"]
+
+
+def test_never_measured_store_has_nothing_to_describe(
+    client: TestClient, rep_auth: dict[str, str], unvisited_store: str
+) -> None:
+    store = client.get(f"/v1/stores/{unvisited_store}", headers=rep_auth).json()
+
+    assert store["lastOsa"] is None
+    assert store["lastOsaPhase"] is None
+    assert store["lastOsaCategory"] is None
+    assert store["lastOsaAt"] is None
+
+
+def test_the_route_describes_its_figures_too(client: TestClient, rep_auth: dict[str, str]) -> None:
+    """The route list is where the confusion was reported, so it carries them."""
+    stop = client.get("/v1/routes/today", headers=rep_auth).json()[0]
+    for field in ("lastOsaPhase", "lastOsaCategory", "lastOsaAt"):
+        assert field in stop, f"missing {field}"
 
 
 def test_list_is_ordered_by_risk(client: TestClient, rep_auth: dict[str, str]) -> None:

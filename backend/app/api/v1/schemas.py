@@ -68,10 +68,17 @@ class StoreRiskOut(StoreOut):
     `last_osa` and `days_since_last_visit` are nullable on purpose: a store
     nobody has photographed has no OSA, and rendering that as 0 would show a
     perfectly healthy shelf as a catastrophe.
+
+    `last_osa` is the store's most recent analysis — any shelf, either side of
+    a restock, any visit. The three fields beside it say which photograph it
+    came from, because the number alone cannot be labelled honestly on a card.
     """
 
     area_id: str
     last_osa: float | None
+    last_osa_phase: str | None
+    last_osa_category: str | None
+    last_osa_at: datetime | None
     days_since_last_visit: int | None
     risk_band: str
     risk_score: float
