@@ -146,7 +146,7 @@
     `backend/tests/integration/test_golden_path.py`
   - Scope: **S**
 
-- [ ] **Task 6: หน้าเช็คเอาต์รอผลวิเคราะห์แล้วยิง checkout ซ้ำ**
+- [x] **Task 6: หน้าเช็คเอาต์รอผลวิเคราะห์แล้วยิง checkout ซ้ำ**
 
   อาการที่ผู้ใช้เห็นคือหน้าเช็คเอาต์ประกาศ "ยังไม่ได้ถ่ายภาพหลังเติมของ"
   ([checkout:120](../frontend/src/app/m/store/[id]/checkout/page.tsx#L120)) ทั้งที่เพิ่งถ่ายไป
@@ -158,19 +158,19 @@
   ล้าง state ทิ้งทั้งก้อน — และต้องไม่ทำให้ queue offline ได้ CHECKOUT ซ้ำสองรายการ
 
   - Acceptance:
-    - [ ] `closeOutVisit` รับทางบังคับยิงใหม่ (เช่น `{ refresh: true }`) ที่ข้าม memo
+    - [x] `closeOutVisit` รับทางบังคับยิงใหม่ (เช่น `{ refresh: true }`) ที่ข้าม memo
           โดยไม่แตะ state อื่นของ visit
-    - [ ] `analysisPending=true` → หน้าจอแสดงสถานะกำลังวิเคราะห์ ไม่ใช่ข้อความว่าไม่มีภาพ
-    - [ ] เมื่องานเสร็จ (poll ผ่าน `pollJob` เดิม) ยิง checkout ซ้ำหนึ่งครั้งแล้วแสดง
+    - [x] `analysisPending=true` → หน้าจอแสดงสถานะกำลังวิเคราะห์ ไม่ใช่ข้อความว่าไม่มีภาพ
+    - [x] เมื่องานเสร็จ (poll ผ่าน `pollJob` เดิม) ยิง checkout ซ้ำหนึ่งครั้งแล้วแสดง
           `osaAfter` ที่ได้
-    - [ ] ครบ timeout แล้วยังไม่เสร็จ → ปิดหน้าตามปกติพร้อมข้อความว่าค่าจะปรากฏในหน้าเว็บ
+    - [x] ครบ timeout แล้วยังไม่เสร็จ → ปิดหน้าตามปกติพร้อมข้อความว่าค่าจะปรากฏในหน้าเว็บ
           ภายหลัง (ตาม Open Question 2 ในแผน)
-    - [ ] เคสไม่มีภาพ AFTER จริง ๆ ยังใช้ข้อความไทยเดิมทุกตัวอักษร
-    - [ ] offline: พฤติกรรม enqueue เดิมไม่เปลี่ยน และไม่เกิดรายการซ้ำ
+    - [x] เคสไม่มีภาพ AFTER จริง ๆ ยังใช้ข้อความไทยเดิมทุกตัวอักษร
+    - [x] offline: พฤติกรรม enqueue เดิมไม่เปลี่ยน และไม่เกิดรายการซ้ำ
   - Verify:
-    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
-    - [ ] `npm run test:e2e` + `npm run test:e2e:demo` ผ่านทั้งคู่
-    - [ ] manual: ถ่าย AFTER → กดเช็คเอาต์ทันที → ไม่เห็นข้อความ "ยังไม่ได้ถ่ายภาพ
+    - [x] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+    - [x] `npm run test:e2e` + `npm run test:e2e:demo` ผ่านทั้งคู่
+    - [x] manual: ถ่าย AFTER → กดเช็คเอาต์ทันที → ไม่เห็นข้อความ "ยังไม่ได้ถ่ายภาพ
           หลังเติมของ" เลยสักเฟรม และเลขที่ขึ้นตรงกับที่การ์ดหน้ารายการแสดงหลังกลับออกมา
   - Dependencies: Task 5
   - Files: `frontend/src/lib/store.ts`, `frontend/src/lib/api/visits.ts`,

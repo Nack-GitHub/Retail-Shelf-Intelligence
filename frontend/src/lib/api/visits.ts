@@ -64,6 +64,10 @@ export interface CheckoutSummary {
   visitId: string;
   osaBefore: number | null;
   osaAfter: number | null;
+  /** A photograph from this visit is still with the model, so `osaAfter` is
+   *  the average of what has been read so far. The visit is closed either way;
+   *  asking again is how the finished figure arrives. */
+  analysisPending: boolean;
   tasksTotal: number;
   tasksFixed: number;
   tasksBlocked: number;
@@ -78,5 +82,8 @@ export async function checkOut(visitId: string): Promise<CheckoutSummary> {
     ...wire,
     osaBefore: toPercent(wire.osaBefore),
     osaAfter: toPercent(wire.osaAfter),
+    // Absent means nothing is outstanding: waiting forever on a server that
+    // does not report this is worse than showing what we already have.
+    analysisPending: wire.analysisPending ?? false,
   };
 }

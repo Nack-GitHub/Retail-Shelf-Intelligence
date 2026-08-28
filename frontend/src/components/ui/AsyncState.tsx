@@ -28,10 +28,13 @@ export function LoadingBlock({
 }
 
 export function ErrorBlock({
+  title = "โหลดข้อมูลไม่สำเร็จ",
   message,
   onRetry,
   className,
 }: {
+  /** Override when the thing that failed was not a load */
+  title?: string;
   /** Thai, and it must say what to do next — not just what broke */
   message: string;
   onRetry?: () => void;
@@ -54,7 +57,7 @@ export function ErrorBlock({
           <path d="M12 7.5v5.5M12 16.3h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
         </svg>
       </div>
-      <h2 className="mt-3.5 text-[16px] font-semibold">โหลดข้อมูลไม่สำเร็จ</h2>
+      <h2 className="mt-3.5 text-[16px] font-semibold">{title}</h2>
       <p className="mt-1.5 max-w-[280px] text-[14px] leading-relaxed text-muted">{message}</p>
       {onRetry && (
         <button

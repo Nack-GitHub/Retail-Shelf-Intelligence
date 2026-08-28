@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
@@ -19,6 +19,13 @@ import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+
+/* How long the summary keeps asking for a figure the model has not produced
+   yet. The visit is already closed; past this the number lands in the
+   manager's dashboard whenever the worker finishes, and a rep standing in a
+   shop should not be waiting on it. */
+const ANALYSIS_WAIT_MS = 20_000;
+const ANALYSIS_RETRY_MS = 1_500;
 
 export default function CheckoutScreen() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +46,12 @@ export default function CheckoutScreen() {
   const stats = useVisitStats();
 
   const [closing, setClosing] = useState(true);
+  /* Three states, not two: the after-photo can be missing, still being read,
+     or read. The screen used to collapse the middle one into the first and
+     tell a rep they had not photographed the shelf they had just photographed. */
+  const [waitingForAnalysis, setWaitingForAnalysis] = useState(false);
+  const [analysisUnfinished, setAnalysisUnfinished] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   /* Set the moment the rep chooses to move on. Leaving throws the visit away,
      and the guard below reads the visit — so without this the screen spends the
      frames before the route changes telling the rep that the visit they just
@@ -51,17 +64,56 @@ export default function CheckoutScreen() {
   // than showing an estimate it would later contradict.
   useEffect(() => {
     let cancelled = false;
-    closeOutVisit()
-      .catch((err) => {
-        if (!cancelled) setCloseError(messageOf(err));
-      })
-      .finally(() => {
-        if (!cancelled) setClosing(false);
-      });
+    const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+    void (async () => {
+      let summary;
+      try {
+        summary = await closeOutVisit();
+      } catch (err) {
+        if (!cancelled) {
+          setCloseError(messageOf(err));
+          setClosing(false);
+        }
+        return;
+      }
+      if (cancelled) return;
+      setClosing(false);
+
+      // The visit is closed; what may still be running is the model reading
+      // the after-photo. Asking again is how the figure arrives — the server
+      // recomputes it and keeps the original check-out time.
+      const deadline = Date.now() + ANALYSIS_WAIT_MS;
+      while (!cancelled && summary?.analysisPending) {
+        if (Date.now() >= deadline) {
+          setAnalysisUnfinished(true);
+          break;
+        }
+        setWaitingForAnalysis(true);
+        await wait(ANALYSIS_RETRY_MS);
+        if (cancelled) return;
+        try {
+          summary = await closeOutVisit({ refresh: true });
+        } catch {
+          // Nothing the rep can act on: the visit is closed and the summary
+          // already on screen still stands.
+          setAnalysisUnfinished(true);
+          break;
+        }
+      }
+      if (!cancelled) setWaitingForAnalysis(false);
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, [closeOutVisit]);
+  }, [closeOutVisit, attempt]);
+
+  const retryClose = useCallback(() => {
+    setCloseError(null);
+    setClosing(true);
+    setAttempt((n) => n + 1);
+  }, []);
 
   /** Real elapsed time, or null. It used to add 17 minutes to make a
    *  seconds-long demo visit look plausible — which put a fabricated duration
@@ -105,7 +157,15 @@ export default function CheckoutScreen() {
             variants={listItem}
             className="rounded-card border border-line bg-bg p-5 shadow-[var(--shadow-card)]"
           >
-            {osaAfter === null ? (
+            {closing ? (
+              <LoadingBlock label="กำลังปิดการเข้าร้าน…" />
+            ) : closeError ? (
+              <ErrorBlock
+                title="ปิดการเข้าร้านไม่สำเร็จ"
+                message={closeError}
+                onRetry={retryClose}
+              />
+            ) : osaAfter === null ? (
               /* No AFTER photo, so there is no measured improvement. Estimating
                  one from how many tasks were ticked would read high and would
                  disagree with the manager's dashboard for the same visit. */
@@ -118,8 +178,11 @@ export default function CheckoutScreen() {
                   <span className="text-[20px] font-bold text-muted">%</span>
                 </p>
                 <p className="mt-3 text-[13px] leading-relaxed text-muted">
-                  ยังไม่ได้ถ่ายภาพหลังเติมของ จึงยังไม่มีค่า OSA หลังการเติม
-                  ถ่ายภาพชั้นวางอีกครั้งเพื่อวัดผลที่เกิดขึ้นจริง
+                  {waitingForAnalysis
+                    ? "กำลังวิเคราะห์ภาพหลังเติมของ… ค่าจะขึ้นเองเมื่อเสร็จ"
+                    : analysisUnfinished
+                      ? "ระบบยังวิเคราะห์ภาพหลังเติมของไม่เสร็จ ค่าจะปรากฏในหน้าเว็บของผู้จัดการเมื่อวิเคราะห์เสร็จ"
+                      : "ยังไม่ได้ถ่ายภาพหลังเติมของ จึงยังไม่มีค่า OSA หลังการเติม ถ่ายภาพชั้นวางอีกครั้งเพื่อวัดผลที่เกิดขึ้นจริง"}
                 </p>
               </>
             ) : (

@@ -91,12 +91,20 @@ export interface DemoState {
     status: "FIXED" | "BLOCKED",
     reason?: BlockedReason,
   ) => Promise<void>;
-  /** closes the visit and keeps the server's own before/after OSA */
-  closeOutVisit: () => Promise<CheckoutSummary | null>;
+  /** closes the visit and keeps the server's own before/after OSA.
+   *  `refresh` asks the server again for a visit that is already closed, which
+   *  is how a summary picks up an analysis that finished after check-out. */
+  closeOutVisit: (options?: { refresh?: boolean }) => Promise<CheckoutSummary | null>;
   checkout: CheckoutSummary | null;
   markAfterCaptured: () => void;
   resetVisit: () => void;
 }
+
+/** The check-out request in flight, if any — see closeOutVisit. Deliberately
+ *  outside the store: nothing renders from it. Held with the visit it belongs
+ *  to, so a rep who has already moved on to the next shop can never be handed
+ *  the previous shop's answer. */
+let closingRequest: { visitId: string; promise: Promise<CheckoutSummary | null> } | null = null;
 
 const PRIORITY_ORDER = { 1: 0, 2: 1, 3: 2 } as const;
 
@@ -288,29 +296,44 @@ export const useDemo = create<DemoState>((set, get) => ({
     });
   },
 
-  closeOutVisit: async () => {
+  closeOutVisit: async (options) => {
     const { visitId, checkout } = get();
     if (!visitId) return null;
-    if (checkout) return checkout;
-    try {
-      const summary = await checkOut(visitId);
-      set({ checkout: summary, checkedOutAt: Date.now() });
-      return summary;
-    } catch (err) {
-      if (isOffline(err)) {
-        const queued = await tryEnqueue({
-          id: `checkout-${visitId}`,
-          kind: "CHECKOUT",
-          label: "สรุปการเข้าร้าน",
-          storeId: get().storeId ?? "",
-          payload: { visitId },
-        });
-        if (queued) {
-          set({ checkedOutAt: Date.now() });
-          return null;
+    if (checkout && !options?.refresh) return checkout;
+    // Two callers asking at once get one request. React invokes effects twice
+    // in development, and the check-out screen asks again while it waits for
+    // the model — without this, two answers race and the older one can be the
+    // one that sticks.
+    if (closingRequest?.visitId === visitId) return closingRequest.promise;
+
+    const request = (async () => {
+      try {
+        const summary = await checkOut(visitId);
+        set({ checkout: summary, checkedOutAt: Date.now() });
+        return summary;
+      } catch (err) {
+        if (isOffline(err)) {
+          const queued = await tryEnqueue({
+            id: `checkout-${visitId}`,
+            kind: "CHECKOUT",
+            label: "สรุปการเข้าร้าน",
+            storeId: get().storeId ?? "",
+            payload: { visitId },
+          });
+          if (queued) {
+            set({ checkedOutAt: Date.now() });
+            return null;
+          }
         }
+        throw err;
       }
-      throw err;
+    })();
+
+    closingRequest = { visitId, promise: request };
+    try {
+      return await request;
+    } finally {
+      if (closingRequest?.promise === request) closingRequest = null;
     }
   },
 

@@ -277,6 +277,7 @@ export async function installApiStubs(page: Page): Promise<StubState> {
         visitId: VISIT_ID,
         osaBefore: 0.78,
         osaAfter: 0.91,
+        analysisPending: false,
         tasksTotal: state.tasks.length,
         tasksFixed: state.tasks.filter((t) => t.status === "FIXED").length,
         tasksBlocked: state.tasks.filter((t) => t.status === "BLOCKED").length,
