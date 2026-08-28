@@ -45,12 +45,10 @@ export default function CompareScreen() {
   const [uploading, setUploading] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   // the After shot uses the same camera and the same intake function as
   // the Before shot, so both photos are recorded identically
-  const { message: camMessage, isLive: live, grab } = useCamera({
-    videoRef,
+  const { videoRef, message: camMessage, isLive: live, grab } = useCamera({
     active: !afterCaptured,
     aspect: 16 / 9,
   });

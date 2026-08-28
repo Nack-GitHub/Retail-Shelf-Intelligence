@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /* Real device camera. Prefers the rear lens, streams into a <video> the
    caller owns, and grabs a still by drawing the current frame to a canvas.
 
-   The caller passes its own ref in rather than receiving one back, so
-   nothing this hook returns is read through a ref during render.
+   The caller receives a ref *callback* rather than passing a ref object in.
+   That is the whole trick to a viewfinder that survives leaving the screen and
+   coming back: the stream and the <video> element become available in either
+   order, and an effect keyed on a ref object never re-runs when the element
+   finally mounts. The first visit hides this — the permission sheet is slow
+   enough that the element always wins — and every visit afterwards, when
+   permission is already granted, loses the race and shows black.
 
    getUserMedia only exists in a secure context, so over plain http on a
    phone (a LAN IP, say) there is no camera at all — reported as its own
@@ -34,30 +39,35 @@ const MESSAGES: Partial<Record<CameraStatus, string>> = {
 };
 
 export function useCamera({
-  videoRef,
   active,
   aspect = 16 / 9,
 }: {
-  videoRef: RefObject<HTMLVideoElement | null>;
   active: boolean;
   aspect?: number;
 }) {
   const [status, setStatus] = useState<CameraStatus>("IDLE");
   // The <video> is only rendered once status is READY, so the element does
-  // not exist yet at the moment getUserMedia resolves. The stream therefore
-  // has to live in state: attaching it is an effect that runs after the
-  // element mounts. The ref mirrors it purely so teardown stays off the
-  // render path.
+  // not exist yet at the moment getUserMedia resolves. Both the stream and the
+  // element therefore live in state: attaching one to the other is an effect
+  // that re-runs whenever either of them changes.
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  /* Every start and stop bumps this. A getUserMedia that resolves after its
+     bump has no owner: the screen it belonged to is gone, or a newer request
+     has replaced it. Without this the abandoned stream is assigned to a dead
+     component and its track stays open for the life of the tab — and the next
+     getUserMedia fails with NotReadableError, which the rep reads as
+     "กล้องถูกใช้งานโดยแอปอื่นอยู่" while no other app is running. */
+  const generation = useRef(0);
+
   const stop = useCallback(() => {
+    generation.current += 1;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setStream(null);
-    const el = videoRef.current;
-    if (el) el.srcObject = null;
-  }, [videoRef]);
+  }, []);
 
   const start = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -71,6 +81,7 @@ export function useCamera({
       return;
     }
 
+    const mine = ++generation.current;
     setStatus("REQUESTING");
     try {
       const next = await navigator.mediaDevices.getUserMedia({
@@ -81,10 +92,17 @@ export function useCamera({
         },
         audio: false,
       });
+
+      if (mine !== generation.current) {
+        next.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       streamRef.current = next;
       setStream(next);
       setStatus("READY");
     } catch (err) {
+      if (mine !== generation.current) return;
       const name = err instanceof DOMException ? err.name : "";
       setStatus(
         name === "NotAllowedError" || name === "SecurityError"
@@ -98,15 +116,18 @@ export function useCamera({
     }
   }, []);
 
-  // Attach once both the stream and the element exist.
+  // Attach once both the stream and the element exist — in whichever order
+  // they arrive.
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !stream) return;
-    el.srcObject = stream;
-    el.setAttribute("playsinline", "true"); // iOS refuses inline playback without it
-    el.muted = true;
-    void el.play().catch(() => undefined);
-  }, [stream, videoRef]);
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    video.setAttribute("playsinline", "true"); // iOS refuses inline playback without it
+    video.muted = true;
+    void video.play().catch(() => undefined);
+    return () => {
+      video.srcObject = null;
+    };
+  }, [stream, video]);
 
   useEffect(() => {
     // acting on the next tick keeps the permission prompt out of the commit
@@ -123,11 +144,10 @@ export function useCamera({
 
   /** Grabs the current frame, cropped to the region the viewfinder shows. */
   const grab = useCallback(async (): Promise<Blob | null> => {
-    const el = videoRef.current;
-    if (!el || !el.videoWidth) return null;
+    if (!video || !video.videoWidth) return null;
 
-    const vw = el.videoWidth;
-    const vh = el.videoHeight;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
     // the viewfinder renders the stream with object-cover inside an
     // `aspect` box, so the still must use that same centre crop
     let sw = vw;
@@ -142,14 +162,16 @@ export function useCamera({
     canvas.height = sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(el, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
     return new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.92),
     );
-  }, [aspect, videoRef]);
+  }, [aspect, video]);
 
   return {
+    /** attach to the <video>; a callback ref, so mounting order does not matter */
+    videoRef: setVideo,
     status,
     message: MESSAGES[status] ?? null,
     isLive: status === "READY",

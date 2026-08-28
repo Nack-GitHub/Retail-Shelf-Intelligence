@@ -53,12 +53,11 @@ export default function CaptureScreen() {
   const [flash, setFlash] = useState(false);
   const [tilt, setTilt] = useState(1.4);
   const fileRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const timers = useRef<number[]>([]);
 
   // GUARDRAIL: no consent recorded means the camera never opens.
-  const { status: camStatus, message: camMessage, isLive: live, grab, retry } =
-    useCamera({ videoRef, active: consent, aspect: 16 / 9 });
+  const { videoRef, status: camStatus, message: camMessage, isLive: live, grab, retry } =
+    useCamera({ active: consent, aspect: 16 / 9 });
 
   useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
 
