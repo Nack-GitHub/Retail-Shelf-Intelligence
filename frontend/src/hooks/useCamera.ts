@@ -85,12 +85,22 @@ export function useCamera({
 }) {
   const [status, setStatus] = useState<CameraStatus>("IDLE");
   // The <video> is only rendered once status is READY, so the element does
-  // not exist yet at the moment getUserMedia resolves. Both the stream and the
-  // element therefore live in state: attaching one to the other is an effect
-  // that re-runs whenever either of them changes.
+  // not exist yet at the moment getUserMedia resolves. The stream lives in
+  // state so that attaching it is an effect rather than something the request
+  // has to do itself at a moment when there may be nothing to attach it to.
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  /* The <video> is held in a ref, but a ref changing is invisible to effects —
+     which is exactly the bug this replaced. The counter is bumped by the ref
+     callback so the attach effect below re-runs when the element arrives,
+     however late that is relative to the stream. */
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [videoEpoch, setVideoEpoch] = useState(0);
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    setVideoEpoch((n) => n + 1);
+  }, []);
 
   /* Every start and stop bumps this. A getUserMedia that resolves after its
      bump has no owner: the screen it belonged to is gone, or a newer request
@@ -105,9 +115,11 @@ export function useCamera({
   // set of listeners for the life of the screen instead of re-binding on
   // every status change.
   const activeRef = useRef(active);
-  activeRef.current = active;
   const statusRef = useRef(status);
-  statusRef.current = status;
+  useEffect(() => {
+    activeRef.current = active;
+    statusRef.current = status;
+  }, [active, status]);
   const recovery = useRef<{ attempts: number; timer: number }>({ attempts: 0, timer: 0 });
 
   const stop = useCallback(() => {
@@ -167,15 +179,16 @@ export function useCamera({
   // Attach once both the stream and the element exist — in whichever order
   // they arrive.
   useEffect(() => {
-    if (!video || !stream) return;
-    video.srcObject = stream;
-    video.setAttribute("playsinline", "true"); // iOS refuses inline playback without it
-    video.muted = true;
-    void video.play().catch(() => undefined);
+    const el = videoRef.current;
+    if (!el || !stream) return;
+    el.srcObject = stream;
+    el.setAttribute("playsinline", "true"); // iOS refuses inline playback without it
+    el.muted = true;
+    void el.play().catch(() => undefined);
     return () => {
-      video.srcObject = null;
+      el.srcObject = null;
     };
-  }, [stream, video]);
+  }, [stream, videoEpoch]);
 
   /* Reopens the camera when the track we were handed has died.
    *
@@ -265,6 +278,7 @@ export function useCamera({
    *  "this device cannot encode" send the rep to different remedies, and both
    *  used to surface as the same shrug of a message. */
   const grab = useCallback(async (): Promise<Blob> => {
+    const video = videoRef.current;
     if (!video) {
       throw new CameraGrabError("กล้องยังไม่พร้อม รอสักครู่แล้วลองใหม่", "NOT_READY");
     }
@@ -303,11 +317,11 @@ export function useCamera({
       throw new CameraGrabError("อุปกรณ์นี้บันทึกภาพจากกล้องไม่ได้", "UNSUPPORTED");
     }
     return blob;
-  }, [aspect, video]);
+  }, [aspect]);
 
   return {
     /** attach to the <video>; a callback ref, so mounting order does not matter */
-    videoRef: setVideo,
+    videoRef: attachVideo,
     status,
     message: MESSAGES[status] ?? null,
     isLive: status === "READY",

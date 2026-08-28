@@ -33,6 +33,12 @@ interface DemoState {
 
   /** the photo the rep actually took/uploaded for this shelf, if any */
   photo: CapturedPhoto | null;
+  /** The shot on screen awaiting "ถ่ายใหม่" or "ใช้ภาพนี้". It lives here
+   *  rather than in the camera screen's own state because a rep who steps out
+   *  to the capture log or the sync queue and comes back must not find their
+   *  shot gone and have to photograph the shelf a second time. `photo` is null
+   *  on a device with no camera, where the flow continues on a stand-in. */
+  reviewShot: { photo: CapturedPhoto | null } | null;
   afterPhoto: CapturedPhoto | null;
   /** every photo taken this session, newest first — the local intake log */
   photoLog: CapturedPhoto[];
@@ -58,6 +64,7 @@ interface DemoState {
   /** records a photo the moment intake finishes, before the rep decides
    *  whether to keep it — a discarded shot still happened */
   logPhoto: (photo: CapturedPhoto) => void;
+  setReviewShot: (shot: { photo: CapturedPhoto | null } | null) => void;
   /** the rep kept this shot — hand it to the processing screen to upload */
   stageCapture: (photo: CapturedPhoto | null) => void;
   /** the server's verdict for that photo */
@@ -98,6 +105,7 @@ export const useDemo = create<DemoState>((set, get) => ({
 
   photo: null,
   afterPhoto: null,
+  reviewShot: null,
   photoLog: [],
 
   captureId: null,
@@ -124,6 +132,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       bay: null,
       photo: null,
       afterPhoto: null,
+      reviewShot: null,
       captureId: null,
       analysis: null,
       justCaptured: false,
@@ -152,9 +161,14 @@ export const useDemo = create<DemoState>((set, get) => ({
         : { photoLog: [photo, ...s.photoLog] },
     ),
 
+  setReviewShot: (reviewShot) => set({ reviewShot }),
+
   stageCapture: (photo) =>
     set((s) => ({
       photo: photo ?? s.photo,
+      // The shot has been accepted, so there is nothing left to review —
+      // coming back to the camera should open the lens, not the old preview.
+      reviewShot: null,
       // The previous verdict must not survive a new photo: showing the old
       // OSA over a fresh shot is how a rep "fixes" a shelf that never changed.
       captureId: null,
@@ -306,6 +320,7 @@ export const useDemo = create<DemoState>((set, get) => ({
       bay: null,
       photo: null,
       afterPhoto: null,
+      reviewShot: null,
       captureId: null,
       analysis: null,
       justCaptured: false,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -36,6 +36,9 @@ export default function CaptureScreen() {
   const bay = useDemo((s) => s.bay);
   const stageCapture = useDemo((s) => s.stageCapture);
   const logPhoto = useDemo((s) => s.logPhoto);
+  const reviewShot = useDemo((s) => s.reviewShot);
+  const setReviewShot = useDemo((s) => s.setReviewShot);
+  const photoLog = useDemo((s) => s.photoLog);
 
   const storeResource = useResource(() => fetchStore(id), [id]);
   const catalog = useResource(() => fetchCategories(id), [id]);
@@ -43,11 +46,15 @@ export default function CaptureScreen() {
   const cat = catalog.data?.find((c) => c.id === categoryId) ?? catalog.data?.[0] ?? null;
 
 
-  const [phase, setPhase] = useState<"CAPTURE" | "PREVIEW">("CAPTURE");
+  // Derived from the visit rather than held here: leaving this screen for the
+  // capture log or the sync queue unmounts it, and a rep who comes back must
+  // find the shot they took, not an empty viewfinder.
+  const phase = reviewShot ? "PREVIEW" : "CAPTURE";
+  const photo = reviewShot?.photo ?? null;
+  const shots = useMemo(() => photoLog.filter((p) => p.phase === "BEFORE"), [photoLog]);
+
   const [quality, setQuality] = useState<Quality>("READY");
   const [warnIdx, setWarnIdx] = useState(0);
-  const [photo, setPhoto] = useState<CapturedPhoto | null>(null);
-  const [shots, setShots] = useState<CapturedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
@@ -87,8 +94,7 @@ export default function CaptureScreen() {
     if (!live) {
       // No camera on this device — carry on with the drawn stand-in shelf so
       // the rest of the flow stays reviewable.
-      setPhoto(null);
-      setPhase("PREVIEW");
+      setReviewShot({ photo: null });
       return;
     }
 
@@ -96,9 +102,7 @@ export default function CaptureScreen() {
     try {
       const p = await intakePhoto(await grab(), "CAMERA", "BEFORE");
       logPhoto(p);
-      setPhoto(p);
-      setShots((s) => [p, ...s]);
-      setPhase("PREVIEW");
+      setReviewShot({ photo: p });
     } catch (err) {
       setError(
         err instanceof PhotoIntakeError || err instanceof CameraGrabError
@@ -119,9 +123,7 @@ export default function CaptureScreen() {
     try {
       const p = await intakePhoto(file, "UPLOAD", "BEFORE");
       logPhoto(p);
-      setPhoto(p);
-      setShots((s) => [p, ...s]);
-      setPhase("PREVIEW");
+      setReviewShot({ photo: p });
     } catch (err) {
       setError(
         err instanceof PhotoIntakeError ? err.message : "เปิดไฟล์รูปไม่สำเร็จ",
@@ -330,10 +332,7 @@ export default function CaptureScreen() {
                   variant="outlineDark"
                   size="lg"
                   className="flex-1"
-                  onClick={() => {
-                    setPhoto(null);
-                    setPhase("CAPTURE");
-                  }}
+                  onClick={() => setReviewShot(null)}
                 >
                   ถ่ายใหม่
                 </Button>
