@@ -9,7 +9,7 @@ MODEL := model
 PY_BACKEND := $(BACKEND)/.venv/bin/python
 PY_MODEL := $(MODEL)/.venv/bin/python
 
-.PHONY: help setup dataset infra infra-stop migrate seed reset-db api worker ml stop \
+.PHONY: help setup dataset infra infra-stop migrate seed seed-history planogram reset-db api worker ml stop \
         test test-backend test-model test-contracts lint check-boundary \
         train train-smoke evaluate export card demo clean-artifacts
 
@@ -48,8 +48,19 @@ infra-stop: ## Stop this project's containers only (never removes them)
 migrate: ## Apply database migrations
 	cd $(BACKEND) && .venv/bin/alembic upgrade head
 
-seed: ## Seed demo users, stores and model versions
+seed: ## Seed demo users, stores, model versions and visit history
 	cd $(BACKEND) && PYTHONPATH=. .venv/bin/python -m app.db.seed
+	$(MAKE) seed-history
+
+planogram: ## Regenerate backend/app/services/planogram.json from the artifact's class map
+	@# The SKU names a rep is told to restock come from the class list the model
+	@# was trained on. Rerun after training on a different one.
+	cd $(MODEL) && .venv/bin/python -m shelfeye_ml.artifact.export_planogram
+
+seed-history: ## Seed visits from real dataset photos (needs `dataset` + `infra`)
+	@# Separate from `seed` so the integration suite, which calls seed() directly,
+	@# does not pay for twenty-one uploads and a full pipeline run per session.
+	cd $(BACKEND) && PYTHONPATH=. .venv/bin/python -m app.db.seed_history
 
 reset-db: ## Drop and rebuild THIS project's schema, then reseed (destructive)
 	@# Development databases accumulate every test run — after a few hundred
