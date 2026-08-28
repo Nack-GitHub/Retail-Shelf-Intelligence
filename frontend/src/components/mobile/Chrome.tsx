@@ -1,9 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 
+/* `onBack` is required. It used to default to router.back(), which is the
+   browser's history — "where did you come from" — while the arrow in a header
+   promises "one step back in this flow". The two agree only by coincidence,
+   and every screen took the default, so no screen ever said where its back
+   arrow went. Where it goes now comes from the flow map. */
 export function MobileHeader({
   title,
   subtitle,
@@ -14,14 +18,12 @@ export function MobileHeader({
 }: {
   title: string;
   subtitle?: string;
-  onBack?: () => void;
+  onBack: () => void;
   right?: React.ReactNode;
   dark?: boolean;
   /** 0–1, drawn as a hairline under the header */
   progress?: number;
 }) {
-  const router = useRouter();
-  const back = onBack ?? (() => router.back());
   return (
     <header
       className={cn(
@@ -32,7 +34,7 @@ export function MobileHeader({
       <div className="flex items-center gap-2 px-2 py-2.5">
         <button
           type="button"
-          onClick={back}
+          onClick={onBack}
           aria-label="ย้อนกลับ"
           className={cn(
             "grid size-11 shrink-0 place-items-center rounded-btn transition-colors",

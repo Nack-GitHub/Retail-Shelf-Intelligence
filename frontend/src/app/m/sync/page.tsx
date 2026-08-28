@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
@@ -22,6 +24,11 @@ const KIND_LABEL = {
 } as const;
 
 export default function SyncQueueScreen() {
+  /* A detour, not a step: this screen can be opened from the camera, from the
+     result, or from the route list, and "back" honestly means whichever of
+     those the rep came from. That is the one case where the browser's history
+     is the right answer rather than a coincidence. */
+  const router = useRouter();
   const online = useOnline();
   const [items, setItems] = useState<QueuedOperation[]>([]);
   const [busy, setBusy] = useState(false);
@@ -93,6 +100,7 @@ export default function SyncQueueScreen() {
   return (
     <>
       <MobileHeader
+        onBack={() => router.back()}
         title="คิวรอส่งข้อมูล"
         subtitle={
           pending + failed + uploading === 0

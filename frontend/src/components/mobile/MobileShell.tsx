@@ -5,31 +5,17 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { pageSlide } from "@/lib/motion";
+import { depthOf, stepOfPath } from "@/lib/flow/steps";
 
-/* Step order drives the direction of the page transition: moving deeper in
-   the flow slides in from the right, going back slides in from the left. */
-const STEPS = [
-  "/m/login",
-  "/m",
-  "/m/sync",
-  "/checkin",
-  "/category",
-  "/capture",
-  "/processing",
-  "/result",
-  "/verify",
-  "/tasks",
-  "/compare",
-  "/checkout",
-];
+/* Depth in the flow drives the direction of the page transition: moving deeper
+   slides in from the right, going back slides in from the left.
 
-function stepIndex(path: string) {
-  if (path === "/m") return 1;
-  if (path === "/m/login") return 0;
-  if (path === "/m/sync") return 2;
-  const i = STEPS.findIndex((s) => s.startsWith("/") && !s.startsWith("/m") && path.endsWith(s));
-  return i === -1 ? 1 : i;
-}
+   The order comes from the flow map rather than a second list kept here. The
+   duplicate list had drifted — it thought the sync queue was a step between
+   the route list and check-in, and every screen it did not recognise (the
+   capture log among them) was treated as if it were the route list, so those
+   detours animated as though the rep had walked back to the start of the
+   day. */
 
 function Clock() {
   const [now, setNow] = useState<string>("");
@@ -47,7 +33,9 @@ function Clock() {
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const idx = stepIndex(pathname);
+  // A detour is not a step, and reads as arriving from the side: it keeps
+  // whichever direction the last real move had.
+  const idx = depthOf(stepOfPath(pathname));
 
   // Adjusting state during render (React's documented pattern for deriving
   // from changing props) — the direction must be known on the very render
@@ -55,7 +43,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const [prevIdx, setPrevIdx] = useState(idx);
   const [dir, setDir] = useState<1 | -1>(1);
   if (prevIdx !== idx) {
-    setDir(idx >= prevIdx ? 1 : -1);
+    if (idx >= 0 && prevIdx >= 0) setDir(idx >= prevIdx ? 1 : -1);
     setPrevIdx(idx);
   }
 

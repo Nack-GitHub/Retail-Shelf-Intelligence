@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, Scroll, BottomBar } from "@/components/mobile/Chrome";
@@ -13,6 +15,11 @@ import { listItem, stagger, fadeUp } from "@/lib/motion";
  *  upload log until the API exists — and unlike a console, it is readable
  *  on the phone that took the photo. */
 export default function CaptureLogScreen() {
+  /* A detour, not a step: this screen can be opened from the camera, from the
+     result, or from the route list, and "back" honestly means whichever of
+     those the rep came from. That is the one case where the browser's history
+     is the right answer rather than a coincidence. */
+  const router = useRouter();
   const log = useDemo((s) => s.photoLog);
   const clear = useDemo((s) => s.clearPhotoLog);
 
@@ -21,6 +28,7 @@ export default function CaptureLogScreen() {
   return (
     <>
       <MobileHeader
+        onBack={() => router.back()}
         title="บันทึกภาพในเครื่อง"
         subtitle={
           log.length
