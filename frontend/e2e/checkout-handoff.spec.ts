@@ -1,4 +1,4 @@
-import { test, expect, seedSession, walkToCompare, AFTER_PHOTO_CTA } from "./fixtures/test";
+import { test, expect, seedSession, walkToCompare } from "./fixtures/test";
 import { STORE_ID } from "./fixtures/api";
 
 test("moving on from a finished visit does not flash a closed-visit notice", async ({ page }) => {
