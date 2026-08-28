@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Logo } from "@/components/ui/Logo";
 import { RiskBadge } from "@/components/ui/Badge";
@@ -10,11 +9,12 @@ import { Bar } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
 import { Scroll } from "@/components/mobile/Chrome";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, fadeUp } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { useSession } from "@/components/auth/AuthGate";
-import { areaName } from "@/lib/api/auth";
+import { areaName, logout } from "@/lib/api/auth";
 import { currentPosition, fetchTodaysRoute } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { isAvailable, list as queueList } from "@/lib/offline/queue";
@@ -31,7 +31,7 @@ type View = "LIST" | "EMPTY" | "SYNCING";
 const MINUTES_PER_STORE = 22;
 
 export default function TodayRouteScreen() {
-  const router = useRouter();
+  const flow = useFlow("ROUTE");
   const [view, setView] = useState<View>("LIST");
   const beginVisit = useDemo((s) => s.beginVisit);
   // Read straight from the offline queue: a badge driven by a separate
@@ -71,7 +71,9 @@ export default function TodayRouteScreen() {
 
   function open(storeId: string) {
     beginVisit(storeId);
-    router.push(`/m/store/${storeId}/checkin`);
+    // The store id is passed explicitly: the visit has only just been opened,
+    // and reading it back off the current screen would give the previous one.
+    flow.go("CHECKIN", { storeId });
   }
 
   return (
@@ -88,6 +90,17 @@ export default function TodayRouteScreen() {
             </p>
           </div>
           <SyncChip count={pendingSync} />
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              flow.exit("/m/login");
+            }}
+            title="ออกจากระบบ / สลับบัญชี"
+            className="flex items-center gap-1 rounded-btn border border-line bg-surface px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:border-danger hover:text-danger"
+          >
+            ออก
+          </button>
         </div>
         <AnimatePresence>
           {view === "SYNCING" && (

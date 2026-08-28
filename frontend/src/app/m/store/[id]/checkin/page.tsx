@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { MapSnippet } from "@/components/mobile/MapSnippet";
@@ -14,6 +14,7 @@ import { currentPosition, fetchStore } from "@/lib/api/routes";
 import { checkIn as apiCheckIn } from "@/lib/api/visits";
 import { messageOf } from "@/lib/api/errors";
 import { useResource } from "@/lib/api/useResource";
+import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSnappy } from "@/lib/motion";
 import type { Store } from "@/types";
@@ -22,7 +23,7 @@ type View = "BEFORE" | "GPS_OFF" | "DONE";
 
 export default function CheckInScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("CHECKIN");
   const resource = useResource<Store>(() => fetchStore(id), [id]);
   const store = resource.data;
 
@@ -31,9 +32,16 @@ export default function CheckInScreen() {
   const checkIn = useDemo((s) => s.checkIn);
   const beginVisit = useDemo((s) => s.beginVisit);
   const storeId = useDemo((s) => s.storeId);
+  const visitId = useDemo((s) => s.visitId);
 
   const [view, setView] = useState<View>("BEFORE");
   const [busy, setBusy] = useState(false);
+  /* The confirmation is held on screen for a beat before handing over. A rep
+     who changes their mind in that beat must not be carried forward anyway —
+     which is what an uncancelled timer did, and it reads as the back button
+     being ignored. */
+  const handoff = useRef<number>(0);
+  useEffect(() => () => window.clearTimeout(handoff.current), []);
   const [checkInError, setCheckInError] = useState<string | null>(null);
   // The demo switcher can force the "GPS ไม่ตรง" view; otherwise the banner
   // shows what the server actually decided from the coordinates we sent.
@@ -46,6 +54,15 @@ export default function CheckInScreen() {
 
   async function start() {
     if (busy) return;
+
+    // Already checked in at this store — opening a second visit for one shop
+    // trip would put two rows in the database and split the evidence between
+    // them. Carry on to the shelf picker instead.
+    if (visitId && storeId === id) {
+      flow.go("CATEGORY");
+      return;
+    }
+
     setBusy(true);
     setCheckInError(null);
     try {
@@ -61,7 +78,7 @@ export default function CheckInScreen() {
       checkIn(visit.id, visit.gpsMatch);
       setServerGpsMatch(visit.gpsMatch);
       setView("DONE");
-      window.setTimeout(() => router.push(`/m/store/${id}/category`), 700);
+      handoff.current = window.setTimeout(() => flow.go("CATEGORY"), 700);
     } catch (err) {
       // A FORBIDDEN store comes back as the API's own Thai 403 — the camera
       // must never open on the strength of a failed check-in.
@@ -73,7 +90,7 @@ export default function CheckInScreen() {
   if (resource.state === "LOADING" || !store) {
     return (
       <>
-        <MobileHeader title="เช็คอินที่ร้าน" progress={0.12} />
+        <MobileHeader title="เช็คอินที่ร้าน" progress={0.12} onBack={flow.back} />
         {resource.state === "ERROR" ? (
           <Scroll className="px-4 pt-4">
             <ErrorBlock message={resource.error ?? ""} onRetry={resource.reload} />
@@ -87,7 +104,12 @@ export default function CheckInScreen() {
 
   return (
     <>
-      <MobileHeader title="เช็คอินที่ร้าน" subtitle={store.externalCode} progress={0.12} />
+      <MobileHeader
+        title="เช็คอินที่ร้าน"
+        subtitle={store.externalCode}
+        progress={0.12}
+        onBack={flow.back}
+      />
 
       <Scroll className="px-4 pt-4 pb-6">
         <motion.div variants={stagger(0.06)} initial="hidden" animate="show" className="flex flex-col gap-4">

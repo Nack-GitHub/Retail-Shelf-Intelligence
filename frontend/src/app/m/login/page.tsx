@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Logo, Wordmark } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
+import { useFlow } from "@/lib/flow/useFlow";
 import { useOnline } from "@/lib/offline/useOnline";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { login } from "@/lib/api/auth";
 import { messageOf } from "@/lib/api/errors";
+import { cn } from "@/lib/cn";
 
 export default function LoginScreen() {
-  const router = useRouter();
+  const flow = useFlow("LOGIN");
   const online = useOnline();
 
   // Prefilled with the seeded demo rep so a reviewer is one field from the
@@ -36,8 +37,12 @@ export default function LoginScreen() {
     try {
       const user = await login(email, password);
       // A manager sent to the field-rep route screen would see an empty day,
-      // so each role lands on the surface built for it.
-      router.push(user.role === "REP" ? "/m" : "/w");
+      // so each role lands on the surface built for it. Either way this
+      // replaces the sign-in screen rather than stacking on top of it — a back
+      // press after signing in used to land on the form again, filled in and
+      // apparently signed out.
+      if (user.role === "REP") flow.go("ROUTE");
+      else flow.exit("/w");
     } catch (err) {
       setError(messageOf(err));
       setBusy(false);
@@ -153,9 +158,80 @@ export default function LoginScreen() {
           </Button>
         </motion.div>
 
-        <motion.p variants={listItem} className="text-center text-[13px] text-faint">
-          บัญชีสาธิต rep@shelfeye.demo · รหัสผ่าน demo1234
-        </motion.p>
+        <motion.div variants={listItem} className="mt-2 space-y-2 border-t border-line pt-3">
+          <p className="text-center text-[12px] font-medium text-muted">
+            เลือกบัญชีสาธิตด่วน (รหัสผ่าน demo1234):
+          </p>
+          <div className="grid grid-cols-2 gap-1.5 text-[12px]">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("manager@shelfeye.demo");
+                setPassword("demo1234");
+              }}
+              className={cn(
+                "rounded-btn border p-2 text-left transition-colors",
+                email === "manager@shelfeye.demo"
+                  ? "border-primary bg-primary-soft text-primary-ink font-semibold"
+                  : "border-line-strong bg-surface text-muted hover:border-primary",
+              )}
+            >
+              <span className="block font-medium">💻 ผู้จัดการพื้นที่</span>
+              <span className="block text-[11px] opacity-75">แดชบอร์ด (/w)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("rep@shelfeye.demo");
+                setPassword("demo1234");
+              }}
+              className={cn(
+                "rounded-btn border p-2 text-left transition-colors",
+                email === "rep@shelfeye.demo"
+                  ? "border-primary bg-primary-soft text-primary-ink font-semibold"
+                  : "border-line-strong bg-surface text-muted hover:border-primary",
+              )}
+            >
+              <span className="block font-medium">📱 พนักงานตรวจ</span>
+              <span className="block text-[11px] opacity-75">แอปมือถือ (/m)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("admin@shelfeye.demo");
+                setPassword("demo1234");
+              }}
+              className={cn(
+                "rounded-btn border p-2 text-left transition-colors",
+                email === "admin@shelfeye.demo"
+                  ? "border-primary bg-primary-soft text-primary-ink font-semibold"
+                  : "border-line-strong bg-surface text-muted hover:border-primary",
+              )}
+            >
+              <span className="block font-medium">⚙️ ผู้ดูแลระบบ</span>
+              <span className="block text-[11px] opacity-75">แดชบอร์ด (/w)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("data@shelfeye.demo");
+                setPassword("demo1234");
+              }}
+              className={cn(
+                "rounded-btn border p-2 text-left transition-colors",
+                email === "data@shelfeye.demo"
+                  ? "border-primary bg-primary-soft text-primary-ink font-semibold"
+                  : "border-line-strong bg-surface text-muted hover:border-primary",
+              )}
+            >
+              <span className="block font-medium">📊 ทีมข้อมูล</span>
+              <span className="block text-[11px] opacity-75">แดชบอร์ด (/w)</span>
+            </button>
+          </div>
+        </motion.div>
       </motion.form>
 
       <div className="mt-auto flex items-center justify-end border-t border-line pt-4">

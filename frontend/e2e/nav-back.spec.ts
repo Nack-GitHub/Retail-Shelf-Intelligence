@@ -136,7 +136,10 @@ test("signing in leaves no way back to the sign-in form", async ({ page }) => {
   await loginThroughForm(page);
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/m$/);
+
+  // Asserted on what the rep sees rather than on the url: the complaint is
+  // landing on a filled-in sign-in form while already signed in.
+  await expect(page.getByLabel("รหัสผ่าน")).toBeHidden();
 });
 
 test("signing out leaves no way back into the app", async ({ page }) => {
@@ -146,7 +149,8 @@ test("signing out leaves no way back into the app", async ({ page }) => {
   await page.waitForURL("**/m/login");
 
   await page.goBack();
-  await expect(page).toHaveURL(/\/m\/login$/);
+
+  await expect(page.getByText("เส้นทางวันนี้")).toBeHidden();
 });
 
 test("finishing a visit does not leave a hollow summary behind it", async ({ page }) => {

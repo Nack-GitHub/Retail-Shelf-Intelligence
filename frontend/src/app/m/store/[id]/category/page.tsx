@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
+import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, springSnappy, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -17,7 +19,7 @@ import type { ShelfCategory, Store } from "@/types";
 
 export default function CategoryScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("CATEGORY");
   const selectShelf = useDemo((s) => s.selectShelf);
 
   const storeResource = useResource<Store>(() => fetchStore(id), [id]);
@@ -41,13 +43,15 @@ export default function CategoryScreen() {
   function next() {
     if (!cat || !bay) return;
     selectShelf(cat.id, bay);
-    router.push(`/m/store/${id}/capture`);
+    flow.go("CAPTURE");
   }
+
+  if (flow.blocked) return <FlowGuardBlock flow={flow} />;
 
   if (catalog.state !== "READY") {
     return (
       <>
-        <MobileHeader title="เลือกชั้นวางที่จะตรวจ" progress={0.24} />
+        <MobileHeader title="เลือกชั้นวางที่จะตรวจ" progress={0.24} onBack={flow.back} />
         {catalog.state === "ERROR" ? (
           <Scroll className="px-4 pt-4">
             <ErrorBlock message={catalog.error ?? ""} onRetry={catalog.reload} />
@@ -65,6 +69,7 @@ export default function CategoryScreen() {
         title="เลือกชั้นวางที่จะตรวจ"
         subtitle={storeResource.data?.name}
         progress={0.24}
+        onBack={flow.back}
       />
 
       <Scroll className="px-4 pt-4 pb-6">
