@@ -68,7 +68,12 @@ export function osaSourceNote(
 ): string | null {
   if (store.lastOsa === null || store.lastOsaPhase === null) return null;
 
-  const parts = [PHASE_LABEL[store.lastOsaPhase]];
+  // A phase the app does not recognise is a phase it cannot describe. Saying
+  // nothing beats printing "undefined" under a percentage on a rep's screen.
+  const phase = PHASE_LABEL[store.lastOsaPhase];
+  if (!phase) return null;
+
+  const parts = [phase];
   if (categoryName) parts.push(categoryName);
 
   // Only worth saying when the reading is older than the last time anyone was

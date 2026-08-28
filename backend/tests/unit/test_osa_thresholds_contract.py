@@ -23,12 +23,21 @@ OSA_MODULE = Path(__file__).resolve().parents[3] / "frontend" / "src" / "lib" / 
 
 
 def _threshold(source: str, name: str) -> float:
-    """The percentage the frontend uses for `name`, as a 0..1 ratio."""
-    match = re.search(rf"\b{name}\s*:\s*([0-9]+(?:\.[0-9]+)?)", source)
+    """The percentage the frontend uses for `name`, as a 0..1 ratio.
+
+    Read out of the OSA_THRESHOLDS declaration specifically: `critical` is an
+    ordinary enough word that a looser search would happily pick up a tone map
+    or a comment somewhere else in the file and compare the wrong number.
+    """
+    block = re.search(r"OSA_THRESHOLDS\s*=\s*\{(.*?)\}", source, re.DOTALL)
+    assert block is not None, (
+        f"{OSA_MODULE} no longer declares OSA_THRESHOLDS. It is the frontend's "
+        "only copy of the OSA bands — keep it, or this contract cannot be checked."
+    )
+
+    match = re.search(rf"\b{name}\s*:\s*([0-9]+(?:\.[0-9]+)?)", block.group(1))
     assert match is not None, (
-        f"{OSA_MODULE} no longer declares a `{name}` threshold. "
-        "It is the frontend's only copy of the OSA bands — keep it, or this "
-        "contract cannot be checked."
+        f"OSA_THRESHOLDS in {OSA_MODULE} no longer declares `{name}`."
     )
     return float(match.group(1)) / 100
 

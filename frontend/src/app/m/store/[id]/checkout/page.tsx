@@ -17,6 +17,7 @@ import { messageOf } from "@/lib/api/errors";
 import { useFlow } from "@/lib/flow/useFlow";
 import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
+import type { CheckoutSummary } from "@/lib/api/visits";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -67,7 +68,7 @@ export default function CheckoutScreen() {
     const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
     void (async () => {
-      let summary;
+      let summary: CheckoutSummary | null = null;
       try {
         summary = await closeOutVisit();
       } catch (err) {
@@ -112,6 +113,10 @@ export default function CheckoutScreen() {
   const retryClose = useCallback(() => {
     setCloseError(null);
     setClosing(true);
+    // A fresh attempt starts with a clean verdict about the analysis, or a
+    // successful retry would still be wearing the last one's copy.
+    setWaitingForAnalysis(false);
+    setAnalysisUnfinished(false);
     setAttempt((n) => n + 1);
   }, []);
 

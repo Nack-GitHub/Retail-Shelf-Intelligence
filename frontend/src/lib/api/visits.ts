@@ -74,8 +74,15 @@ export interface CheckoutSummary {
   checkedOutAt: string;
 }
 
+/** Same shape, except a server that predates `analysisPending` omits it — the
+ *  optional field is what makes the fallback below a real branch rather than
+ *  a line the type system says can never run. */
+interface CheckoutWire extends Omit<CheckoutSummary, "analysisPending"> {
+  analysisPending?: boolean;
+}
+
 export async function checkOut(visitId: string): Promise<CheckoutSummary> {
-  const wire = await request<CheckoutSummary>(`/v1/visits/${encodeURIComponent(visitId)}/checkout`, {
+  const wire = await request<CheckoutWire>(`/v1/visits/${encodeURIComponent(visitId)}/checkout`, {
     method: "POST",
   });
   return {

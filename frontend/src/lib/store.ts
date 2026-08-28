@@ -309,7 +309,11 @@ export const useDemo = create<DemoState>((set, get) => ({
     const request = (async () => {
       try {
         const summary = await checkOut(visitId);
-        set({ checkout: summary, checkedOutAt: Date.now() });
+        // The first answer stamps the close, later ones do not: the screen
+        // reports the visit's duration from this, and the server keeps its own
+        // checked_out_at across replays. Re-stamping on every refresh would
+        // stretch a finished visit by however long the model took.
+        set((s) => ({ checkout: summary, checkedOutAt: s.checkedOutAt ?? Date.now() }));
         return summary;
       } catch (err) {
         if (isOffline(err)) {
@@ -321,7 +325,7 @@ export const useDemo = create<DemoState>((set, get) => ({
             payload: { visitId },
           });
           if (queued) {
-            set({ checkedOutAt: Date.now() });
+            set((s) => ({ checkedOutAt: s.checkedOutAt ?? Date.now() }));
             return null;
           }
         }
