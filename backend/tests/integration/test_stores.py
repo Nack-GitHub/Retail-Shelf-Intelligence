@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.integration.conftest import upload_capture
@@ -80,6 +81,10 @@ def test_last_osa_says_which_photograph_it_came_from(
     assert after["lastOsaPhase"] == "AFTER"
     assert after["lastOsaCategory"] == "cat-milk"
     assert after["lastOsaAt"] >= store["lastOsaAt"]
+    # The LATEST reading, not the best one: a full shelf photographed after a
+    # restock replaces the gappy before-shot, and MAX() would have flattened
+    # every store that was ever full to 100%.
+    assert after["lastOsa"] == pytest.approx(1.0)
 
 
 def test_never_measured_store_has_nothing_to_describe(

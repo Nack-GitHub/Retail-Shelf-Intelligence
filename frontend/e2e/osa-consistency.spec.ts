@@ -46,6 +46,9 @@ test("the route list says which photograph each store's figure came from", async
   await page.goto("/m");
 
   await expect(page.getByText("OSA ล่าสุด").first()).toBeVisible();
-  await expect(page.getByText("ก่อนเติมของ").first()).toBeVisible();
   await expect(page.getByText("OSA ครั้งก่อน")).toBeHidden();
+
+  // Both halves of the line: which side of the restock, and that the reading
+  // predates the last visit — the case where the figure is nobody's result.
+  await expect(page.getByText(/ก่อนเติมของ · วัดเมื่อ 11 วันก่อน/).first()).toBeVisible();
 });
