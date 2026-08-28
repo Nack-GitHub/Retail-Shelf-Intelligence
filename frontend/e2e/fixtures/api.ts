@@ -110,6 +110,10 @@ interface StubState {
    *  screen, and screens that gate their markup on this data have to survive
    *  the stream arriving first. Instant stubs hide that ordering entirely. */
   screenDataDelayMs: number;
+  /** Who /v1/me says is signed in. The dashboard and the field-rep app are
+   *  different surfaces for different roles, and a rep sent to the dashboard
+   *  is shown a wall rather than the dashboard. */
+  role: "REP" | "MANAGER" | "ADMIN" | "DATA";
 }
 
 function delay(ms: number) {
@@ -129,7 +133,7 @@ function json(route: Route, body: unknown, status = 200) {
  * Call once per page, before the first navigation.
  */
 export async function installApiStubs(page: Page): Promise<StubState> {
-  const state: StubState = { tasks: [], jobPolls: 0, screenDataDelayMs: 0 };
+  const state: StubState = { tasks: [], jobPolls: 0, screenDataDelayMs: 0, role: "REP" };
 
   // The presigned PUT goes straight to object storage, bypassing the api
   // client — it has to be stubbed separately or the upload hangs.
@@ -149,7 +153,7 @@ export async function installApiStubs(page: Page): Promise<StubState> {
         id: "user-001",
         email: "rep@shelfeye.demo",
         fullName: "พนักงานทดสอบ",
-        role: "REP",
+        role: state.role,
         areaId: "area-bke",
       });
     }

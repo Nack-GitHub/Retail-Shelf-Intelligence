@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { useSession } from "@/components/auth/AuthGate";
 import { fetchAreas, type Area } from "@/lib/api/analytics";
+import { logout } from "@/lib/api/auth";
 import { useResource } from "@/lib/api/useResource";
 import { springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -50,6 +51,7 @@ const NAV = [
 ] as const;
 
 export function WebShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const { user } = useSession();
   const areasResource = useResource(() => fetchAreas(), []);
@@ -80,6 +82,47 @@ export function WebShell({ children }: { children: React.ReactNode }) {
     setAreaId,
     ready,
   };
+
+  if (user?.role === "REP") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-[#0a0e14] p-6 text-center text-[#f2f5f9]">
+        <div className="max-w-[440px] rounded-card border border-white/10 bg-[#131922] p-7 shadow-2xl">
+          <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-[#f79009]/20 text-[#f79009]">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+          </div>
+          <h2 className="text-[18px] font-bold text-white">เฉพาะผู้จัดการและทีมข้อมูล</h2>
+          <p className="mt-2 text-[14px] leading-relaxed text-[#93a0b3]">
+            คุณกำลังเข้าสู่ระบบด้วยบัญชี <strong className="text-white">พนักงานภาคสนาม ({user.email})</strong> ซึ่งออกแบบมาสำหรับแอปมือถือ (/m)
+          </p>
+          <p className="mt-2 text-[13px] leading-relaxed text-[#93a0b3]">
+            หากต้องการดูแดชบอร์ด Web Admin กรุณาสลับไปใช้บัญชี <strong className="text-white">manager@shelfeye.demo</strong> หรือ <strong className="text-white">admin@shelfeye.demo</strong>
+          </p>
+          <div className="mt-6 flex flex-col gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                // Replace: a signed-out session is not somewhere to go back
+                // into, and pushing left the dashboard one press away.
+                router.replace("/m/login");
+              }}
+              className="h-11 w-full rounded-btn bg-primary text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              สลับเป็นบัญชีผู้จัดการ / แอดมิน
+            </button>
+            <Link
+              href="/m"
+              className="flex h-11 w-full items-center justify-center rounded-btn border border-white/15 bg-transparent text-[14px] font-medium text-white transition-colors hover:bg-white/5"
+            >
+              ไปยังแอปมือถือ (/m)
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AreaContext.Provider value={selection}>
@@ -145,14 +188,32 @@ export function WebShell({ children }: { children: React.ReactNode }) {
                 </option>
               ))}
             </select>
-            <div className="mt-3 flex items-center gap-2 border-t border-line pt-3">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-[12px] font-semibold text-primary-ink">
-                {user?.fullName.slice(0, 1) ?? "?"}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium">{user?.fullName ?? "—"}</p>
-                <p className="truncate text-[12px] text-muted">{ROLE_LABELS[user?.role ?? ""] ?? ""}</p>
+            <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-[12px] font-semibold text-primary-ink">
+                  {user?.fullName.slice(0, 1) ?? "?"}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium">{user?.fullName ?? "—"}</p>
+                  <p className="truncate text-[12px] text-muted">{ROLE_LABELS[user?.role ?? ""] ?? ""}</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  router.replace("/m/login");
+                }}
+                title="ออกจากระบบ / สลับบัญชี"
+                className="flex items-center gap-1 rounded-btn px-2 py-1 text-[11px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-danger"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                ออก
+              </button>
             </div>
           </div>
           <Link

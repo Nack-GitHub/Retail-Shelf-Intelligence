@@ -207,3 +207,27 @@ test("going back returns the rep to where they were in a long list", async ({ pa
     })
     .toBeGreaterThan(before / 2);
 });
+
+test("signing out of the dashboard leaves no way back into it", async ({ page, stubs }) => {
+  // The dashboard belongs to managers; a rep who reaches it is shown a wall
+  // instead, and that wall has no sign-out control of the kind under test.
+  stubs.role = "MANAGER";
+  // The dashboard is a desktop surface; its sidebar, and the sign-out control
+  // in it, only lay out above the large breakpoint.
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  await seedSession(page);
+  await page.goto("/w");
+  // The shell holds a spinner until the session is confirmed; clicking into
+  // that would be clicking at a screen that is not there yet.
+  await expect(page.getByRole("heading", { name: "ภาพรวมพื้นที่" })).toBeVisible();
+
+  await page.getByRole("button", { name: "ออก" }).first().click();
+  await page.waitForURL("**/m/login");
+
+  await page.goBack();
+
+  // Asserted on the dashboard being gone rather than on a url: the guarantee
+  // is that a signed-out session cannot be walked back into.
+  await expect(page.getByRole("heading", { name: "ภาพรวมพื้นที่" })).toBeHidden();
+});
