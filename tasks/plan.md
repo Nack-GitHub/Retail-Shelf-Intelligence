@@ -1,113 +1,145 @@
-# Implementation Plan: Front-end Navigation & Camera Lifecycle Hardening
+# Implementation Plan: OSA Consistency — ให้ตัวเลข OSA ทุกหน้าจอพูดตรงกัน
 
-อ้างอิง: [../SPEC.md](../SPEC.md) · ขอบเขต `frontend/` เท่านั้น
+ขอบเขต: `frontend/` + `backend/` (schema เดิม ไม่มี migration) · ที่มา: การวิเคราะห์อาการ
+"ปิดงานแล้วกลับมาหน้ารายการ แล้ว % OSA ไม่ตรง" เมื่อ 2026-08-28
+
+> ⚠️ ไฟล์นี้เขียนทับแผนรอบ "UAT Readiness — ถอด Demo Scaffolding" ที่ยัง **ไม่ได้ commit**
+> ของเดิมถูกคัดลอกไว้ครบที่ `tasks/uat-readiness-plan.md` และ `tasks/uat-readiness-todo.md`
+> (รอบนั้นสถานะ "ครบ 16 task · Checkpoint 1–5 ผ่าน · รอ review") — **ห้ามลบสองไฟล์นั้น
+> จนกว่ารอบ UAT จะถูก commit**
+
+---
 
 ## Overview
 
-แก้สองเรื่องที่พัวพันกันแต่แก้แยกกันได้: (1) **camera lifecycle** ที่ทำให้กล้องเปิดไม่ติด
-หลัง back และ (2) **เส้นทาง navigate/back** ที่ไม่มีใครนิยามไว้ที่เดียว ทั้งสองเรื่องถูก
-พิสูจน์ด้วย Playwright E2E ที่เขียนให้ fail ก่อนแล้วค่อยแก้โค้ด
+ตัวเลขที่ UI เรียกว่า "OSA %" เหมือนกันหมด แต่เบื้องหลังมี 5 นิยามที่คนละแหล่ง:
 
-งานเรียงแบบ vertical slice: แต่ละ task จบด้วยแอปที่รันได้และ test ที่ผ่าน
+| ที่แสดง | ค่าจริง | ที่มา |
+| :-- | :-- | :-- |
+| หน้าผลวิเคราะห์ | OSA ของภาพใบเดียว | `analysis.osa_score` |
+| checkout/compare "ก่อน" | ภาพ BEFORE **ใบแรก** ของ visit | `visit.osa_before` |
+| checkout "หลัง" | **ค่าเฉลี่ย** ของภาพ AFTER ทุกใบใน visit | `visit.osa_after` |
+| การ์ดหน้ารายการ / dashboard | **แถววิเคราะห์ล่าสุดของร้าน** ทุกเฟส ทุกหมวด ทุก visit | `store_risk.last_osa` |
+| กราฟแนวโน้ม | ค่าเฉลี่ยรายสัปดาห์ | `analytics/osa` |
+
+ตรวจแล้วว่า **ไม่ใช่ปัญหา cache**: `/m` remount จริง (`MobileShell` ใส่ `key={pathname}`),
+`useResource` โหลดใหม่ทุกครั้งที่ mount, `request()` ไม่มีชั้น cache ใด ๆ ตัวเลขที่ได้คือ
+ข้อมูลสดเสมอ — แต่มันเป็น *คนละตัวเลข* กับที่หน้าเช็คเอาต์เพิ่งแสดง
+
+รอบนี้แก้ 3 เรื่องที่ทำให้ผู้ใช้เห็นความไม่สอดคล้อง โดย **ไม่แตะนิยามของตัวเลขเลย**
+
+## ขอบเขต
+
+| # | เรื่อง | อาการที่ผู้ใช้เห็น |
+| :-- | :-- | :-- |
+| 1 | เกณฑ์ตัดสถานะ OSA ไม่ตรงกันระหว่าง frontend กับ backend | ที่ 72% หน้าผลขึ้น CRITICAL แต่หน้าเช็คเอาต์ขึ้น LOW |
+| 2 | เช็คเอาต์แซงงานวิเคราะห์ภาพ AFTER | checkout บอก "ยังไม่ได้ถ่ายภาพหลังเติมของ" แล้วอีก 3 วิ การ์ดหน้ารายการมีเลขใหม่ |
+| 3 | การ์ดหน้ารายการไม่บอกว่าเลขนั้นคือเลขอะไร | ป้ายเขียน "OSA ครั้งก่อน" ทั้งที่เป็นเลขของการตรวจครั้งนี้ / เป็นเลขก่อนเติมของ / เป็นของชั้นวางอื่น |
+
+## นอกขอบเขต — ตัดสินใจแล้ว 2026-08-28
+
+**นิยามของตัวเลขทั้ง 5 ตัวถูกต้องแล้ว ห้ามแก้ในรอบนี้** — เจ้าของงานยืนยัน จึงไม่ทำ:
+
+- ไม่รวม `last_osa` กับ `osa_after` ให้เป็นนิยามเดียว
+- ไม่แก้ `osa_before` ให้ตามภาพ BEFORE ใบล่าสุดเมื่อถ่ายซ้ำ
+- ไม่กรอง `last_osa` ตามหมวดชั้นวางหรือตามเฟส
+- ไม่แตะ `analytics/osa` และไม่แตะสูตร `1 − gap_area / (product_area + gap_area)`
+
+ผลคือทุก task ในแผนนี้เปลี่ยนได้แค่ **ป้ายกำกับ สี และจังหวะเวลา** ไม่มี task ไหน
+เปลี่ยนค่าตัวเลขที่ API ส่งออกมา ยกเว้น `osa_after` ที่ task 6 ทำให้ *ได้ค่าที่ควรได้อยู่แล้ว*
+แทนที่จะเป็น null เพราะถามเร็วไป
 
 ## Architecture Decisions
 
-### AD1 — E2E stub API ด้วย Playwright route interception ไม่ต้องรัน backend
+**AD1 — เกณฑ์ OSA มีชุดเดียว และ frontend ห้ามมีความเห็นของตัวเอง**
+`backend/app/core/config.py` ประกาศไว้แล้วว่าไม่มีที่ไหนในโค้ดนี้ hardcode threshold ได้
+แต่ frontend แอบมี 2 ชุดซ้อน: `osaStatusOf` ใช้ 70/90 ([Badge.tsx:74](../frontend/src/components/ui/Badge.tsx#L74))
+ส่วนสีแถบใช้ 75/90 กระจายอยู่ 4 ไฟล์ ทางแก้คือรวมเหลือโมดูลเดียว `frontend/src/lib/osa.ts`
+ที่ mirror ค่าจาก backend แล้วผูกด้วย **contract test ฝั่ง pytest** ที่อ่านไฟล์ TS นั้นมาเทียบกับ
+`settings.critical_threshold/low_threshold` — drift แล้ว test แดงทันที
 
-`next.config.ts` rewrite `/v1/*` ไป `localhost:8000` การให้ E2E ต้องมี postgres +
-redis + minio + API + worker ครบก่อนรัน จะทำให้ test ชุดนี้ไม่มีใครรัน สิ่งที่กำลัง
-ทดสอบคือ navigation กับ camera lifecycle ของ front-end ไม่ใช่ API — จึง intercept
-`**/v1/**` ด้วย `page.route()` แล้วตอบ fixture คงที่ ได้ test ที่ hermetic รันเร็ว
-และ deterministic พอจะจับ race condition ได้
+ไม่เลือกทาง "ยิง API ขอ threshold ตอน runtime" เพราะต้องมีค่า fallback อยู่ดี ซึ่งก็คือ
+ค่า hardcode ชุดเดิมที่เพิ่งไล่เก็บ — ได้ความซับซ้อนเพิ่มโดยไม่ปิดช่อง drift จริง
 
-### AD2 — Flow guard เป็น "data + hook" ไม่ใช่ router wrapper
+**AD2 — เช็คเอาต์ยังปิด visit ได้เสมอ งานวิเคราะห์ค้างเป็นแค่ข้อมูลเสริม**
+`POST /visits/{id}/checkout` คำนวณ `osa_after` ใหม่ทุกครั้งที่ถูกเรียก และรักษา
+`checked_out_at` เดิมไว้เมื่อถูก replay อยู่แล้ว ([visits.py:96-99](../backend/app/api/v1/visits.py#L96-L99))
+— แปลว่า "เรียกซ้ำเมื่อ job เสร็จ" เป็นพฤติกรรมที่รองรับอยู่แล้ว ไม่ต้องสร้าง endpoint ใหม่
+จึงเพิ่มแค่ `analysisPending` ในคำตอบ แล้วให้ client ตัดสินใจว่าจะรอหรือไม่
+**ห้ามให้ checkout ค้างรอ job ที่ฝั่ง server** เพราะจะทำให้ปิด visit ไม่ได้เมื่อ worker ล่ม
 
-`steps.ts` เป็น plain object graph ที่ไม่ import React เลย → unit test ได้ตรง ๆ และ
-`useFlow()` เป็นชั้นบางที่แปลง step graph เป็น `router.push/replace` ทางเลือกอื่นคือ
-ครอบ router ทั้งตัว ซึ่งจะชนกับ `AuthGate` และ Next.js internals โดยไม่จำเป็น
+**AD3 — เลขที่กำกวมต้องมีป้ายบอกที่มา ไม่ใช่เปลี่ยนเลข**
+`last_osa` คือแถววิเคราะห์ล่าสุดของร้าน ซึ่งอาจเป็นภาพก่อนเติมของ อาจเป็นชั้นวางอื่น
+อาจเป็นของรอบก่อน API จึงต้องส่ง "เลขนี้มาจากไหน" มาด้วย (`phase` / `category` / `at`)
+ให้ UI พูดความจริงได้ — ตัวเลขไม่เปลี่ยน คำอธิบายเปลี่ยน
 
-### AD3 — Camera: callback ref + generation token
+## Dependency Graph
 
-สาเหตุจริงของจอดำคือ effect ที่ผูกกับ `RefObject` ไม่ re-run ตอน element mount ทีหลัง
-การเปลี่ยนเป็น callback ref ทำให้ React แจ้ง hook เองเมื่อ element เปลี่ยน — แก้ที่ราก
-ไม่ใช่เพิ่ม `status` เข้า deps ซึ่งเป็นการเดาว่าอะไรจะเปลี่ยนก่อน
+```
+T1 lib/osa.ts — เกณฑ์เดียว (frontend)
+ ├── T2 สีแถบ 4 จุดใช้ osaTone (frontend)
+ └── T3 contract test กัน drift (backend)
 
-generation token (counter ที่เพิ่มทุกครั้งที่ start/stop) ทำให้ `getUserMedia` ที่
-resolve ช้ากว่าการ unmount รู้ตัวว่าไม่มีเจ้าของแล้วและหยุด track ตัวเอง
+T4 ปิดปุ่มเช็คเอาต์ระหว่างอัปโหลด (frontend, อิสระ)
+T5 analysisPending ใน CheckoutResponse (backend, อิสระ)
+ └── T6 checkout screen รอผลแล้วยิงซ้ำ (frontend)
 
-### AD4 — preview state ย้ายเข้า zustand แบบ additive
+T7 last_osa provenance ใน API (backend)
+ └── T8 ป้ายกำกับบน 4 จอ (frontend)   ── ใช้ osaTone จาก T1/T2
 
-`photo` / `shots` / `phase` ของหน้า capture เป็น local `useState` จึงหายทุกครั้งที่
-ออกจากหน้า ย้ายเข้า `DemoState` โดย**เพิ่ม field ใหม่เท่านั้น ไม่แก้ field เดิม** เพื่อ
-ไม่ให้หน้าอื่นที่อ่าน store อยู่พัง
-
-### AD5 — คอมเมนต์ในโค้ดห้ามอ้างรหัส task
-
-ทุกคอมเมนต์ต้องอธิบายเหตุผลจริงให้คนที่ไม่เคยเห็น SPEC เข้าใจได้เอง ห้ามมี `C1`,
-`H9`, `task 3` ฯลฯ ในโค้ด (ข้อกำหนดจากเจ้าของงาน)
-
-### AD6 — commit ในเครื่องได้ แต่ห้าม `git push`
+T9 เอกสาร (หลังจากพฤติกรรมนิ่งแล้ว)
+```
 
 ## Task List
 
-### Phase 1: Test harness
+### Phase 1 — เกณฑ์เดียว (เรื่องที่ 1)
+- [ ] T1: รวมเกณฑ์ OSA ของ frontend ไว้ที่ `lib/osa.ts` ที่เดียว — **S**
+- [ ] T2: ให้สีแถบ OSA ทั้ง 4 จุดใช้เกณฑ์เดียวกับสถานะ — **S**
+- [ ] T3: contract test กันเกณฑ์ frontend/backend drift — **XS**
 
-- [ ] Task 1: ติดตั้ง Playwright + API stub fixture + smoke test
+### Checkpoint 1
+- [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ไม่เกิน baseline 18 · `pytest` เขียว
+- [ ] แก้ค่า `critical_threshold` ใน config แล้ว T3 แดงจริง (พิสูจน์ว่า test มีฟัน)
 
-### Checkpoint A
-- [ ] `npm run test:e2e` รันได้และ smoke test ผ่านโดยไม่ต้องมี backend
+### Phase 2 — เช็คเอาต์ไม่แซงงานวิเคราะห์ (เรื่องที่ 2)
+- [ ] T4: ปิดปุ่ม "สรุปและเช็คเอาต์" ระหว่างอัปโหลดภาพ AFTER — **S**
+- [ ] T5: `analysisPending` ใน `CheckoutResponse` — **S**
+- [ ] T6: หน้าเช็คเอาต์รอผลวิเคราะห์แล้วยิง checkout ซ้ำ — **M**
 
-### Phase 2: Camera lifecycle
+### Checkpoint 2
+- [ ] integration test: checkout ระหว่างมี job ค้าง → `analysisPending=true`, `osaAfter=null`, visit ปิดแล้ว
+- [ ] integration test: checkout ซ้ำหลัง job เสร็จ → `osaAfter` มีค่า, `checkedOutAt` ไม่ขยับ
+- [ ] manual: ถ่าย AFTER แล้วกดเช็คเอาต์ทันที → ไม่มีจังหวะที่หน้าเช็คเอาต์บอกว่าไม่มีภาพ AFTER
+      ทั้งที่เพิ่งถ่ายไป
 
-- [ ] Task 2: เขียน failing test ของกล้อง
-- [ ] Task 3: แก้ `useCamera` — callback ref + generation token
-- [ ] Task 4: `useCamera` — track ended / visibility recovery / grab รอ metadata
-- [ ] Task 5: คงรูป preview ไว้ข้ามการออกจากหน้า
-- [ ] Task 6: เก็บกวาด timer ที่ไม่มี cleanup
+### Phase 3 — การ์ดบอกที่มาของเลข (เรื่องที่ 3)
+- [ ] T7: ส่ง `lastOsaPhase` / `lastOsaCategory` / `lastOsaAt` ออกมาจาก API — **M**
+- [ ] T8: ป้ายกำกับที่มาของ OSA บน 4 จอ — **M**
+- [ ] T9: บันทึกนิยาม OSA ทั้ง 5 ตัวใน `docs/ui.md` + `docs/uat.md` — **S**
 
-### Checkpoint B
-- [ ] `e2e/camera-lifecycle.spec.ts` ผ่านทั้งไฟล์
-- [ ] `npm run lint` + `npx tsc --noEmit` ไม่มี error ใหม่
-
-### Phase 3: Flow guard
-
-- [ ] Task 7: เขียน failing test ของ navigation + deep link
-- [ ] Task 8: สร้าง flow step graph + `useFlow()` + `FlowGuardBlock`
-- [ ] Task 9: ย้ายหน้าต้นทาง (login, route, checkin, category) มาใช้ `useFlow`
-- [ ] Task 10: ย้ายหน้าปลายทาง (capture → checkout) มาใช้ `useFlow`
-- [ ] Task 11: `MobileHeader` ใช้ back ของ flow + `MobileShell` คิดทิศจาก step
-
-### Checkpoint C
-- [ ] `e2e/nav-back.spec.ts` + `e2e/deep-link-guards.spec.ts` ผ่านทั้งสองไฟล์
-- [ ] ไม่มี `router.push/replace/back` เหลือใน `src/app/m/**`
-
-### Phase 4: Polish
-
-- [ ] Task 12: scroll restoration ของ inner container
-- [ ] Task 13: logout/login ฝั่ง web ใช้ replace
-- [ ] Task 14: ปิดงาน — เช็คลิสต์มือถือจริง + รันทุก gate
-
-### Checkpoint D
-- [ ] ทุก success criteria ใน SPEC §10 ผ่าน
-- [ ] พร้อม review
+### Checkpoint 3 (ปิดรอบ)
+- [ ] `pytest` เขียวทั้งชุด · `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+- [ ] `npm run test:e2e` (flag ปิด) และ `npm run test:e2e:demo` (flag เปิด) ผ่านทั้งคู่
+- [ ] `npm run build` + `npm run build:demo` ผ่านทั้งคู่
+- [ ] `grep -rn "osaStatusOf\|>= 90 ?" frontend/src` → เหลือเฉพาะใน `lib/osa.ts`
+- [ ] review กับเจ้าของงานก่อน commit (ตาม SPEC §9 ห้าม push)
 
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 | :-- | :-- | :-- |
-| Playwright fake camera ไม่จำลอง track suspension แบบ iOS Safari | High | test ระดับ unit ยิง `track.stop()` + `visibilitychange` เอง และมีเช็คลิสต์มือถือจริงใน SPEC §8 ที่ไม่มีอะไรมาแทนได้ |
-| แก้ 11 หน้าให้ใช้ `useFlow` พร้อมกันแล้วพังทั้งแอป | High | แบ่งเป็น Task 9/10 และ `useFlow` รองรับหน้าที่ยังไม่ย้ายได้ (ค่อย ๆ ย้าย ไม่ big bang) |
-| แก้ `DemoState` แล้วหน้าอื่นพัง | Med | เพิ่ม field ใหม่เท่านั้น ไม่แก้/ลบของเดิม (AD4) และ typecheck จับได้ |
-| มี uncommitted work ของเจ้าของงานค้างอยู่ 3 ไฟล์ | Med | อ่าน diff แล้วแก้ทับเฉพาะบรรทัด `router.push` ที่เกี่ยวข้อง ไม่แตะ UI ที่เขาเพิ่ง|เพิ่ม |
-| E2E stub ทำให้พลาดบั๊กที่เกิดจาก API จริง | Low | ขอบเขตงานนี้คือ front-end routing/camera ตามที่ SPEC §1.4 ระบุ |
+| เปลี่ยนป้ายไทยแล้ว e2e ที่จับข้อความพัง | Med | grep ข้อความเดิมใน `frontend/e2e` ก่อนแก้ · รัน e2e ทั้งสองชุด |
+| poll รอ job ตอนเช็คเอาต์แล้ว worker ล่ม → รออนันต์ | High | timeout ตายตัว (ใช้ `pollJob` ที่มี timeout อยู่แล้ว) แล้วปิด visit ตามปกติ พร้อมข้อความว่าค่าจะอัปเดตภายหลัง |
+| ยิง checkout ซ้ำแล้ว `checked_out_at` ขยับ ทำให้ระยะเวลาเข้าร้านเพี้ยน | High | โค้ดปัจจุบันกันไว้แล้ว — T5 ต้องมี test ยืนยันว่ายังกันอยู่ |
+| `closeOutVisit` memoize ผลไว้ (`if (checkout) return checkout`) ทำให้ยิงซ้ำไม่เกิดขึ้นจริง | Med | T6 ต้องเพิ่มทางบังคับยิงใหม่ ไม่ใช่ล้าง state ทิ้งทั้งก้อน |
+| การ์ดมือถือพื้นที่แคบ ป้ายที่มายาวเกินจนตัดคำ | Low | ป้ายสั้น ("ก่อนเติมของ" / "หลังเติมของ") · ชื่อหมวดต่อท้ายเฉพาะเมื่อมีที่ |
+| แก้เกณฑ์ 70→75 แล้วสถานะบางหน้าจอ "แย่ลง" ในสายตา tester | Low | เขียนไว้ใน `docs/uat.md` ว่าเป็นการแก้ให้ตรงกับ backend ไม่ใช่ชั้นวางแย่ลง |
 
 ## Open Questions
 
-ตอบไปแล้วทั้งหมดตามที่เจ้าของงานให้อำนาจตัดสินใจ:
-
-1. RESULT back → **CATEGORY** (result มีปุ่ม "ถ่ายใหม่" ของตัวเองแล้ว)
-2. VERIFY → TASKS ใช้ **push** (rep กลับไปแก้คำตัดสินได้)
-3. **ยังไม่ persist** ลง sessionStorage — flow guard อย่างเดียวก่อน เลี่ยงประเด็น PDPA
-   ของ `photoLog` ที่ถือ blob รูปในร้าน
-4. `/m/captures`, `/m/sync` **คงเป็น route แยก** (เป็น S13 ใน docs/ui.md)
-5. `/w/**` แก้เฉพาะ logout/login ที่ใช้ `push` (Task 13)
+1. **ป้ายบนการ์ดจะใส่ชื่อหมวดชั้นวางด้วยไหม** — เสนอ: ใส่เมื่อร้านนั้นเคยถ่ายมากกว่า 1 หมวด
+   เท่านั้น มิฉะนั้นเป็น noise · ถ้าไม่ตอบจะทำตามข้อเสนอนี้
+2. **ถ้ารอผลวิเคราะห์เกิน timeout ตอนเช็คเอาต์** — เสนอ: ปิด visit ตามปกติ แสดง
+   "ค่าหลังเติมของจะปรากฏในหน้าเว็บเมื่อวิเคราะห์เสร็จ" · ถ้าไม่ตอบจะทำตามข้อเสนอนี้
+3. **`lastOsaAt` จะแสดงบน UI หรือส่งมาเผื่ออย่างเดียว** — เสนอ: ส่งมาก่อน แสดงเฉพาะเมื่อ
+   เลขนั้นเก่ากว่าการเข้าร้านครั้งล่าสุด (เพราะเป็นกรณีที่ทำให้คนสับสนที่สุด)

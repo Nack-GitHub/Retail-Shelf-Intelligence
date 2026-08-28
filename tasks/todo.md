@@ -1,131 +1,260 @@
-# TODO: Front-end Navigation & Camera Lifecycle Hardening
+# TODO: OSA Consistency — ให้ตัวเลข OSA ทุกหน้าจอพูดตรงกัน
 
-แผน: [plan.md](plan.md) · สเปก: [../SPEC.md](../SPEC.md)
+แผน: [plan.md](plan.md) · ที่มา: อาการ "ปิดงานแล้วกลับมาหน้ารายการ แล้ว % OSA ไม่ตรง"
 
-> กติกา: ห้าม `git push` · ห้ามเขียนรหัส task ลงในคอมเมนต์ในโค้ด
+> กติกา (ตาม [../SPEC.md](../SPEC.md) §9): ห้าม `git push` · ห้ามเขียนรหัส task ลงใน
+> คอมเมนต์ในโค้ด · รัน `npm run lint` + `npx tsc --noEmit` + `npm run test:e2e` +
+> `pytest` ก่อน commit · คงข้อความไทยเดิมไว้ถ้าความหมายไม่เปลี่ยน
 >
-> **สถานะ: ทำครบทั้ง 14 task แล้ว** — E2E 39/39 ผ่าน · typecheck สะอาด ·
-> build ผ่าน · lint ไม่มีปัญหาใหม่ · ยังไม่ push ตามที่ตกลง
+> **ห้ามแตะนิยามของตัวเลข** — เจ้าของงานยืนยัน 2026-08-28 ว่านิยามปัจจุบันถูกแล้ว
+> รอบนี้แก้ได้แค่ ป้ายกำกับ · สี · จังหวะเวลา
+>
+> ไฟล์ของรอบ UAT ที่ยังไม่ commit ถูกเก็บไว้ที่ `tasks/uat-readiness-{plan,todo}.md`
+> — ห้ามลบจนกว่ารอบนั้นจะถูก commit
+>
+> **สถานะ: ยังไม่เริ่ม 0/9**
 
 ---
 
-## Phase 1 — Test harness
+## Phase 1 — เกณฑ์เดียว
 
-- [x] **Task 1: ติดตั้ง Playwright + API stub fixture + smoke test**
+- [ ] **Task 1: รวมเกณฑ์ OSA ของ frontend ไว้ที่ `lib/osa.ts` ที่เดียว**
+
+  ตอนนี้ frontend มีเกณฑ์ซ้อนกันสองชุดและไม่มีชุดไหนตรงกับ backend:
+  `osaStatusOf` ใช้ OK≥90 / LOW≥70 ([Badge.tsx:73-75](../frontend/src/components/ui/Badge.tsx#L73-L75))
+  ส่วนสีแถบใช้ 90/75 คัดลอกอยู่ 4 ไฟล์ ขณะที่ backend ใช้
+  `critical_threshold = 0.75` / `low_threshold = 0.90` ([config.py:77-78](../backend/app/core/config.py#L77-L78))
+  ผลคือชั้นวางที่ได้ 72% ขึ้น CRITICAL ในหน้าผล (ใช้ `status` จาก server) แต่ขึ้น LOW
+  ในหน้าเช็คเอาต์ (คำนวณเอง)
+
   - Acceptance:
-    - `npm run test:e2e` รันได้จาก `frontend/` โดยไม่ต้องมี backend รันอยู่
-    - fixture ตอบ `/v1/**` ครบพอให้เดิน flow ได้ตั้งแต่ login ถึง checkout
-    - Chromium เปิดด้วย fake camera + auto-grant permission
-  - Verify: `npm run test:e2e -- e2e/smoke.spec.ts` ผ่าน
-  - Files: `package.json`, `playwright.config.ts`, `e2e/fixtures/api.ts`, `e2e/fixtures/test.ts`, `e2e/smoke.spec.ts`, `.gitignore`
-  - Deps: None · Scope: M
+    - [ ] มีไฟล์ `frontend/src/lib/osa.ts` ที่ export `OSA_THRESHOLDS`, `osaStatusOf`,
+          `osaTone` และเป็น **ที่เดียว** ในฝั่ง frontend ที่มีตัวเลขเกณฑ์
+    - [ ] ค่าใน `OSA_THRESHOLDS` ตรงกับ backend (critical 75, low 90) พร้อมคอมเมนต์
+          ชี้ว่า source of truth อยู่ที่ `backend/app/core/config.py`
+    - [ ] `osaStatusOf` ถูกย้ายออกจาก [Badge.tsx](../frontend/src/components/ui/Badge.tsx)
+          และผู้เรียกทั้งสามจุดชี้มาที่ `lib/osa.ts`
+          ([checkout:139](../frontend/src/app/m/store/[id]/checkout/page.tsx#L139) ·
+          [compare:409](../frontend/src/app/m/store/[id]/compare/page.tsx#L409) ·
+          [w/stores:96](../frontend/src/app/w/stores/[id]/page.tsx#L96))
+    - [ ] หน้าไหนที่ server ส่ง `status` มาให้แล้วยังใช้ของ server ต่อไป ไม่คำนวณซ้ำ
+    - [ ] `osaTone(osa)` ถูก export ไว้พร้อมใช้ แต่ผู้เรียกยังไม่เปลี่ยนในงานนี้ (Task 2)
+  - Verify:
+    - [ ] `grep -rn "osaStatusOf" frontend/src` → นิยามอยู่ใน `lib/osa.ts` ที่เดียว
+    - [ ] `grep -rn ">= 70 ?" frontend/src` → ไม่พบ
+    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ baseline 18 issues
+    - [ ] manual: ชั้นวางที่ได้ 72% แสดง CRITICAL เหมือนกันทั้งหน้าผลและหน้าเช็คเอาต์
+  - Dependencies: None
+  - Files: `frontend/src/lib/osa.ts` (ใหม่), `frontend/src/components/ui/Badge.tsx`,
+    `frontend/src/app/m/store/[id]/checkout/page.tsx`,
+    `frontend/src/app/m/store/[id]/compare/page.tsx`,
+    `frontend/src/app/w/stores/[id]/page.tsx`
+  - Scope: **S**
 
-**Checkpoint A** — `npm run test:e2e` เขียวโดยไม่ต้องพึ่ง backend
+- [ ] **Task 2: ให้สีแถบ OSA ทั้ง 4 จุดใช้เกณฑ์เดียวกับสถานะ**
+
+  สีแถบถูกคัดลอกเป็น ternary `>= 90 ? ok : >= 75 ? warn : danger` อยู่ 4 ไฟล์ ค่าบังเอิญ
+  ตรงกับ backend แต่ไม่มีอะไรบังคับให้ตรงต่อไป และมันคือเกณฑ์ชุดที่สองที่ทำให้สีกับ pill
+  เล่าคนละเรื่องในช่วง 70–75% มาแล้ว
+
+  - Acceptance:
+    - [ ] ทั้ง 4 จุดเรียก `osaTone(...)` จาก `lib/osa.ts`
+          ([m/page:218](../frontend/src/app/m/page.tsx#L218) ·
+          [category:123](../frontend/src/app/m/store/[id]/category/page.tsx#L123) ·
+          [w/page:281](../frontend/src/app/w/page.tsx#L281) ·
+          [w/routes:143](../frontend/src/app/w/routes/page.tsx#L143))
+    - [ ] สีที่แสดงจริงไม่เปลี่ยนสำหรับค่าที่ ≥75 หรือ ≥90 (เกณฑ์เดิมตรงกับ backend อยู่แล้ว)
+  - Verify:
+    - [ ] `grep -rn ">= 90 ?\|>= 75 ?" frontend/src` → ไม่พบนอก `lib/osa.ts`
+    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+    - [ ] `npm run test:e2e` ผ่าน
+  - Dependencies: Task 1
+  - Files: `frontend/src/app/m/page.tsx`,
+    `frontend/src/app/m/store/[id]/category/page.tsx`,
+    `frontend/src/app/w/page.tsx`, `frontend/src/app/w/routes/page.tsx`
+  - Scope: **S**
+
+- [ ] **Task 3: contract test กันเกณฑ์ frontend/backend drift**
+
+  เกณฑ์สองฝั่งเพี้ยนกันได้เงียบ ๆ มาแล้วครั้งหนึ่ง การ mirror ค่าอย่างเดียวไม่พอ
+  ต้องมีอะไรที่แดงเมื่อฝั่งใดฝั่งหนึ่งขยับ
+
+  - Acceptance:
+    - [ ] มี `backend/tests/unit/test_osa_thresholds_contract.py` ที่อ่าน
+          `frontend/src/lib/osa.ts` แล้วเทียบกับ `settings.critical_threshold` /
+          `settings.low_threshold` (คูณ 100)
+    - [ ] ข้อความ assert บอกชื่อไฟล์ทั้งสองฝั่งและค่าที่ไม่ตรง ไม่ใช่แค่ `assert a == b`
+    - [ ] test หาไฟล์เจอโดยไม่ขึ้นกับ cwd ที่รัน pytest
+    - [ ] ถ้าหาไฟล์ frontend ไม่เจอให้ fail ไม่ใช่ skip เงียบ ๆ
+  - Verify:
+    - [ ] `pytest backend/tests/unit/test_osa_thresholds_contract.py` เขียว
+    - [ ] แก้ `critical_threshold` เป็น 0.70 ชั่วคราว → test แดง แล้วแก้กลับ
+  - Dependencies: Task 1
+  - Files: `backend/tests/unit/test_osa_thresholds_contract.py` (ใหม่)
+  - Scope: **XS**
+
+### Checkpoint 1
+- [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18 · `pytest` เขียวทั้งชุด
+- [ ] พิสูจน์แล้วว่า Task 3 แดงจริงเมื่อ config ขยับ
 
 ---
 
-## Phase 2 — Camera lifecycle
+## Phase 2 — เช็คเอาต์ไม่แซงงานวิเคราะห์
 
-- [x] **Task 2: เขียน failing test ของกล้อง**
-  - Acceptance: test ครอบคลุมจอดำหลัง back, track ค้างหลัง unmount เร็ว, track ตายแล้วไม่ฟื้น, preview หายหลัง back, timer ของ compare
-  - Verify: รันแล้ว **fail** บนโค้ดปัจจุบัน (ต้อง fail จริง ไม่ใช่ error ตอน setup)
-  - Files: `e2e/camera-lifecycle.spec.ts`
-  - Deps: 1 · Scope: S
+- [ ] **Task 4: ปิดปุ่ม "สรุปและเช็คเอาต์" ระหว่างอัปโหลดภาพ AFTER**
 
-- [x] **Task 3: `useCamera` — callback ref + generation token**
+  หน้า compare ยิง `void uploadAfter(p)` แบบไม่รอผล
+  ([compare:113](../frontend/src/app/m/store/[id]/compare/page.tsx#L113)) แต่ปุ่มไปเช็คเอาต์
+  ([compare:427](../frontend/src/app/m/store/[id]/compare/page.tsx#L427)) ไม่ได้ถูก disable
+  ตาม `uploading` เลย รีบกดได้ทันทีทั้งที่ภาพยังไม่ถึง worker
+
   - Acceptance:
-    - element ส่งเข้า hook ผ่าน callback ref → attach ได้ไม่ว่า stream หรือ element มาก่อน
-    - `getUserMedia` ที่ resolve หลังจากไม่มีเจ้าของแล้ว ต้อง `stop()` track ตัวเองและไม่เซ็ต state
-    - caller ทั้งสองหน้า (capture, compare) ปรับตาม API ใหม่
-  - Verify: test จอดำหลัง back + test unmount เร็วผ่าน · `npx tsc --noEmit` สะอาด
-  - Files: `src/hooks/useCamera.ts`, `capture/page.tsx`, `compare/page.tsx`
-  - Deps: 2 · Scope: M
+    - [ ] ปุ่มถูก disable ขณะ `uploading === true` และมีข้อความบอกว่ากำลังทำอะไรอยู่
+          (ใช้ข้อความเดิม "กำลังส่งภาพหลังเติมของไปวิเคราะห์…" ที่มีอยู่แล้วที่
+          [compare:389](../frontend/src/app/m/store/[id]/compare/page.tsx#L389))
+    - [ ] อัปโหลดล้มเหลว → ปุ่มกลับมากดได้ และ error เดิมยังแสดงตามปกติ
+    - [ ] ไม่มีภาพ AFTER เลย → ปุ่มกดได้เหมือนเดิม ไม่มีการบล็อกเพิ่ม
+  - Verify:
+    - [ ] `npx tsc --noEmit` สะอาด
+    - [ ] manual: ถ่าย AFTER แล้วรีบกดปุ่มทันที → กดไม่ได้จนกว่าจะอัปโหลดเสร็จ
+    - [ ] `npm run test:e2e` ผ่าน (เช็คว่า flow เดิมที่ไม่ถ่าย AFTER ไม่ถูกบล็อก)
+  - Dependencies: None
+  - Files: `frontend/src/app/m/store/[id]/compare/page.tsx`
+  - Scope: **S**
 
-- [x] **Task 4: `useCamera` — ฟื้นตัวเองเมื่อ track ตาย + `grab()` รอ metadata**
+- [ ] **Task 5: `analysisPending` ใน `CheckoutResponse`**
+
+  Task 4 ปิดช่องฝั่ง UI แต่ไม่ปิดช่องจริง: อัปโหลดเสร็จไม่ได้แปลว่าวิเคราะห์เสร็จ
+  งานเป็น Celery job ([captures.py:144-149](../backend/app/api/v1/captures.py#L144-L149))
+  ส่วน checkout ยิง `AVG(osa_score)` ทันที ([visits.py:75-81](../backend/app/api/v1/visits.py#L75-L81))
+  client จึงต้องรู้ว่า "ค่าที่ได้ไปนี้ยังไม่ครบ"
+
   - Acceptance:
-    - ฟัง `track.ended` + `visibilitychange` + `pageshow` → ถ้ายัง active ให้เปิดใหม่อัตโนมัติ
-    - มี backoff ไม่ให้ retry รัวเมื่อเปิดไม่ได้จริง
-    - `grab()` รอ `videoWidth > 0` (มี timeout) และคืนข้อความไทยที่บอกสาเหตุได้
-  - Verify: test track ตายแล้วฟื้น + test grab ทันทีหลัง live ผ่าน
-  - Files: `src/hooks/useCamera.ts`
-  - Deps: 3 · Scope: S
+    - [ ] `CheckoutResponse` มีฟิลด์ `analysis_pending: bool` — true เมื่อมี `InferenceJob`
+          สถานะ QUEUED หรือ RUNNING ของ capture ใน visit นี้
+    - [ ] visit ยังถูกปิดตามปกติเสมอ แม้มี job ค้าง (ตาม AD2 — ห้ามให้ server รอ job)
+    - [ ] เรียก checkout ซ้ำหลัง job เสร็จ → `osa_after` ได้ค่า และ `checked_out_at`
+          **ไม่ขยับ** จากครั้งแรก
+    - [ ] ไม่มีภาพ AFTER และไม่มี job ค้าง → `analysis_pending=false`, `osa_after=null`
+          เหมือนเดิมทุกประการ
+  - Verify:
+    - [ ] integration test ครอบ 3 เคส: มี job ค้าง / เรียกซ้ำหลัง job เสร็จ / ไม่มีภาพ AFTER
+    - [ ] `pytest` เขียวทั้งชุด (39 เดิมต้องไม่แดง)
+  - Dependencies: None
+  - Files: `backend/app/api/v1/visits.py`, `backend/app/api/v1/schemas.py`,
+    `backend/tests/integration/test_golden_path.py`
+  - Scope: **S**
 
-- [x] **Task 5: คงรูป preview ไว้ข้ามการออกจากหน้า**
+- [ ] **Task 6: หน้าเช็คเอาต์รอผลวิเคราะห์แล้วยิง checkout ซ้ำ**
+
+  อาการที่ผู้ใช้เห็นคือหน้าเช็คเอาต์ประกาศ "ยังไม่ได้ถ่ายภาพหลังเติมของ"
+  ([checkout:120](../frontend/src/app/m/store/[id]/checkout/page.tsx#L120)) ทั้งที่เพิ่งถ่ายไป
+  แล้วพอกลับมาหน้ารายการกลับมีเลขใหม่ ต้องแยกให้ออกระหว่าง "ไม่มีภาพ AFTER" กับ
+  "มีภาพแต่ยังวิเคราะห์ไม่เสร็จ"
+
+  ระวัง: `closeOutVisit` จำผลไว้ (`if (checkout) return checkout` ที่
+  [store.ts:294](../frontend/src/lib/store.ts#L294)) การยิงซ้ำต้องมีทางบังคับ ไม่ใช่
+  ล้าง state ทิ้งทั้งก้อน — และต้องไม่ทำให้ queue offline ได้ CHECKOUT ซ้ำสองรายการ
+
   - Acceptance:
-    - ถ่ายรูป → ไป `/m/captures` → back → ยังเห็น preview รูปเดิม ไม่ต้องถ่ายใหม่
-    - state ใหม่ผูกกับ visit และถูกล้างเมื่อ `beginVisit` / `resetVisit`
-    - เพิ่ม field ใหม่ใน `DemoState` เท่านั้น ไม่แก้ของเดิม
-  - Verify: test preview คงอยู่ผ่าน · หน้าอื่นที่อ่าน store ยัง typecheck ผ่าน
-  - Files: `src/lib/store.ts`, `capture/page.tsx`
-  - Deps: 3 · Scope: M
+    - [ ] `closeOutVisit` รับทางบังคับยิงใหม่ (เช่น `{ refresh: true }`) ที่ข้าม memo
+          โดยไม่แตะ state อื่นของ visit
+    - [ ] `analysisPending=true` → หน้าจอแสดงสถานะกำลังวิเคราะห์ ไม่ใช่ข้อความว่าไม่มีภาพ
+    - [ ] เมื่องานเสร็จ (poll ผ่าน `pollJob` เดิม) ยิง checkout ซ้ำหนึ่งครั้งแล้วแสดง
+          `osaAfter` ที่ได้
+    - [ ] ครบ timeout แล้วยังไม่เสร็จ → ปิดหน้าตามปกติพร้อมข้อความว่าค่าจะปรากฏในหน้าเว็บ
+          ภายหลัง (ตาม Open Question 2 ในแผน)
+    - [ ] เคสไม่มีภาพ AFTER จริง ๆ ยังใช้ข้อความไทยเดิมทุกตัวอักษร
+    - [ ] offline: พฤติกรรม enqueue เดิมไม่เปลี่ยน และไม่เกิดรายการซ้ำ
+  - Verify:
+    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+    - [ ] `npm run test:e2e` + `npm run test:e2e:demo` ผ่านทั้งคู่
+    - [ ] manual: ถ่าย AFTER → กดเช็คเอาต์ทันที → ไม่เห็นข้อความ "ยังไม่ได้ถ่ายภาพ
+          หลังเติมของ" เลยสักเฟรม และเลขที่ขึ้นตรงกับที่การ์ดหน้ารายการแสดงหลังกลับออกมา
+  - Dependencies: Task 5
+  - Files: `frontend/src/lib/store.ts`, `frontend/src/lib/api/visits.ts`,
+    `frontend/src/app/m/store/[id]/checkout/page.tsx`
+  - Scope: **M**
 
-- [x] **Task 6: เก็บกวาด timer ที่ไม่มี cleanup**
-  - Acceptance: `setTimeout` ทุกตัวที่ navigate หรือแตะ store มี cleanup — โดยเฉพาะ shutter ของ compare ที่ mark ว่าถ่าย after แล้วทั้งที่ผู้ใช้ back ออกไป
-  - Verify: test compare timer ผ่าน
-  - Files: `compare/page.tsx`, `checkin/page.tsx`
-  - Deps: 2 · Scope: S
-
-**Checkpoint B** — `e2e/camera-lifecycle.spec.ts` เขียวทั้งไฟล์ · lint + typecheck สะอาด
+### Checkpoint 2
+- [ ] integration test ของ Task 5 เขียวครบ 3 เคส
+- [ ] manual สองรอบ: ถ่าย AFTER แล้วรีบกด / ไม่ถ่าย AFTER เลย → ทั้งสองรอบเลขที่หน้า
+      เช็คเอาต์กับการ์ดหน้ารายการเล่าเรื่องเดียวกัน
+- [ ] review กับเจ้าของงานก่อนเข้า Phase 3
 
 ---
 
-## Phase 3 — Flow guard
+## Phase 3 — การ์ดบอกที่มาของเลข
 
-- [x] **Task 7: เขียน failing test ของ navigation + deep link**
-  - Acceptance: ครอบคลุม back ทุก step, back ระหว่าง 700ms หลังเช็คอิน, login/logout back, checkout back, หน้าขาวของ verify, deep link ทั้ง 9 step
-  - Verify: รันแล้ว fail บนโค้ดปัจจุบัน
-  - Files: `e2e/nav-back.spec.ts`, `e2e/deep-link-guards.spec.ts`
-  - Deps: 1 · Scope: M
+- [ ] **Task 7: ส่ง `lastOsaPhase` / `lastOsaCategory` / `lastOsaAt` ออกมาจาก API**
 
-- [x] **Task 8: flow step graph + `useFlow()` + `FlowGuardBlock`**
+  `last_osa` คือแถววิเคราะห์ล่าสุดของร้าน ไม่กรองเฟส ไม่กรองหมวด ไม่กรอง visit
+  ([store_risk.py:63-68](../backend/app/repositories/store_risk.py#L63-L68)) — นิยามนี้
+  **ถูกแล้วและห้ามแก้** แต่ UI ต้องรู้ว่าเลขที่ได้มาจากไหนถึงจะเขียนป้ายให้ตรงได้
+  แถวที่ต้องการถูก DISTINCT ON เลือกไว้อยู่แล้ว เพิ่มแค่คอลัมน์ที่ select ออกมา
+
   - Acceptance:
-    - `steps.ts` ไม่ import React — นิยาม path / canEnter / fallback / back / transient / terminal ครบ 11 step ตามตาราง SPEC §6.1
-    - `useFlow(stepId)` คืน `go()`, `back()`, `guard`
-    - `FlowGuardBlock` แสดงเหตุผลภาษาไทย + ปุ่มไป fallback — ไม่มี `return null`
-  - Verify: `npx tsc --noEmit` สะอาด · หน้าเดิมยังทำงานได้ (ยังไม่ย้าย)
-  - Files: `src/lib/flow/steps.ts`, `src/lib/flow/useFlow.ts`, `src/components/mobile/FlowGuardBlock.tsx`
-  - Deps: 7 · Scope: M
+    - [ ] `StoreRisk` มี `last_osa_phase` ("BEFORE"/"AFTER"), `last_osa_category`,
+          `last_osa_at` — เป็น `None` ทั้งหมดใน `NEVER_MEASURED`
+    - [ ] ค่าที่ได้มาจาก **แถวเดียวกัน** กับ `last_osa` ไม่ใช่ query แยก
+    - [ ] `StoreRiskOut` (จึงรวม `RouteStopOut`) และ rows ของ `analytics/risk-ranking`
+          ส่งสามฟิลด์นี้ออกไป
+    - [ ] `last_osa` ตัวเลขเดิมไม่เปลี่ยนแม้แต่ร้านเดียว และลำดับการเรียงไม่เปลี่ยน
+  - Verify:
+    - [ ] integration test: ร้านที่ภาพล่าสุดเป็น AFTER → `lastOsaPhase == "AFTER"`
+    - [ ] integration test: ร้านที่ไม่เคยตรวจ → ทั้งสามฟิลด์เป็น null
+    - [ ] `pytest` เขียวทั้งชุด
+  - Dependencies: None
+  - Files: `backend/app/repositories/store_risk.py`, `backend/app/api/v1/schemas.py`,
+    `backend/app/api/v1/stores.py`, `backend/app/api/v1/routes.py`,
+    `backend/app/api/v1/analytics.py`, `backend/tests/integration/test_stores.py`
+  - Scope: **M**
 
-- [x] **Task 9: ย้ายหน้าต้นทางมาใช้ `useFlow`**
-  - Acceptance: login, `/m`, checkin, category เลิกเรียก router ตรง ๆ · login/logout ใช้ replace · timeout ของ checkin ยกเลิกได้ · เช็คอินซ้ำไม่ได้
-  - Verify: test login/logout back + test checkin 700ms ผ่าน
-  - Files: `login/page.tsx`, `m/page.tsx`, `checkin/page.tsx`, `category/page.tsx`
-  - Deps: 8 · Scope: M
+- [ ] **Task 8: ป้ายกำกับที่มาของ OSA บน 4 จอ**
 
-- [x] **Task 10: ย้ายหน้าปลายทางมาใช้ `useFlow`**
-  - Acceptance: capture, processing, result, verify, tasks, compare, checkout ใช้ `useFlow` ทั้งหมด · verify ไม่คืนหน้าขาว · checkout เป็น terminal
-  - Verify: test back ทุก step + test checkout back ผ่าน
-  - Files: 7 หน้าใต้ `src/app/m/store/[id]/`
-  - Deps: 8 · Scope: L (แตกย่อยตอนทำถ้าเกิน 5 ไฟล์ต่อรอบ)
+  การ์ดหน้ารายการเขียน "OSA ครั้งก่อน" ([m/page:215](../frontend/src/app/m/page.tsx#L215))
+  ทั้งที่หลังตรวจเสร็จมันคือเลขของ *ครั้งนี้* และอาจเป็นเลข **ก่อน** เติมของ หรือเป็นของ
+  ชั้นวางอื่นในร้านเดียวกัน
 
-- [x] **Task 11: `MobileHeader` back ของ flow + ทิศ animation จาก step**
-  - Acceptance: ทุกหน้าส่ง `onBack` จาก flow · `MobileShell` เลิกใช้ `STEPS` array ที่ซ้ำซ้อน · path ที่ไม่รู้จักไม่ถูกมองว่าเป็นระดับเดียวกับหน้าแรก
-  - Verify: test ทิศทาง + back ทุก step ผ่าน
-  - Files: `Chrome.tsx`, `MobileShell.tsx`
-  - Deps: 9, 10 · Scope: S
+  - Acceptance:
+    - [ ] `Store` (types) และ `toStore` รับสามฟิลด์ใหม่ผ่าน `lib/api/routes.ts`
+    - [ ] มี helper เดียว (ใน `lib/osa.ts`) ที่แปลง phase/category/at → ป้ายภาษาไทย
+    - [ ] ป้ายบอกเฟสได้ถูกต้อง: BEFORE → สื่อว่าเป็นค่าก่อนเติมของ · AFTER → หลังเติมของ
+    - [ ] ไม่มีหน้าไหนเรียกเลขของการตรวจครั้งล่าสุดว่า "ครั้งก่อน" อีก
+    - [ ] ชื่อหมวดชั้นวางแสดงเมื่อร้านนั้นมีมากกว่าหนึ่งหมวด (ตาม Open Question 1)
+    - [ ] ร้านที่ไม่เคยตรวจยังใช้ข้อความเดิม "ยังไม่เคยตรวจชั้นวางที่ร้านนี้"
+  - Verify:
+    - [ ] `grep -rn "OSA ครั้งก่อน" frontend/src` → ไม่พบ
+    - [ ] `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+    - [ ] `npm run test:e2e` + `npm run test:e2e:demo` ผ่านทั้งคู่
+    - [ ] manual: การ์ดร้านที่เพิ่งตรวจเสร็จโดยไม่ถ่าย AFTER อ่านแล้วเข้าใจได้ว่าเลขนี้
+          คือค่าก่อนเติมของ ไม่ใช่ผลงานที่ยังไม่ขยับ
+  - Dependencies: Task 8, Task 1, Task 2
+  - Files: `frontend/src/types/index.ts`, `frontend/src/lib/api/routes.ts`,
+    `frontend/src/lib/osa.ts`, `frontend/src/app/m/page.tsx`,
+    `frontend/src/app/w/routes/page.tsx`, `frontend/src/app/w/page.tsx`,
+    `frontend/src/app/w/stores/[id]/page.tsx`
+  - Scope: **M**
 
-**Checkpoint C** — nav + deep-link suite เขียว · ไม่มี `router.push/replace/back` เหลือใน `src/app/m/**`
+- [ ] **Task 9: บันทึกนิยาม OSA ทั้ง 5 ตัวไว้ให้คนอ่านได้**
 
----
+  ทั้งทีมและ tester ต้องอ่านได้จากที่เดียวว่า OSA แต่ละที่คือเลขอะไร ไม่งั้นจะมีรายงาน
+  "ตัวเลขไม่ตรง" ซ้ำเดิมทุกรอบ
 
-## Phase 4 — Polish
+  - Acceptance:
+    - [ ] [docs/ui.md](../docs/ui.md) มีหัวข้อ OSA ที่ระบุครบทั้ง 5 นิยาม พร้อมชี้ไฟล์ต้นทาง
+    - [ ] [docs/uat.md](../docs/uat.md) เขียนให้ tester ว่า **ติ๊ก task ว่าเติมแล้วไม่ทำให้
+          OSA ขยับ** ต้องถ่ายภาพหลังเติมของเท่านั้น
+    - [ ] บันทึกว่าเกณฑ์สถานะคือ 75/90 และเคยเพี้ยนเป็น 70 ที่ frontend มาก่อน
+  - Verify:
+    - [ ] อ่านทวนแล้วตรงกับพฤติกรรมหลัง Task 1–8 จริง ไม่ใช่ตรงกับแผน
+  - Dependencies: Task 1–8
+  - Files: `docs/ui.md`, `docs/uat.md`
+  - Scope: **S**
 
-- [x] **Task 12: scroll restoration ของ inner container**
-  - Acceptance: scroll ลงท้าย `/tasks` → ไปหน้าอื่น → back → กลับมาที่ตำแหน่งเดิม
-  - Verify: test scroll ผ่าน
-  - Files: `Chrome.tsx`, `src/lib/flow/useFlow.ts`
-  - Deps: 11 · Scope: S
-
-- [x] **Task 13: logout/login ฝั่ง web ใช้ replace**
-  - Acceptance: ปุ่มออกจากระบบทั้งใน `WebShell` (2 จุด) ใช้ replace · back หลัง logout ไม่กลับเข้าแอป
-  - Verify: test logout ฝั่ง web ผ่าน · ไม่ทับ UI ที่เจ้าของงานเพิ่งเพิ่ม
-  - Files: `WebShell.tsx`
-  - Deps: 9 · Scope: XS
-
-- [x] **Task 14: ปิดงาน**
-  - Acceptance: ทุก gate ผ่าน · เช็คลิสต์มือถือจริงเขียนไว้ให้เจ้าของงานเดินเอง
-  - Verify: `npm run lint` · `npx tsc --noEmit` · `npm run test:e2e` · `npm run build`
-  - Files: `SPEC.md` (อัปเดตสถานะ), `tasks/todo.md`
-  - Deps: ทั้งหมด · Scope: XS
-
-**Checkpoint D** — พร้อมส่ง review
+### Checkpoint 3 (ปิดรอบ)
+- [ ] `pytest` เขียวทั้งชุด · `npx tsc --noEmit` สะอาด · `npm run lint` ≤ 18
+- [ ] `npm run test:e2e` และ `npm run test:e2e:demo` ผ่านทั้งคู่
+- [ ] `npm run build` + `npm run build:demo` ผ่านทั้งคู่
+- [ ] `grep -rn "osaStatusOf\|>= 90 ?" frontend/src` → เหลือเฉพาะใน `lib/osa.ts`
+- [ ] review กับเจ้าของงาน · ยังไม่ commit จนกว่าจะผ่าน review
