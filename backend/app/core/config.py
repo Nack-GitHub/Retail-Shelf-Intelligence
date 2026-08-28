@@ -15,13 +15,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "dev-secret-change-me-in-any-real-deployment"
 
+# Every JWT secret that has ever been committed to this repository. The guard
+# below rejects all of them, not just the field default: `.env.example` shipped
+# "demo-secret-not-for-production-min-32-bytes" for months, so that is the
+# string a real deployment is most likely to inherit by copying the example
+# file — and the one the original guard did not catch.
+COMMITTED_JWT_SECRETS = frozenset(
+    {
+        DEFAULT_JWT_SECRET,
+        "demo-secret-not-for-production-min-32-bytes",
+    }
+)
+
+# Environments where seeded demo accounts and committed secrets are acceptable.
+# Anything else is somebody else's data.
+DISPOSABLE_ENVIRONMENTS = frozenset({"local", "ci", "demo"})
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "shelfeye-api"
     app_version: str = "0.1.0"
-    environment: Literal["local", "ci", "demo"] = "local"
+    environment: Literal["local", "ci", "demo", "uat", "production"] = "local"
 
     database_url: str = "postgresql+asyncpg://shelfeye:shelfeye@localhost:5433/shelfeye"
     redis_url: str = "redis://localhost:6380/0"
@@ -71,14 +87,34 @@ class Settings(BaseSettings):
     def _refuse_the_default_secret_outside_local(self) -> Settings:
         """Boot loudly rather than insecurely.
 
-        The default is committed to the repository, so anyone holding a clone
-        can mint a valid ADMIN token against an instance that started without
-        JWT_SECRET set. Silently accepting it is how that happens.
+        Every secret in COMMITTED_JWT_SECRETS is in the repository, so anyone
+        holding a clone can mint a valid ADMIN token against an instance that
+        started with one. Silently accepting it is how that happens.
+
+        `local`, `ci` and `demo` are exempt: they hold nobody's data, and
+        making developers generate a secret to run the test suite is how the
+        guard gets commented out instead of satisfied.
         """
-        if self.environment != "local" and self.jwt_secret == DEFAULT_JWT_SECRET:
+        if self.environment in DISPOSABLE_ENVIRONMENTS:
+            return self
+
+        if self.jwt_secret in COMMITTED_JWT_SECRETS:
             raise ValueError(
-                "JWT_SECRET is still the committed default. Set a real one "
-                f"before running with ENVIRONMENT={self.environment}."
+                "JWT_SECRET is a value committed to this repository, so anyone "
+                "with a clone can mint an ADMIN token. Generate one with "
+                "`openssl rand -hex 32` before running with "
+                f"ENVIRONMENT={self.environment}."
+            )
+        # `.env.example` ships JWT_SECRET blank so nobody inherits a working
+        # one by copying it. Blank is not in COMMITTED_JWT_SECRETS, so without
+        # this the copied file would sail past the check above and sign tokens
+        # with the empty string — a weaker secret than the one being rejected.
+        if len(self.jwt_secret) < 32:
+            raise ValueError(
+                "JWT_SECRET must be at least 32 characters "
+                f"(got {len(self.jwt_secret)}). Generate one with "
+                "`openssl rand -hex 32` before running with "
+                f"ENVIRONMENT={self.environment}."
             )
         return self
 

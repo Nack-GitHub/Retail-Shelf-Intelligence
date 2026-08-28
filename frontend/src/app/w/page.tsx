@@ -63,8 +63,10 @@ export default function AreaDashboard() {
                 { value: "26W", label: "26 สัปดาห์" },
               ]}
             />
-            <Button variant="secondary" size="sm">
-              <DownloadIcon /> ส่งออกรายงาน
+            {/* No endpoint behind this yet. A button that swallows the click
+                teaches people the app is broken; one that says why does not. */}
+            <Button variant="secondary" size="sm" disabled title="ยังไม่เปิดใช้งานในรุ่นนี้">
+              <DownloadIcon /> ส่งออกรายงาน (เร็ว ๆ นี้)
             </Button>
           </>
         }

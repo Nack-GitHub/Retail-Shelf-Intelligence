@@ -10,6 +10,7 @@ import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { login } from "@/lib/api/auth";
 import { messageOf } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 export default function LoginScreen() {
   const flow = useFlow("LOGIN");
@@ -17,7 +18,9 @@ export default function LoginScreen() {
 
   // Prefilled with the seeded demo rep so a reviewer is one field from the
   // route screen — the password is still typed, and still checked by the API.
-  const [email, setEmail] = useState("rep@shelfeye.demo");
+  // Outside a demo build the field starts empty: a real rep's account is not
+  // the seeded one, and an address they have to clear first helps nobody.
+  const [email, setEmail] = useState(DEMO_MODE ? "rep@shelfeye.demo" : "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,6 +161,10 @@ export default function LoginScreen() {
           </Button>
         </motion.div>
 
+        {/* Four seeded accounts sharing one password, printed on the screen.
+            Reviewers need it; a UAT server must never render it, which is why
+            this whole block leaves the bundle when the flag is unset. */}
+        {DEMO_MODE && (
         <motion.div variants={listItem} className="mt-2 space-y-2 border-t border-line pt-3">
           <p className="text-center text-[12px] font-medium text-muted">
             เลือกบัญชีสาธิตด่วน (รหัสผ่าน demo1234):
@@ -232,10 +239,11 @@ export default function LoginScreen() {
             </button>
           </div>
         </motion.div>
+        )}
       </motion.form>
 
       <div className="mt-auto flex items-center justify-end border-t border-line pt-4">
-        <span className="text-[12px] text-faint">v0.9.0 · demo</span>
+        <span className="text-[12px] text-faint">v0.9.0{DEMO_MODE ? " · demo" : ""}</span>
       </div>
     </div>
   );

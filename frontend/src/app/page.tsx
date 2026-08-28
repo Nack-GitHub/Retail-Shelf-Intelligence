@@ -5,6 +5,12 @@ import { motion } from "motion/react";
 import { Logo } from "@/components/ui/Logo";
 import { ShelfPhoto } from "@/components/shelf/ShelfPhoto";
 import { listItem, stagger, fadeUp, springSoft } from "@/lib/motion";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 const SURFACES = [
   {
@@ -26,6 +32,11 @@ const SURFACES = [
 ];
 
 export default function PlatformLauncher() {
+  /* next.config.ts already redirects this route away outside a demo build.
+     The early return is what removes the markup below from the bundle, so the
+     launcher is absent rather than merely unreachable. */
+  if (!DEMO_MODE) return null;
+
   return (
     <div className="min-h-dvh bg-[#0a0e14] px-6 py-14 text-[#f2f5f9]">
       <div className="mx-auto w-full max-w-[980px]">
@@ -104,7 +115,7 @@ export default function PlatformLauncher() {
           <ul className="mt-3 grid gap-2 text-[13px] leading-relaxed text-[#93a0b3] sm:grid-cols-2">
             {[
               "เปิดกล้องไม่ได้จนกว่าจะติ๊กว่าได้รับอนุญาตจากร้าน",
-              "ยืนยันเบลอใบหน้าบนเครื่องก่อนอัปโหลดทุกครั้ง",
+              "ภาพขึ้นระบบเมื่อผู้ถ่ายกดยืนยันเท่านั้น",
               "ปุ่ม “ไม่ใช่” มีน้ำหนักเท่ากับปุ่ม “ใช่” เสมอ",
               "ไม่มีคะแนนหรืออันดับรายบุคคลของพนักงานในทุกหน้าจอ",
               "ทุกตัวเลขกดเข้าไปดูภาพหลักฐานได้",

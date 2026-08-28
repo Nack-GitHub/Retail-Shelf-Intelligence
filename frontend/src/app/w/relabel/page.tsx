@@ -152,7 +152,7 @@ export default function RelabelQueue() {
                   this build — there is no endpoint behind it yet, and a button
                   that silently does nothing is worse than one that says so. */}
               <p className="text-[12px] leading-relaxed text-faint">
-                รุ่นสาธิต: การเลือกยังไม่ถูกส่งไปยังรอบเทรนจริง
+                การเลือกยังไม่ถูกส่งไปยังรอบเทรน — ใช้คัดภาพไว้ก่อนได้
               </p>
               <Button size="sm" onClick={sendToRetrain}>
                 ทำเครื่องหมายว่าตรวจแล้ว

@@ -40,9 +40,12 @@ function storeWire(id: string, name: string, distanceKm: number) {
   };
 }
 
+/* Two shelves, one of which the model cannot read — the same shape the real
+   catalogue returns, so a test walking the flow lands on the supported one
+   rather than whichever happens to be first. */
 const CATEGORIES = [
-  { id: "cat-coffee", name: "กาแฟ", bays: ["A1", "A2"], skuCount: 24, lastOsa: 0.71 },
-  { id: "cat-milk", name: "นม", bays: ["B1"], skuCount: 18, lastOsa: 0.9 },
+  { id: "cat-coffee", name: "กาแฟ", bays: ["A1", "A2"], skuCount: 24, lastOsa: 0.71, supported: true },
+  { id: "cat-milk", name: "นม", bays: ["B1"], skuCount: 18, lastOsa: 0.9, supported: false },
 ];
 
 const nth = (n: number) => String(n + 1).padStart(3, "0");

@@ -6,6 +6,12 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { pageSlide } from "@/lib/motion";
 import { depthOf, stepOfPath } from "@/lib/flow/steps";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 /* Depth in the flow drives the direction of the page transition: moving deeper
    slides in from the right, going back slides in from the left.
@@ -48,8 +54,15 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-dvh bg-surface lg:grid lg:min-h-screen lg:place-items-center lg:bg-[#0d1117] lg:py-10">
-      {/* desktop-only caption so the demo explains itself */}
+    /* The phone mock — dark backdrop, bezel, drawn status bar — is a stage for
+       showing the app on a laptop. On a real phone none of it renders anyway
+       (it is all `lg:`), and on a UAT desktop it would frame the product in a
+       prop. Outside a demo build the app simply fills the window. */
+    <div className={DEMO_MODE
+      ? "min-h-dvh bg-surface lg:grid lg:min-h-screen lg:place-items-center lg:bg-[#0d1117] lg:py-10"
+      : "min-h-dvh bg-surface"}
+    >
+      {DEMO_MODE && (
       <div className="hidden lg:mb-6 lg:block lg:text-center">
         <p className="text-[13px] font-medium tracking-wide text-[#8b98a9]">
           ShelfEye · แอปพนักงานภาคสนาม (Mobile Web)
@@ -61,6 +74,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           กลับหน้าเลือกแพลตฟอร์ม
         </Link>
       </div>
+      )}
 
       <div
         className={[
@@ -69,11 +83,12 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
           // content area scrolls inside, keeping header and thumb-zone
           // actions pinned the way a native app does
           "h-dvh",
-          "lg:h-[844px] lg:min-h-0 lg:w-[390px] lg:rounded-[42px]",
-          "lg:border-[10px] lg:border-[#1b222c] lg:shadow-[0_28px_70px_rgba(0,0,0,0.55)]",
+          DEMO_MODE
+            ? "lg:h-[844px] lg:min-h-0 lg:w-[390px] lg:rounded-[42px] lg:border-[10px] lg:border-[#1b222c] lg:shadow-[0_28px_70px_rgba(0,0,0,0.55)]"
+            : "lg:max-w-[430px]",
         ].join(" ")}
       >
-        {/* simulated status bar — desktop frame only */}
+        {DEMO_MODE && (
         <div className="hidden shrink-0 items-center justify-between px-7 pt-3 pb-1 text-[12px] font-semibold text-text lg:flex">
           <Clock />
           <div className="flex items-center gap-1.5" aria-hidden>
@@ -90,6 +105,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
             </svg>
           </div>
         </div>
+        )}
 
         <motion.div
           key={pathname}

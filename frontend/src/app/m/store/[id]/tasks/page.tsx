@@ -9,6 +9,12 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 import { BLOCKED_REASONS } from "@/lib/constants";
 import { fetchStore } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
@@ -62,7 +68,7 @@ export default function TaskListScreen() {
 
   const openCount = tasks.filter((t) => t.status === "OPEN").length;
   const allDone = tasks.length > 0 && openCount === 0;
-  const showEmpty = view === "PERFECT" || tasks.length === 0;
+  const showEmpty = (DEMO_MODE && view === "PERFECT") || tasks.length === 0;
 
   if (flow.blocked) return <FlowGuardBlock flow={flow} />;
 
@@ -132,6 +138,7 @@ export default function TaskListScreen() {
           </>
         )}
 
+        {DEMO_MODE && (
         <div className="mt-4">
           <StateSwitcher
             value={view}
@@ -142,6 +149,7 @@ export default function TaskListScreen() {
             ]}
           />
         </div>
+        )}
       </Scroll>
 
       <BottomBar>

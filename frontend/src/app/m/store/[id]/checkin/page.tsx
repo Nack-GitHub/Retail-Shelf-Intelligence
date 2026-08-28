@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Controls";
 import { Pill } from "@/components/ui/Badge";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { currentPosition, fetchStore } from "@/lib/api/routes";
 import { checkIn as apiCheckIn } from "@/lib/api/visits";
@@ -43,10 +49,12 @@ export default function CheckInScreen() {
   const handoff = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(handoff.current), []);
   const [checkInError, setCheckInError] = useState<string | null>(null);
-  // The demo switcher can force the "GPS ไม่ตรง" view; otherwise the banner
-  // shows what the server actually decided from the coordinates we sent.
+  // In a demo build the switcher can force the "GPS ไม่ตรง" view. Everywhere
+  // else the banner shows what the server decided from the coordinates we
+  // sent — a mismatch is evidence, and evidence a reviewer can fabricate from
+  // the screen is not evidence.
   const [serverGpsMatch, setServerGpsMatch] = useState<boolean | null>(null);
-  const gpsMatch = view === "GPS_OFF" ? false : (serverGpsMatch ?? true);
+  const gpsMatch = DEMO_MODE && view === "GPS_OFF" ? false : (serverGpsMatch ?? true);
 
   useEffect(() => {
     if (storeId !== id) beginVisit(id);
@@ -208,17 +216,19 @@ export default function CheckInScreen() {
             )}
           </AnimatePresence>
 
-          <motion.div variants={listItem}>
-            <StateSwitcher
-              value={view}
-              onChange={(v) => setView(v)}
-              options={[
-                { value: "BEFORE", label: "ก่อนเช็คอิน" },
-                { value: "GPS_OFF", label: "GPS ไม่ตรง" },
-                { value: "DONE", label: "เช็คอินแล้ว" },
-              ]}
-            />
-          </motion.div>
+          {DEMO_MODE && (
+            <motion.div variants={listItem}>
+              <StateSwitcher
+                value={view}
+                onChange={(v) => setView(v)}
+                options={[
+                  { value: "BEFORE", label: "ก่อนเช็คอิน" },
+                  { value: "GPS_OFF", label: "GPS ไม่ตรง" },
+                  { value: "DONE", label: "เช็คอินแล้ว" },
+                ]}
+              />
+            </motion.div>
+          )}
         </motion.div>
       </Scroll>
 

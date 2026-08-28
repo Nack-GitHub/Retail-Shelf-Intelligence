@@ -7,7 +7,12 @@ import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { Button } from "@/components/ui/Button";
-import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
@@ -19,14 +24,6 @@ import { CameraGrabError, useCamera } from "@/hooks/useCamera";
 import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
 import { easeOut, springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/cn";
-
-type Quality = "READY" | "WARN" | "PROCESSING";
-
-const WARNINGS = [
-  { id: "blur", text: "ภาพเบลอ ถือให้นิ่ง", icon: <MotionIcon /> },
-  { id: "dark", text: "แสงน้อยเกินไป", icon: <SunIcon /> },
-  { id: "crop", text: "ถ่ายให้เห็นชั้นวางทั้งชั้น", icon: <FrameIcon /> },
-];
 
 export default function CaptureScreen() {
   const { id } = useParams<{ id: string }>();
@@ -55,12 +52,9 @@ export default function CaptureScreen() {
   const photo = reviewShot?.photo ?? null;
   const shots = useMemo(() => photoLog.filter((p) => p.phase === "BEFORE"), [photoLog]);
 
-  const [quality, setQuality] = useState<Quality>("READY");
-  const [warnIdx, setWarnIdx] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
-  const [tilt, setTilt] = useState(1.4);
   const fileRef = useRef<HTMLInputElement>(null);
   const timers = useRef<number[]>([]);
 
@@ -70,22 +64,13 @@ export default function CaptureScreen() {
 
   useEffect(() => () => timers.current.forEach(window.clearTimeout), []);
 
-  useEffect(() => {
-    if (quality !== "WARN") return;
-    const t = window.setInterval(() => setWarnIdx((i) => (i + 1) % WARNINGS.length), 2400);
-    return () => window.clearInterval(t);
-  }, [quality]);
-
-  useEffect(() => {
-    if (reduced) return;
-    const t = window.setInterval(() => {
-      setTilt((v) => Math.max(-6, Math.min(6, v + (Math.random() - 0.5) * 1.6)));
-    }, 900);
-    return () => window.clearInterval(t);
-  }, [reduced]);
-
-  const level = Math.abs(tilt) < 1.2;
-  const busyOrDemo = busy || quality === "PROCESSING";
+  /* Removed: a spirit level driven by Math.random(), and a quality banner that
+     cycled "ภาพเบลอ / แสงน้อยเกินไป / ถ่ายให้เห็นชั้นวางทั้งชั้น" on a timer.
+     Neither read the camera. A rep who tilts the phone and watches the degrees
+     disagree learns the whole screen is decoration, and image quality is
+     judged server-side anyway — a failed job comes back with its own Thai
+     sentence saying what to do. Framing help that does not claim to measure
+     (the grid, the corner marks, the standing-distance hint) stays. */
 
   async function shoot() {
     if (busy) return;
@@ -155,21 +140,17 @@ export default function CaptureScreen() {
           <AnimatePresence mode="wait">
             {error ? (
               <Banner key="err" tone="danger" icon={<AlertIcon />} text={error} />
-            ) : quality === "WARN" ? (
-              <Banner
-                key={WARNINGS[warnIdx].id}
-                tone="warn"
-                icon={WARNINGS[warnIdx].icon}
-                text={WARNINGS[warnIdx].text}
-              />
-            ) : busyOrDemo ? (
+            ) : busy ? (
               <Banner key="busy" tone="ink" dot="bg-primary" text="กำลังประมวลผลภาพบนเครื่อง" />
             ) : live ? (
               <Banner
                 key="ready"
                 tone="ink"
                 dot="bg-ok"
-                text={`พร้อมถ่าย · ${cat.name} ชั้น ${bay ?? "A2"}`}
+                /* No bay means the shelf picker was skipped, which the flow
+                   guard already refuses — naming a bay that does not exist
+                   would put a fabricated label on the evidence. */
+                text={`พร้อมถ่าย · ${cat.name}${bay ? ` ชั้น ${bay}` : ""}`}
               />
             ) : (
               <Banner
@@ -234,28 +215,6 @@ export default function CaptureScreen() {
                 <div className="absolute inset-x-0 top-2/3 h-px bg-white/12" />
               </div>
 
-              <div className="pointer-events-none absolute right-2.5 top-1/2 flex -translate-y-1/2 flex-col items-center gap-1.5">
-                <div className="relative h-24 w-1.5 rounded-full bg-black/35">
-                  <div className="absolute inset-x-[-5px] top-1/2 h-px bg-white/55" />
-                  <motion.span
-                    className={cn(
-                      "absolute left-1/2 size-3.5 -translate-x-1/2 rounded-full border-2 border-white",
-                      level ? "bg-ok" : "bg-warn",
-                    )}
-                    animate={{ top: `calc(50% + ${tilt * 6}px)` }}
-                    transition={{ type: "spring", stiffness: 140, damping: 18 }}
-                    style={{ marginTop: -7 }}
-                  />
-                </div>
-                <span
-                  className={cn(
-                    "tnum rounded-pill px-1.5 py-0.5 text-[11px] font-semibold text-white",
-                    level ? "bg-ok/90" : "bg-warn/95",
-                  )}
-                >
-                  {level ? "ระดับ" : `${tilt > 0 ? "+" : ""}${tilt.toFixed(1)}°`}
-                </span>
-              </div>
             </>
           )}
 
@@ -273,15 +232,28 @@ export default function CaptureScreen() {
         </div>
 
         {/* privacy + framing hint */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-2.5">
-          <span className="flex items-center gap-1.5 rounded-pill bg-ink-2/90 px-3 py-1.5">
-            <LockIcon />
-            <span className="text-[13px] font-medium text-ink-text">
-              ภาพเก็บไว้ในเครื่องเท่านั้น
+        <div className="px-3 pt-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* This used to read "ภาพเก็บไว้ในเครื่องเท่านั้น" in every phase. It was
+                true while there was no API; now "ใช้ภาพนี้" hands the blob straight to
+                the upload. A promise of privacy that the next tap breaks is worse than
+                no promise at all, so the pill says where the photo actually is. */}
+            <span className="flex items-center gap-1.5 rounded-pill bg-ink-2/90 px-3 py-1.5">
+              <LockIcon />
+              <span className="text-[13px] font-medium text-ink-text">
+                {phase === "PREVIEW" ? "ส่งขึ้นระบบเมื่อกดใช้ภาพนี้" : "ภาพยังอยู่ในเครื่อง"}
+              </span>
             </span>
-          </span>
-          <p className="text-[12px] text-ink-muted">
-            {phase === "PREVIEW" ? "ตรวจสอบภาพก่อนใช้" : "ให้ชั้นวางเต็มกรอบ"}
+            <p className="text-[12px] text-ink-muted">
+              {phase === "PREVIEW" ? "ตรวจสอบภาพก่อนใช้" : "ให้ชั้นวางเต็มกรอบ"}
+            </p>
+          </div>
+          {/* There is no on-device face blur — capture.ts records the honest
+              `faceBlur.method: "NOT_WIRED"`. Staying silent about that next to the
+              shutter lets a rep assume someone else is handling it, which is exactly
+              how a customer's face reaches object storage. */}
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-muted">
+            ระบบไม่เบลอใบหน้าให้อัตโนมัติ — เลี่ยงไม่ให้ลูกค้าหรือพนักงานร้านติดอยู่ในเฟรม
           </p>
         </div>
 
@@ -427,21 +399,6 @@ export default function CaptureScreen() {
           )}
         </AnimatePresence>
 
-        {phase === "CAPTURE" && (
-          <div className="mt-3">
-            <StateSwitcher
-              dark
-              label="สาธิตแบนเนอร์คุณภาพภาพ"
-              value={quality}
-              onChange={setQuality}
-              options={[
-                { value: "READY", label: "พร้อมถ่าย" },
-                { value: "WARN", label: "เตือนคุณภาพ" },
-                { value: "PROCESSING", label: "กำลังประมวลผล" },
-              ]}
-            />
-          </div>
-        )}
       </div>
 
       <span className="sr-only" aria-live="polite">
@@ -487,9 +444,11 @@ function PhotoFacts({ photo }: { photo: CapturedPhoto }) {
         </span>
         <span className="tnum">{(photo.bytes / 1024).toFixed(0)} KB</span>
         <span className="tnum">{photo.processingMs} ms</span>
-        <Link href="/m/captures" className="ml-auto font-medium text-[#7fb0ff] underline-offset-2 hover:underline">
-          ดูบันทึกภาพ
-        </Link>
+        {DEMO_MODE && (
+          <Link href="/m/captures" className="ml-auto font-medium text-[#7fb0ff] underline-offset-2 hover:underline">
+            ดูบันทึกภาพ
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -566,28 +525,6 @@ function AlertIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
       <path d="M12 7.5v5.5M12 16.2h.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function MotionIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 12h4M17 12h4M8 8l-3 4 3 4M16 8l3 4-3 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
-      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function FrameIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M3 8V5a2 2 0 012-2h3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M21 16v3a2 2 0 01-2 2h-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }

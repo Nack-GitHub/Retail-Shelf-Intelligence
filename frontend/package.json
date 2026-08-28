@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "dev:mobile": "next dev --experimental-https -H 0.0.0.0",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:demo": "NEXT_PUBLIC_DEMO_MODE=1 playwright test",
+    "build:demo": "NEXT_PUBLIC_DEMO_MODE=1 next build"
   },
   "dependencies": {
     "motion": "^13.1.1",

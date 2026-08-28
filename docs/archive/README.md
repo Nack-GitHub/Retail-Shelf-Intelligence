@@ -18,8 +18,11 @@ The FastAPI backend and the ML training/inference pipeline, joined only by
 
 Still the reference for the inference contract, the append-only rules on
 `detections` and `shelf_analyses`, and the three standing prohibitions. Also
-records the promotion gates the trained model **fails**, which is why
-`ML_CLIENT` stays on `mock`.
+records the promotion gates the trained model **fails** — it still fails them:
+`shelf-product-yolo26l-960` passes mAP@0.5 and misses recall and precision on
+the gap class. `ML_CLIENT` is nevertheless `http`, decided 2026-08-28, because
+`mock` picks its detections from the filename and cannot be tested against.
+See [uat.md](../uat.md) for what that means for anyone testing.
 
 ### [frontend-integration/](frontend-integration/) — connecting the app to the API
 

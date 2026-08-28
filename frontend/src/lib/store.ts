@@ -17,8 +17,15 @@ function isOffline(err: unknown): boolean {
   return err instanceof ApiError && (err.code === "OFFLINE" || err.code === "TIMEOUT");
 }
 
-/* Demo-only state. When the API lands, everything under `visit` becomes
-   server state (React Query) and this store keeps only UI concerns. */
+/* The state of the visit in progress. Despite the name this is not demo
+   data: visitId, findings, tasks and checkout all come from the API and are
+   written back to it. What lives here rather than on the server is the part a
+   rep would lose by walking between screens — the shot awaiting review, the
+   photo log, which shelf they picked.
+
+   The `useDemo` / `DemoState` names are left over from the build that had no
+   API. Renaming them touches 13 files and changes nothing anyone can see, so
+   it is deliberately not part of this round. */
 
 export interface DemoState {
   storeId: string | null;

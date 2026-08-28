@@ -4,10 +4,11 @@
    Photo intake — the single door every image enters through, whether it
    came from the device camera or from a file the rep picked.
 
-   Nothing is uploaded yet. Each photo is decoded, resized to the size the
-   API will eventually receive, given the idempotency key the commit
-   endpoint requires, and logged. When the backend lands, the only change
-   here is that `intakePhoto` also POSTs the blob.
+   This function does not upload. Each photo is decoded, resized to the size
+   the API accepts, given the idempotency key the commit endpoint requires,
+   and logged. The upload itself belongs to the processing screen, which runs
+   only after the rep has kept the shot — so a discarded photo never leaves
+   the device, and the screens can say so truthfully.
    ------------------------------------------------------------------ */
 
 export type PhotoSource = "CAMERA" | "UPLOAD";
@@ -159,7 +160,9 @@ export async function intakePhoto(
   return photo;
 }
 
-/** Structured console record — stands in for the upload until the API exists. */
+/** Structured console record of what intake produced. Kept for field
+ *  debugging: when a rep reports a photo the model could not read, this is the
+ *  only place the original dimensions and the resize result survive. */
 function logPhoto(p: CapturedPhoto) {
   const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
   console.groupCollapsed(
@@ -182,7 +185,7 @@ function logPhoto(p: CapturedPhoto) {
   console.info("device", p.device);
   console.info("blob", p.blob);
   console.info(
-    "ยังไม่ส่งขึ้นเซิร์ฟเวอร์ — เมื่อต่อ API แล้ว จุดนี้จะเรียก POST /v1/captures/presign แล้ว PUT blob ตรงไปที่ object storage",
+    "รับภาพเข้าเครื่องแล้ว — การอัปโหลด (presign + PUT ไป object storage) เกิดที่หน้าประมวลผล หลังผู้ถ่ายกด “ใช้ภาพนี้”",
   );
   console.groupEnd();
 }

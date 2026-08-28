@@ -9,6 +9,12 @@ import { Bar } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
 import { Scroll } from "@/components/mobile/Chrome";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { listItem, stagger, fadeUp } from "@/lib/motion";
@@ -23,12 +29,6 @@ import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import type { Store } from "@/types";
 
 type View = "LIST" | "EMPTY" | "SYNCING";
-
-/** Minutes per store, used only for the "roughly this long" header estimate.
- *  A real per-store duration arrives with visit history; until a store has
- *  been visited there is nothing to average, so one honest constant beats a
- *  fabricated per-store number. */
-const MINUTES_PER_STORE = 22;
 
 export default function TodayRouteScreen() {
   const flow = useFlow("ROUTE");
@@ -53,7 +53,13 @@ export default function TodayRouteScreen() {
   }, []);
 
   const stores = useMemo(() => route.data ?? [], [route.data]);
-  const totalMinutes = stores.length * MINUTES_PER_STORE;
+
+  /* The header used to promise "N ชม. โดยประมาณ" from a flat 22 minutes a
+     store. It was the same number whether the route held a hypermarket or a
+     kiosk, it never moved as visits accumulated, and the manager's route
+     planner — which averages each store's own closed visits — disagreed with
+     it. The store count and the distance are both measured, so they stay;
+     the duration had nothing behind it and is gone. */
   const totalDistanceKm = useMemo(
     () => stores.reduce((sum, s) => sum + (s.distanceKm ?? 0), 0),
     [stores],
@@ -103,7 +109,7 @@ export default function TodayRouteScreen() {
           </button>
         </div>
         <AnimatePresence>
-          {view === "SYNCING" && (
+          {DEMO_MODE && view === "SYNCING" && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
@@ -130,7 +136,7 @@ export default function TodayRouteScreen() {
           <LoadingBlock label="กำลังโหลดเส้นทางวันนี้…" />
         ) : route.state === "ERROR" ? (
           <ErrorBlock message={route.error ?? ""} onRetry={route.reload} />
-        ) : view === "EMPTY" || stores.length === 0 ? (
+        ) : (DEMO_MODE && view === "EMPTY") || stores.length === 0 ? (
           <EmptyRoute />
         ) : (
           <>
@@ -143,8 +149,7 @@ export default function TodayRouteScreen() {
               <div>
                 <p className="text-[13px] text-muted">แผนวันนี้</p>
                 <p className="text-[15px] font-semibold">
-                  <span className="tnum">{stores.length}</span> ร้าน ·{" "}
-                  <span className="tnum">{Math.round(totalMinutes / 60)}</span> ชม. โดยประมาณ
+                  <span className="tnum">{stores.length}</span> ร้าน
                 </p>
               </div>
               <div className="text-right">
@@ -161,7 +166,7 @@ export default function TodayRouteScreen() {
               animate="show"
               className="flex flex-col gap-3"
             >
-              {(view === "SYNCING" ? stores.slice(0, 3) : stores).map((s, i) => (
+              {(DEMO_MODE && view === "SYNCING" ? stores.slice(0, 3) : stores).map((s, i) => (
                 <motion.li key={s.id} variants={listItem}>
                   <motion.button
                     type="button"
@@ -228,6 +233,7 @@ export default function TodayRouteScreen() {
           </>
         )}
 
+        {DEMO_MODE && (
         <div className="mt-5">
           <StateSwitcher
             value={view}
@@ -239,6 +245,7 @@ export default function TodayRouteScreen() {
             ]}
           />
         </div>
+        )}
       </Scroll>
     </>
   );

@@ -71,21 +71,29 @@ async def load(db: AsyncSession, store_ids: list[UUID] | None = None) -> dict[UU
 
     # A SKU found missing on more than one visit is a shelf the store is not
     # keeping stocked, not a one-off — it weighs into the score separately.
-    repeat_query = (
-        select(
-            Visit.store_id,
-            func.count(func.distinct(GapFindingRow.sku_code)),
-        )
+    #
+    # The HAVING is the whole measurement. Counting distinct confirmed SKUs
+    # instead, as this did, answers "how many different gaps has anyone ever
+    # confirmed here" — which grows with the size of the shelf and the number
+    # of visits, and never falls when a store fixes its restocking. It read as
+    # plausible only because the demo planogram had six SKUs to draw from; on a
+    # real catalogue it saturates the score's repeat term at every busy store.
+    repeated_skus = (
+        select(Visit.store_id.label("store_id"))
         .join(Capture, Capture.visit_id == Visit.id)
         .join(GapFindingRow, GapFindingRow.capture_id == Capture.id)
         .where(GapFindingRow.verification_status == "CONFIRMED")
-        .group_by(Visit.store_id)
+        .group_by(Visit.store_id, GapFindingRow.sku_code)
+        .having(func.count(func.distinct(Visit.id)) > 1)
     )
 
     if scope is not None:
         osa_query = osa_query.where(Visit.store_id.in_(scope))
         visit_query = visit_query.where(Visit.store_id.in_(scope))
-        repeat_query = repeat_query.where(Visit.store_id.in_(scope))
+        repeated_skus = repeated_skus.where(Visit.store_id.in_(scope))
+
+    grouped = repeated_skus.subquery()
+    repeat_query = select(grouped.c.store_id, func.count()).group_by(grouped.c.store_id)
 
     last_osa = dict((await db.execute(osa_query)).all())
     last_seen = dict((await db.execute(visit_query)).all())

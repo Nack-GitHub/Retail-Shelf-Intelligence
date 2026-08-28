@@ -5,8 +5,20 @@ import { defineConfig, devices } from "@playwright/test";
    redis, minio, the API and a worker just to prove that the back button lands on
    the right screen would make this suite the one nobody runs. */
 
+/* Two configurations ship from this repo, and only one of them is what users
+   get. `npm run test:e2e` exercises the real build — no NEXT_PUBLIC_DEMO_MODE,
+   so demo-off.spec.ts can assert the reviewer controls are gone.
+   `npm run test:e2e:demo` sets the flag and runs demo-on.spec.ts instead.
+
+   Different ports on purpose: `reuseExistingServer` would otherwise hand a
+   demo run whichever dev server happened to be up, and a suite that silently
+   tests the wrong bundle is worse than one that does not run. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
+const PORT = DEMO_MODE ? 3001 : 3000;
+
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: DEMO_MODE ? "**/demo-off.spec.ts" : "**/demo-on.spec.ts",
   /* A full walk crosses nine screens and decides eight gaps one at a time, and
      the verification screen deliberately holds each verdict on screen for a
      beat. Thirty seconds is a budget for a unit test, not for that. */
@@ -19,7 +31,7 @@ export default defineConfig({
   reporter: process.env.CI ? "line" : [["list"]],
 
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
     // A rep holds the phone in portrait; the layout only becomes the framed
     // desktop mock above the lg breakpoint, and that frame is not what ships.
@@ -31,7 +43,7 @@ export default defineConfig({
 
   projects: [
     {
-      name: "chromium",
+      name: DEMO_MODE ? "chromium-demo" : "chromium",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },
@@ -48,8 +60,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
+    command: `npm run dev -- -p ${PORT}`,
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     stdout: "ignore",

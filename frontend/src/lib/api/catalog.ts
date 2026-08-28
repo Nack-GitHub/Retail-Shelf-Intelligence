@@ -8,6 +8,7 @@ interface CategoryWire {
   skuCount: number;
   /** ratio 0..1, or null when this store has never had this shelf analysed */
   lastOsa: number | null;
+  supported: boolean;
 }
 
 /** The shelves a rep can choose to photograph at this store.

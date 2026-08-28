@@ -87,20 +87,3 @@ export function slotBox(s: Slot) {
   const row = ROWS[s.row];
   return { x: s.x, y: row.board - row.height, w: s.w, h: row.height };
 }
-
-function position(x: number, w: number): "ซ้าย" | "กลาง" | "ขวา" {
-  const c = x + w / 2;
-  return c < 700 ? "ซ้าย" : c < 1300 ? "กลาง" : "ขวา";
-}
-
-
-/** The same shelf after a restock: filled gaps become product.
- *
- *  Used by the before/after comparison when there is no real after-photo to
- *  put beside the before-photo. */
-export function slotsAfter(filledGapIds: string[]): Slot[] {
-  const filled = new Set(filledGapIds.map((id) => id.replace(/^gap-/, "")));
-  return SLOTS.map((s) =>
-    filled.has(s.id) ? { ...s, kind: "PRODUCT" as const, confidence: 0.95 } : s,
-  );
-}

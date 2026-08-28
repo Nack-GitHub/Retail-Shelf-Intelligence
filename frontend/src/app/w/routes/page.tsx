@@ -216,7 +216,7 @@ export default function RoutePlanning() {
                 </p>
               ) : coverage < 100 ? (
                 <p className="mt-2 text-[13px] leading-relaxed text-[#b45f04]">
-                  ยังมีร้านเสี่ยงสูงที่ถูกตัดออกจากแผน ควรทบทวนก่อนอนุมัติ
+                  ยังมีร้านเสี่ยงสูงที่ถูกตัดออกจากแผน ควรทบทวนก่อน
                 </p>
               ) : null}
             </div>
@@ -234,18 +234,24 @@ export default function RoutePlanning() {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
                       <path d="M5 12.5l5 5L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    อนุมัติเส้นทางแล้ว
+                    ทำเครื่องหมายว่าตรวจแล้ว
                   </motion.div>
                 ) : (
                   <motion.div key="cta" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <Button full onClick={() => setApproved(true)}>
-                      อนุมัติเส้นทางนี้
+                      ทำเครื่องหมายว่าตรวจแล้ว
                     </Button>
                   </motion.div>
                 )}
               </AnimatePresence>
+              {/* This used to read "การอนุมัติจะส่งแผนไปที่แอปของพนักงานในพื้นที่".
+                  Nothing is sent: the ordering and the approval both live in
+                  this component's state and are gone on reload. The sentence
+                  about not contacting stores is a standing guardrail
+                  (docs/ui.md §1.5 ข้อ 6) and stays. */}
               <p className="mt-3 text-[12px] leading-relaxed text-faint">
-                การอนุมัติจะส่งแผนไปที่แอปของพนักงานในพื้นที่
+                ลำดับที่จัดไว้และการทำเครื่องหมายนี้ยังไม่ถูกบันทึก —
+                เป็นการดูตัวอย่างในหน้านี้เท่านั้น รีเฟรชแล้วจะกลับไปเป็นลำดับตามความเสี่ยง
                 ระบบไม่ติดต่อร้านค้าและไม่กำหนดโควตาต่อคน
               </p>
             </div>

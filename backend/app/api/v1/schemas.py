@@ -100,6 +100,10 @@ class ShelfCategoryOut(ApiModel):
     bays: list[str]
     sku_count: int
     last_osa: float | None
+    # False means the active model cannot read this shelf. The card is still
+    # returned so the catalogue is not silently shorter than the store, but the
+    # app must not let a rep photograph it — see catalog.py.
+    supported: bool
 
 
 # ── Visits ───────────────────────────────────────────────────────────────────

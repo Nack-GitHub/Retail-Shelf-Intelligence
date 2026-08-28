@@ -53,10 +53,15 @@ test("the shot taken before leaving is still there on return", async ({ page }) 
   await walkToCapture(page);
   await takePhoto(page);
 
-  await page.getByRole("link", { name: "ดูบันทึกภาพ" }).click();
-  await page.waitForURL("**/m/captures");
-
+  // Was: click through to the capture log and back. That screen is demo-only
+  // now, and page.goto() would not do as a replacement — a full document load
+  // clears the in-memory visit, so the shot would be gone for a reason that
+  // has nothing to do with the bug. History back/forward is a client-side
+  // navigation, which is what the rep's gesture actually is.
   await page.goBack();
+  await page.waitForURL(`**/m/store/${STORE_ID}/category`);
+
+  await page.goForward();
   await page.waitForURL(`**/m/store/${STORE_ID}/capture`);
 
   await expect(page.getByRole("button", { name: "ใช้ภาพนี้" })).toBeVisible();

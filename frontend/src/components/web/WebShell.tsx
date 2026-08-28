@@ -11,6 +11,12 @@ import { logout } from "@/lib/api/auth";
 import { useResource } from "@/lib/api/useResource";
 import { springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 /* The area picker lives in the shell, and every screen under it reports on
    whichever area is selected. Passing it through context rather than a query
@@ -96,8 +102,22 @@ export function WebShell({ children }: { children: React.ReactNode }) {
           <p className="mt-2 text-[14px] leading-relaxed text-[#93a0b3]">
             คุณกำลังเข้าสู่ระบบด้วยบัญชี <strong className="text-white">พนักงานภาคสนาม ({user.email})</strong> ซึ่งออกแบบมาสำหรับแอปมือถือ (/m)
           </p>
+          {/* This used to name manager@shelfeye.demo and admin@shelfeye.demo.
+              On a real deployment those accounts do not exist, and telling a
+              rep to sign in as one sends them to a login that cannot succeed. */}
           <p className="mt-2 text-[13px] leading-relaxed text-[#93a0b3]">
-            หากต้องการดูแดชบอร์ด Web Admin กรุณาสลับไปใช้บัญชี <strong className="text-white">manager@shelfeye.demo</strong> หรือ <strong className="text-white">admin@shelfeye.demo</strong>
+            {DEMO_MODE ? (
+              <>
+                หากต้องการดูแดชบอร์ด Web Admin กรุณาสลับไปใช้บัญชี{" "}
+                <strong className="text-white">manager@shelfeye.demo</strong> หรือ{" "}
+                <strong className="text-white">admin@shelfeye.demo</strong>
+              </>
+            ) : (
+              <>
+                หากต้องการดูแดชบอร์ดนี้ ต้องใช้บัญชีที่มีสิทธิ์ผู้จัดการพื้นที่หรือผู้ดูแลระบบ
+                กรุณาติดต่อผู้ดูแลระบบขององค์กร
+              </>
+            )}
           </p>
           <div className="mt-6 flex flex-col gap-2.5">
             <button
@@ -134,9 +154,11 @@ export function WebShell({ children }: { children: React.ReactNode }) {
           <span className="text-[16px] font-bold tracking-tight">
             Shelf<span className="text-primary">Eye</span>
           </span>
-          <span className="ml-auto rounded-pill bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted lg:ml-0">
-            demo
-          </span>
+          {DEMO_MODE && (
+            <span className="ml-auto rounded-pill bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted lg:ml-0">
+              demo
+            </span>
+          )}
         </div>
 
         <nav className="scroll-x flex gap-1 px-3 pb-3 lg:flex-col lg:pb-0">

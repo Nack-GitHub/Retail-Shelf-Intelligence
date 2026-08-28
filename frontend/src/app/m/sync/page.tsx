@@ -15,6 +15,12 @@ import type { QueuedOperation } from "@/lib/offline/queue";
 import { useOnline } from "@/lib/offline/useOnline";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 const KIND_LABEL = {
   CAPTURE: "ภาพถ่าย",
@@ -149,6 +155,7 @@ export default function SyncQueueScreen() {
           </AnimatePresence>
         </motion.ul>
 
+        {DEMO_MODE && (
         <Link
           href="/m/captures"
           className="mt-5 flex items-center gap-3 rounded-card border border-line bg-bg px-4 py-3.5 transition-colors hover:border-line-strong"
@@ -163,13 +170,14 @@ export default function SyncQueueScreen() {
           <span className="min-w-0 flex-1">
             <span className="block text-[15px] font-semibold">บันทึกภาพในเครื่อง</span>
             <span className="block text-[13px] text-muted">
-              ภาพที่ถ่ายและอัปโหลดในรอบนี้ · ยังไม่ได้ส่งออก
+              ภาพที่ถ่ายและอัปโหลดในรอบนี้ · บันทึกในเครื่อง
             </span>
           </span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="shrink-0 text-faint" aria-hidden>
             <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
+        )}
 
       </Scroll>
 

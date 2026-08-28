@@ -3,7 +3,15 @@
 import { cn } from "@/lib/cn";
 
 /** Demo affordance: lets a reviewer see every state the spec asks for
- *  without needing to fake network or data conditions. */
+ *  without needing to fake network or data conditions.
+ *
+ *  Every caller renders it behind `DEMO_MODE &&`, which folds to `false` at
+ *  build time, so in a shipped build nothing constructs this and no screen can
+ *  reach it. The module itself is still emitted — Turbopack keeps an imported
+ *  module even once its only reference has been folded away — so this label
+ *  survives a grep of .next/static. That is residue, not a control: there is
+ *  no code path left that renders it. Deleting the file is the only way to
+ *  remove the string, and that would take the demo build with it. */
 export function StateSwitcher<T extends string>({
   value,
   onChange,

@@ -11,7 +11,6 @@ import { Segmented } from "@/components/ui/Controls";
 import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill } from "@/components/ui/Badge";
 import { osaStatusOf } from "@/components/ui/Badge";
-import { slotsAfter } from "@/components/shelf/placeholder-shelf";
 import { useFlow } from "@/lib/flow/useFlow";
 import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
@@ -24,7 +23,6 @@ export default function CompareScreen() {
   const flow = useFlow("COMPARE");
 
   const analysis = useDemo((s) => s.analysis);
-  const tasks = useDemo((s) => s.tasks);
   const afterCaptured = useDemo((s) => s.afterCaptured);
   const markAfterCaptured = useDemo((s) => s.markAfterCaptured);
   const beforePhoto = useDemo((s) => s.photo);
@@ -61,7 +59,14 @@ export default function CompareScreen() {
   });
 
   const osaBefore = analysis?.osaScore ?? null;
-  const after = slotsAfter(tasks.filter((t) => t.status === "FIXED").map((t) => t.findingId));
+
+  /* This screen is captioned "หลักฐานการแก้ไขที่ร้านนี้". It used to fill the
+     AFTER side with slotsAfter() — the drawn shelf with every ticked task's gap
+     painted over — whenever no after-photo existed, and slide it against the
+     real BEFORE photograph. That is a manufactured before/after: the "proof"
+     moved because the rep ticked a checkbox, not because the shelf changed.
+     No after-photo now means no comparison, and the screen says why. */
+  const hasComparison = !!afterPhoto;
 
   /** Sends the AFTER shot through the same path as the BEFORE shot.
    *
@@ -167,7 +172,11 @@ export default function CompareScreen() {
                 autoPlay
               />
             ) : (
-              <CaptureFrame slots={after} fit="contain" alt="ภาพชั้นวางหลังเติมของ" />
+              /* The stand-in for a machine with no camera. It shows the shelf
+                 as-is, not the shelf with every ticked gap painted in: this is
+                 a viewfinder, and a viewfinder that already shows the work
+                 done is telling the rep the photo is unnecessary. */
+              <CaptureFrame fit="contain" alt="ภาพชั้นวางตัวอย่าง" />
             )}
           </div>
           <div className="pointer-events-none absolute left-0 right-0 top-1/2 aspect-[16/9] w-full -translate-y-1/2 p-1.5">
@@ -275,7 +284,22 @@ export default function CompareScreen() {
 
       <Scroll className="pb-5">
         <motion.div variants={fadeUp} initial="hidden" animate="show">
-          {mode === "SLIDER" ? (
+          {!hasComparison ? (
+            <div className="flex flex-col items-center bg-ink px-6 py-14 text-center">
+              <div className="grid size-14 place-items-center rounded-full bg-ink-2 text-ink-muted">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <rect x="3" y="6" width="18" height="14" rx="2.5" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="2" />
+                  <path d="M8.5 6l1.2-2h4.6L15.5 6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h2 className="mt-4 text-[17px] font-semibold text-ink-text">ยังไม่มีภาพหลังเติมของ</h2>
+              <p className="mt-1.5 max-w-[280px] text-[14px] leading-relaxed text-ink-muted">
+                ต้องมีภาพจริงทั้งก่อนและหลังจึงจะเทียบกันได้
+                — งานที่ติ๊กว่าแก้แล้วยังถูกบันทึกไว้ตามปกติ
+              </p>
+            </div>
+          ) : mode === "SLIDER" ? (
             <div
               ref={trackRef}
               className="relative aspect-[16/9] touch-none select-none overflow-hidden bg-ink"
@@ -288,7 +312,7 @@ export default function CompareScreen() {
               }}
             >
               <div className="absolute inset-0">
-                <CaptureFrame photo={afterPhoto} slots={after} fit="contain" alt="ภาพหลังเติมของ" />
+                <CaptureFrame photo={afterPhoto} fit="contain" alt="ภาพหลังเติมของ" />
               </div>
               <div
                 className="absolute inset-y-0 left-0 overflow-hidden"
@@ -337,7 +361,7 @@ export default function CompareScreen() {
                 </figcaption>
               </figure>
               <figure className="relative aspect-[9/11] overflow-hidden bg-ink">
-                <CaptureFrame photo={afterPhoto} slots={after} fit="cover" alt="ภาพหลังเติมของ" />
+                <CaptureFrame photo={afterPhoto} fit="cover" alt="ภาพหลังเติมของ" />
                 <figcaption className="absolute inset-x-2 bottom-2 rounded-pill bg-ok/90 px-2.5 py-1.5 text-center text-[12px] font-semibold text-white">
                   หลัง · {osaAfter}%
                 </figcaption>

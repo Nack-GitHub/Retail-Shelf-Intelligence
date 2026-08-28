@@ -16,9 +16,27 @@ def test_returns_the_categories_a_rep_can_photograph(
     categories = response.json()
     assert len(categories) >= 5
     for category in categories:
-        assert set(category) == {"id", "name", "bays", "skuCount", "lastOsa"}
+        assert set(category) == {"id", "name", "bays", "skuCount", "lastOsa", "supported"}
         assert category["bays"], "a category with no bay cannot be photographed"
         assert category["skuCount"] > 0
+
+
+def test_only_shelves_the_model_can_read_are_supported(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Every model trained here has learned a coffee aisle and nothing else.
+
+    A milk shelf photographed through this system comes back described in
+    coffee classes, so the catalogue has to say which shelves the app may
+    actually open the camera on.
+    """
+    categories = client.get(
+        f"/v1/categories?storeId={visit['storeId']}", headers=rep_auth
+    ).json()
+    supported = [c["id"] for c in categories if c["supported"]]
+
+    assert supported == ["cat-coffee"]
+    assert len(categories) > len(supported), "unsupported shelves are listed, not hidden"
 
 
 def test_store_id_is_required(client: TestClient, rep_auth: dict[str, str]) -> None:

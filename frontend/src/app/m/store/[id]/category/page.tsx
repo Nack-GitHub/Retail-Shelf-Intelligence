@@ -31,10 +31,14 @@ export default function CategoryScreen() {
 
   // Preselect the first shelf once the catalogue arrives, so the rep taps
   // "open camera" rather than choosing before there is anything to choose.
+  // The first SUPPORTED one: preselecting a shelf the model cannot read would
+  // put the rep one tap from a disabled button with no explanation.
   useEffect(() => {
     if (catId || categories.length === 0) return;
-    setCatId(categories[0].id);
-    setBay(categories[0].bays[0] ?? null);
+    const first = categories.find((c) => c.supported);
+    if (!first) return;
+    setCatId(first.id);
+    setBay(first.bays[0] ?? null);
   }, [categories, catId]);
 
   const cat = categories.find((c) => c.id === catId) ?? null;
@@ -80,17 +84,21 @@ export default function CategoryScreen() {
               <motion.li key={c.id} variants={listItem}>
                 <motion.button
                   type="button"
-                  whileTap={{ scale: 0.985 }}
+                  whileTap={c.supported ? { scale: 0.985 } : undefined}
+                  disabled={!c.supported}
                   onClick={() => {
                     setCatId(c.id);
                     setBay(c.bays[0]);
                   }}
                   aria-pressed={active}
+                  aria-describedby={c.supported ? undefined : `unsupported-${c.id}`}
                   className={cn(
                     "w-full rounded-card border p-4 text-left transition-colors",
-                    active
-                      ? "border-primary bg-primary-soft"
-                      : "border-line bg-bg shadow-[var(--shadow-card)] hover:border-line-strong",
+                    !c.supported
+                      ? "cursor-not-allowed border-line bg-surface-2 opacity-60"
+                      : active
+                        ? "border-primary bg-primary-soft"
+                        : "border-line bg-bg shadow-[var(--shadow-card)] hover:border-line-strong",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -109,7 +117,9 @@ export default function CategoryScreen() {
                         <span className="tnum">{c.bays.length}</span> ชั้นวาง
                       </p>
                     </div>
-                    {c.lastOsa !== null ? (
+                    {!c.supported ? (
+                      <Pill tone="neutral">รุ่นนี้ยังอ่านไม่ได้</Pill>
+                    ) : c.lastOsa !== null ? (
                       <Pill tone={c.lastOsa >= 90 ? "ok" : c.lastOsa >= 75 ? "warn" : "danger"}>
                         <span className="tnum">OSA {c.lastOsa}%</span>
                       </Pill>
@@ -117,6 +127,15 @@ export default function CategoryScreen() {
                       <Pill tone="neutral">ยังไม่เคยตรวจ</Pill>
                     )}
                   </div>
+
+                  {!c.supported && (
+                    <p
+                      id={`unsupported-${c.id}`}
+                      className="mt-2.5 text-[13px] leading-relaxed text-muted"
+                    >
+                      โมเดลที่ใช้อยู่เรียนรู้จากชั้นกาแฟเท่านั้น ถ่ายชั้นนี้แล้วผลจะออกมาเป็นสินค้ากาแฟ
+                    </p>
+                  )}
 
                   <AnimatePresence initial={false}>
                     {active && (

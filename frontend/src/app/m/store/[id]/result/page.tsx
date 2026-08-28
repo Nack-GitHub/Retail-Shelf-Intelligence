@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/Button";
 import { OsaStatusPill, Pill } from "@/components/ui/Badge";
 import { CountUp } from "@/components/ui/Progress";
 import { StateSwitcher } from "@/components/mobile/StateSwitcher";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
@@ -55,7 +61,10 @@ export default function ResultScreen() {
     [gapCount, lowConf],
   );
 
-  if (view === "NO_SHELF") {
+  /* The real "no shelf in this photo" path is a FAILED job, which /processing
+     renders and never forwards here — so this screen is reachable only from
+     the switcher above it. It stays for demos and leaves the bundle with them. */
+  if (DEMO_MODE && view === "NO_SHELF") {
     return (
       <NoShelfState
         onRetake={() => flow.go("CAPTURE", { replace: true })}
@@ -204,7 +213,7 @@ export default function ResultScreen() {
           </motion.div>
 
           <AnimatePresence>
-            {(view === "LOW_CONF" || lowConf > 0) && (
+            {((DEMO_MODE && view === "LOW_CONF") || lowConf > 0) && (
               <motion.div
                 variants={listItem}
                 initial="hidden"
@@ -228,6 +237,7 @@ export default function ResultScreen() {
             )}
           </AnimatePresence>
 
+          {DEMO_MODE && (
           <motion.div variants={listItem}>
             <StateSwitcher
               value={view}
@@ -239,6 +249,7 @@ export default function ResultScreen() {
               ]}
             />
           </motion.div>
+          )}
         </motion.div>
       </Scroll>
 
@@ -331,6 +342,7 @@ function NoShelfState({
           </ul>
         </motion.div>
 
+        {DEMO_MODE && (
         <div className="mt-4">
           <StateSwitcher
             value={view}
@@ -342,6 +354,7 @@ function NoShelfState({
             ]}
           />
         </div>
+        )}
       </Scroll>
       <BottomBar>
         <Button size="lg" full onClick={onRetake}>

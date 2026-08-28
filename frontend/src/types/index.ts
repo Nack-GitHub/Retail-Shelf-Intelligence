@@ -1,6 +1,6 @@
-/** Domain types — mirrors the shape the backend contract will return.
- *  Kept in one place so swapping mock data for the real API is a
- *  data-layer change only, never a component change. */
+/** Domain types — the shape the backend contract returns.
+ *  Kept in one place so a change to the wire format is a data-layer change
+ *  only, never a component change. */
 
 export type RiskBand = "HIGH" | "MEDIUM" | "LOW";
 export type OsaStatus = "OK" | "LOW" | "CRITICAL";
@@ -38,6 +38,9 @@ export interface ShelfCategory {
   skuCount: number;
   /** percent 0-100, or null when this category has never been photographed here */
   lastOsa: number | null;
+  /** false when the active model cannot read this shelf — the card is shown
+   *  but the camera must not open on it */
+  supported: boolean;
 }
 
 /** Bounding boxes are ALWAYS absolute pixels in the source image

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
@@ -10,6 +11,12 @@ import { Pill } from "@/components/ui/Badge";
 import { useDemo } from "@/lib/store";
 import { formatBytes, type CapturedPhoto } from "@/lib/capture";
 import { listItem, stagger, fadeUp } from "@/lib/motion";
+/* Read here rather than imported from a shared module on purpose: Turbopack
+   folds `process.env.NEXT_PUBLIC_DEMO_MODE` into a literal at the use site, but
+   a `const` re-exported from another module stays a runtime lookup — the branch
+   survives minification and drags the demo-only components into the bundle with
+   it. Verified by grepping .next/static both ways. See next.config.ts. */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
 /** Everything the intake step recorded this session. Stands in for the
  *  upload log until the API exists — and unlike a console, it is readable
@@ -23,7 +30,18 @@ export default function CaptureLogScreen() {
   const log = useDemo((s) => s.photoLog);
   const clear = useDemo((s) => s.clearPhotoLog);
 
+  /* Capture ids, idempotency keys and the face-blur method are debugging
+     output, not something a rep has any use for. The screen that answers
+     their actual question — "has my work been sent?" — is the sync queue, so
+     outside a demo build this route hands over to it rather than 404ing on a
+     link somebody bookmarked. */
+  useEffect(() => {
+    if (!DEMO_MODE) router.replace("/m/sync");
+  }, [router]);
+
   const totalBytes = log.reduce((n, p) => n + p.bytes, 0);
+
+  if (!DEMO_MODE) return null;
 
   return (
     <>
@@ -45,8 +63,9 @@ export default function CaptureLogScreen() {
           </svg>
           <p className="text-[13px] leading-relaxed text-primary-ink">
             ทุกภาพที่ถ่ายหรืออัปโหลดจะผ่านฟังก์ชันรับภาพชุดเดียวกัน
-            ย่อขนาดให้ไม่เกิน 1920 px แล้วบันทึกไว้ในหน้านี้และใน console
-            <strong className="font-semibold"> ยังไม่มีการส่งข้อมูลออกนอกเครื่อง</strong>
+            ย่อขนาดให้ไม่เกิน 1920 px แล้วบันทึกไว้ในหน้านี้
+            <strong className="font-semibold"> การส่งขึ้นระบบเกิดที่หน้าประมวลผล</strong>{" "}
+            หลังผู้ถ่ายกด “ใช้ภาพนี้” — หน้านี้เป็นบันทึกในเครื่อง ไม่ใช่คิวรอส่ง
             <span className="mt-1 block text-primary-ink/75">
               บันทึกนี้อยู่ในหน่วยความจำของแท็บ — รีเฟรชหน้าแล้วจะหาย
             </span>
@@ -140,7 +159,7 @@ function LogRow({ photo }: { photo: CapturedPhoto }) {
         <dd className="truncate font-mono text-[12px]">{photo.idempotencyKey}</dd>
         <dt className="text-[12px] text-muted">face blur</dt>
         <dd className="truncate font-mono text-[12px]">
-          applied=false · {photo.faceBlur.method.toLowerCase()}
+          applied={String(photo.faceBlur.applied)} · {photo.faceBlur.method.toLowerCase()}
         </dd>
       </dl>
     </motion.li>
