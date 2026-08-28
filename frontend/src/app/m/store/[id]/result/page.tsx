@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { DetectionOverlay, type OverlayFilter } from "@/components/shelf/DetectionOverlay";
@@ -13,6 +13,8 @@ import { StateSwitcher } from "@/components/mobile/StateSwitcher";
 import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo } from "@/lib/store";
 import { fadeUp, listItem, stagger, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
@@ -21,7 +23,7 @@ type View = "NORMAL" | "LOW_CONF" | "NO_SHELF";
 
 export default function ResultScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("RESULT");
 
   const analysis = useDemo((s) => s.analysis);
   const photo = useDemo((s) => s.photo);
@@ -54,24 +56,18 @@ export default function ResultScreen() {
   );
 
   if (view === "NO_SHELF") {
-    return <NoShelfState onRetake={() => router.push(`/m/store/${id}/capture`)} onSwitch={setView} view={view} />;
-  }
-
-  // No analysis in memory — a reload, or someone deep-linking here. Say so and
-  // offer the way back, rather than rendering an empty shell.
-  if (!analysis) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-bg px-6 text-center">
-        <h1 className="text-[18px] font-semibold">ยังไม่มีผลการตรวจ</h1>
-        <p className="max-w-[280px] text-[14px] leading-relaxed text-muted">
-          ผลการตรวจจะแสดงที่นี่หลังถ่ายภาพชั้นวาง
-        </p>
-        <Button size="lg" onClick={() => router.replace(`/m/store/${id}/capture`)}>
-          เปิดกล้อง
-        </Button>
-      </div>
+      <NoShelfState
+        onRetake={() => flow.go("CAPTURE", { replace: true })}
+        onBack={flow.back}
+        onSwitch={setView}
+        view={view}
+      />
     );
   }
+
+  // No analysis in memory — a reload, or someone deep-linking here.
+  if (flow.blocked || !analysis) return <FlowGuardBlock flow={flow} />;
 
   return (
     <>
@@ -81,6 +77,7 @@ export default function ResultScreen() {
           .filter(Boolean)
           .join(" · ")}
         progress={0.62}
+        onBack={flow.back}
         right={
           <Pill tone="neutral" className="text-[12px]">
             <span className="tnum">{(analysis.inferenceMs / 1000).toFixed(1)} วิ</span>
@@ -251,11 +248,11 @@ export default function ResultScreen() {
             variant="secondary"
             size="lg"
             className="flex-1"
-            onClick={() => router.push(`/m/store/${id}/capture`)}
+            onClick={() => flow.go("CAPTURE", { replace: true })}
           >
             ถ่ายใหม่
           </Button>
-          <Button size="lg" className="flex-[1.6]" onClick={() => router.push(`/m/store/${id}/verify`)}>
+          <Button size="lg" className="flex-[1.6]" onClick={() => flow.go("VERIFY")}>
             ตรวจสอบทีละจุด
           </Button>
         </div>
@@ -293,16 +290,18 @@ function CountTile({
 
 function NoShelfState({
   onRetake,
+  onBack,
   onSwitch,
   view,
 }: {
   onRetake: () => void;
+  onBack: () => void;
   onSwitch: (v: View) => void;
   view: View;
 }) {
   return (
     <>
-      <MobileHeader title="ผลการตรวจชั้นวาง" progress={0.62} />
+      <MobileHeader title="ผลการตรวจชั้นวาง" progress={0.62} onBack={onBack} />
       <Scroll className="flex flex-col px-4 pt-4 pb-5">
         <motion.div
           variants={fadeUp}

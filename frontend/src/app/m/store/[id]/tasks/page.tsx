@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { SkuThumb } from "@/components/shelf/SkuThumb";
@@ -13,6 +13,8 @@ import { BLOCKED_REASONS } from "@/lib/constants";
 import { fetchStore } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { messageOf } from "@/lib/api/errors";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useVisitStats } from "@/lib/store";
 import type { BlockedReason, Task } from "@/types";
 import { listItem, stagger, springSoft, easeOut, fadeUp } from "@/lib/motion";
@@ -23,7 +25,7 @@ const PRIORITY_TONE = { 1: "danger", 2: "warn", 3: "neutral" } as const;
 
 export default function TaskListScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("TASKS");
   const store = useResource(() => fetchStore(id), [id]).data;
 
   const tasks = useDemo((s) => s.tasks);
@@ -62,11 +64,14 @@ export default function TaskListScreen() {
   const allDone = tasks.length > 0 && openCount === 0;
   const showEmpty = view === "PERFECT" || tasks.length === 0;
 
+  if (flow.blocked) return <FlowGuardBlock flow={flow} />;
+
   return (
     <>
       <MobileHeader
         title="ต้องทำที่ร้านนี้"
         subtitle={store?.name}
+        onBack={flow.back}
         progress={0.8}
         right={
           !showEmpty ? (
@@ -141,7 +146,7 @@ export default function TaskListScreen() {
 
       <BottomBar>
         {showEmpty ? (
-          <Button size="lg" full onClick={() => router.push(`/m/store/${id}/checkout`)}>
+          <Button size="lg" full onClick={() => flow.go("CHECKOUT")}>
             เช็คเอาต์จากร้านนี้
           </Button>
         ) : (
@@ -150,7 +155,7 @@ export default function TaskListScreen() {
               size="lg"
               full
               disabled={!allDone && stats.fixed.length === 0}
-              onClick={() => router.push(`/m/store/${id}/compare`)}
+              onClick={() => flow.go("COMPARE")}
             >
               {allDone ? "ถ่ายภาพหลังเติมของ" : `เหลืออีก ${openCount} รายการ`}
             </Button>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { CropView } from "@/components/shelf/CropView";
@@ -10,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Controls";
 import { REJECT_REASONS } from "@/lib/constants";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo } from "@/lib/store";
 import { messageOf } from "@/lib/api/errors";
 import type { GapFinding, RejectReason } from "@/types";
@@ -17,8 +18,7 @@ import { easeOut, listItem, stagger } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 export default function VerifyScreen() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("VERIFY");
 
   const analysis = useDemo((s) => s.analysis);
   const photo = useDemo((s) => s.photo);
@@ -33,7 +33,10 @@ export default function VerifyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!analysis || findings.length === 0) return null;
+  // Reached with nothing to verify — a reload, or a back press from the task
+  // list after the analysis fell out of memory. This used to render nothing at
+  // all: a blank panel inside the phone frame, with no way forward.
+  if (flow.blocked || !analysis) return <FlowGuardBlock flow={flow} />;
 
   const current = findings[Math.min(index, findings.length - 1)];
   const decided = findings.filter((f) => f.verificationStatus !== "PENDING").length;
@@ -78,7 +81,7 @@ export default function VerifyScreen() {
       // Read back what the SERVER created from the confirmed gaps, rather
       // than assuming the client and the database agree.
       await loadTasks();
-      router.push(`/m/store/${id}/tasks`);
+      flow.go("TASKS");
     } catch (err) {
       setError(messageOf(err));
       setBusy(false);
@@ -91,6 +94,7 @@ export default function VerifyScreen() {
         title="ตรวจสอบผลทีละจุด"
         subtitle={`ตัดสินใจแล้ว ${decided} จาก ${findings.length} จุด`}
         progress={decided / findings.length}
+        onBack={flow.back}
         right={
           <Segmented
             ariaLabel="รูปแบบการตรวจสอบ"

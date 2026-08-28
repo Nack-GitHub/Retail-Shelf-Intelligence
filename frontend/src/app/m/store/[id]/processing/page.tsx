@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
 import { ProgressRing } from "@/components/ui/Progress";
 import { Button } from "@/components/ui/Button";
+import { useFlow } from "@/lib/flow/useFlow";
 import { useDemo } from "@/lib/store";
 import { fetchResult, pollJob, uploadCapture, type Job } from "@/lib/api/captures";
 import { ApiError, messageOf } from "@/lib/api/errors";
@@ -30,7 +31,10 @@ const STEPS = [
 
 export default function ProcessingScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("PROCESSING");
+  // Destructured so the upload effect below depends on the one callback it
+  // calls rather than on the whole flow object.
+  const { go } = flow;
 
   const photo = useDemo((s) => s.photo);
   const visitId = useDemo((s) => s.visitId);
@@ -86,7 +90,7 @@ export default function ProcessingScreen() {
       setAnalysis(finished.captureId, result);
       setStep(3);
       consumeCapture();
-      router.replace(`/m/store/${id}/result`);
+      go("RESULT");
     } catch (err) {
       // No signal. The photo is kept — with its bytes — and replayed when the
       // connection comes back. Losing a rep's shelf photo because the shop has
@@ -118,7 +122,7 @@ export default function ProcessingScreen() {
     } finally {
       running.current = false;
     }
-  }, [photo, visitId, categoryId, bay, setAnalysis, consumeCapture, router, id]);
+  }, [photo, visitId, categoryId, bay, setAnalysis, consumeCapture, go, id]);
 
   useEffect(() => {
     void run();
@@ -145,7 +149,7 @@ export default function ProcessingScreen() {
         </p>
         <Button
           size="lg"
-          onClick={() => router.replace(`/m/store/${id}/${visitId ? "capture" : "checkin"}`)}
+          onClick={() => flow.go(visitId ? "CAPTURE" : "CHECKIN", { replace: true })}
         >
           {visitId ? "เปิดกล้อง" : "ไปหน้าเช็คอิน"}
         </Button>
@@ -169,14 +173,14 @@ export default function ProcessingScreen() {
           ไม่ต้องถ่ายซ้ำ
         </p>
         <div className="mt-2 flex w-full max-w-[300px] flex-col gap-2.5">
-          <Button size="lg" full onClick={() => router.replace("/m/sync")}>
+          <Button size="lg" full onClick={() => flow.exit("/m/sync")}>
             ดูคิวที่รอส่ง
           </Button>
           <Button
             variant="outlineDark"
             size="lg"
             full
-            onClick={() => router.replace(`/m/store/${id}/category`)}
+            onClick={() => flow.go("CATEGORY", { replace: true })}
           >
             ตรวจชั้นวางถัดไป
           </Button>
@@ -228,7 +232,7 @@ export default function ProcessingScreen() {
               <h1 className="mt-4 text-[19px] font-semibold text-ink-text">วิเคราะห์ไม่สำเร็จ</h1>
               <p className="mt-1.5 text-[14px] leading-relaxed text-ink-muted">{failure}</p>
               <div className="mt-6 flex w-full flex-col gap-2.5">
-                <Button size="lg" full onClick={() => router.replace(`/m/store/${id}/capture`)}>
+                <Button size="lg" full onClick={() => flow.go("CAPTURE", { replace: true })}>
                   ถ่ายใหม่
                 </Button>
                 <Button

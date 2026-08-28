@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { Button } from "@/components/ui/Button";
@@ -13,13 +13,15 @@ import { fetchStore, fetchTodaysRoute } from "@/lib/api/routes";
 import { useResource } from "@/lib/api/useResource";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { messageOf } from "@/lib/api/errors";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
 import { listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 export default function CheckoutScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("CHECKOUT");
   const store = useResource(() => fetchStore(id), [id]).data;
   const route = useResource(() => fetchTodaysRoute(), []).data;
 
@@ -72,18 +74,23 @@ export default function CheckoutScreen() {
   const blocked = tasks.filter((t) => t.status === "BLOCKED");
 
   function goNext() {
+    // Replace, not push: this visit is closed, and its summary reads off state
+    // that has just been thrown away. Leaving it one back press behind put a
+    // page of blank figures in front of the rep for a shop they had finished.
     if (nextStore) {
       beginVisit(nextStore.id);
-      router.push(`/m/store/${nextStore.id}/checkin`);
+      flow.go("CHECKIN", { storeId: nextStore.id, replace: true });
     } else {
       resetVisit();
-      router.push("/m");
+      flow.go("ROUTE");
     }
   }
 
+  if (flow.blocked) return <FlowGuardBlock flow={flow} />;
+
   return (
     <>
-      <MobileHeader title="สรุปการเข้าร้าน" subtitle={store?.name} progress={1} />
+      <MobileHeader title="สรุปการเข้าร้าน" subtitle={store?.name} progress={1} onBack={flow.back} />
 
       <Scroll className="px-4 pt-4 pb-5">
         <motion.div variants={stagger(0.06)} initial="hidden" animate="show" className="flex flex-col gap-3">
@@ -221,7 +228,7 @@ export default function CheckoutScreen() {
           type="button"
           onClick={() => {
             resetVisit();
-            router.push("/m");
+            flow.go("ROUTE");
           }}
           className="mt-2 h-10 w-full rounded-btn text-[14px] font-medium text-muted transition-colors hover:bg-surface-2"
         >

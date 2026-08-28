@@ -95,15 +95,20 @@ export function useFlow(id: StepId): Flow {
 
   const goFallback = useCallback(() => navigate(step.fallback, true), [navigate, step.fallback]);
 
-  return {
-    id,
-    storeId,
-    go,
-    exit,
-    back,
-    canGoBack: step.back !== null,
-    blocked: !step.canEnter(visit),
-    blockedCopy: step.blocked,
-    goFallback,
-  };
+  // Memoised because screens put this in dependency arrays. A fresh object per
+  // render would re-run the effect that uploads a photograph, on every render.
+  return useMemo(
+    () => ({
+      id,
+      storeId,
+      go,
+      exit,
+      back,
+      canGoBack: step.back !== null,
+      blocked: !step.canEnter(visit),
+      blockedCopy: step.blocked,
+      goFallback,
+    }),
+    [id, storeId, go, exit, back, goFallback, step, visit],
+  );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
 import { CaptureFrame } from "@/components/shelf/CaptureFrame";
@@ -13,6 +12,8 @@ import { CountUp } from "@/components/ui/Progress";
 import { OsaStatusPill } from "@/components/ui/Badge";
 import { osaStatusOf } from "@/components/ui/Badge";
 import { slotsAfter } from "@/components/shelf/placeholder-shelf";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo, useOsaAfter, useVisitStats } from "@/lib/store";
 import { pollJob, uploadCapture } from "@/lib/api/captures";
 import { messageOf } from "@/lib/api/errors";
@@ -20,8 +21,7 @@ import { easeOut, fadeUp, springSnappy, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
 export default function CompareScreen() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("COMPARE");
 
   const analysis = useDemo((s) => s.analysis);
   const tasks = useDemo((s) => s.tasks);
@@ -144,10 +144,18 @@ export default function CompareScreen() {
     setSplit(Math.max(2, Math.min(98, ((clientX - r.left) / r.width) * 100)));
   }
 
+  if (flow.blocked) return <FlowGuardBlock flow={flow} />;
+
   if (!afterCaptured) {
     return (
       <div className="on-dark relative flex min-h-0 flex-1 flex-col bg-ink">
-        <MobileHeader dark title="ถ่ายภาพหลังเติมของ" subtitle="ถ่ายมุมเดิมกับภาพแรก" progress={0.88} />
+        <MobileHeader
+          dark
+          title="ถ่ายภาพหลังเติมของ"
+          subtitle="ถ่ายมุมเดิมกับภาพแรก"
+          progress={0.88}
+          onBack={flow.back}
+        />
         <div className="relative flex min-h-0 flex-1 items-center overflow-hidden bg-black">
           <div className="relative aspect-[16/9] w-full overflow-hidden">
             {live ? (
@@ -250,6 +258,7 @@ export default function CompareScreen() {
       <MobileHeader
         title="เทียบก่อน–หลัง"
         subtitle="หลักฐานการแก้ไขที่ร้านนี้"
+        onBack={flow.back}
         progress={0.94}
         right={
           <Segmented
@@ -391,7 +400,7 @@ export default function CompareScreen() {
       </Scroll>
 
       <BottomBar>
-        <Button size="lg" full onClick={() => router.push(`/m/store/${id}/checkout`)}>
+        <Button size="lg" full onClick={() => flow.go("CHECKOUT")}>
           สรุปและเช็คเอาต์
         </Button>
       </BottomBar>

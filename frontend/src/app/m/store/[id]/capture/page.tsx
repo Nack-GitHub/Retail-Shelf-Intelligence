@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
@@ -12,6 +12,8 @@ import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { useResource } from "@/lib/api/useResource";
 import { LoadingBlock } from "@/components/ui/AsyncState";
+import { useFlow } from "@/lib/flow/useFlow";
+import { FlowGuardBlock } from "@/components/mobile/FlowGuardBlock";
 import { useDemo } from "@/lib/store";
 import { CameraGrabError, useCamera } from "@/hooks/useCamera";
 import { intakePhoto, PhotoIntakeError, type CapturedPhoto } from "@/lib/capture";
@@ -28,7 +30,7 @@ const WARNINGS = [
 
 export default function CaptureScreen() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const flow = useFlow("CAPTURE");
   const reduced = useReducedMotion();
 
   const consent = useDemo((s) => s.consent);
@@ -135,11 +137,13 @@ export default function CaptureScreen() {
 
   function usePhoto() {
     stageCapture(photo);
-    router.push(`/m/store/${id}/processing`);
+    flow.go("PROCESSING");
   }
 
-  // The camera is behind two gates: the store's own data must have loaded,
-  // and consent must be recorded (GUARDRAIL — never open the lens without it).
+  // The camera is behind three gates: a shelf must have been chosen, the
+  // store's own data must have loaded, and consent must be recorded
+  // (GUARDRAIL — never open the lens without it).
+  if (flow.blocked) return <FlowGuardBlock flow={flow} dark />;
   if (!store || !cat) return <LoadingBlock label="กำลังเตรียมกล้อง…" />;
   if (!consent) return <ConsentGate storeId={id} storeName={store.name} />;
 
@@ -405,7 +409,7 @@ export default function CaptureScreen() {
                 <div className="flex w-24 justify-end">
                   <button
                     type="button"
-                    onClick={() => router.back()}
+                    onClick={flow.back}
                     className="grid size-11 place-items-center rounded-btn text-ink-muted transition-colors hover:bg-ink-3 hover:text-ink-text"
                     aria-label="ยกเลิกและกลับ"
                   >
