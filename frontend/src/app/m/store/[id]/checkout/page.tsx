@@ -182,7 +182,9 @@ export default function CheckoutScreen() {
                   </span>
                   <span className="text-[20px] font-bold text-muted">%</span>
                 </p>
-                <p className="mt-3 text-[13px] leading-relaxed text-muted">
+                {/* The wait ends by itself, so a screen reader has to be told
+                    when the words change under a figure that has not moved. */}
+                <p role="status" className="mt-3 text-[13px] leading-relaxed text-muted">
                   {waitingForAnalysis
                     ? "กำลังวิเคราะห์ภาพหลังเติมของ… ค่าจะขึ้นเองเมื่อเสร็จ"
                     : analysisUnfinished

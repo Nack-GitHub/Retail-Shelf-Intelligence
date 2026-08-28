@@ -229,7 +229,9 @@ JWT auth with refresh tokens, role-based access control.
 
 GET  /v1/routes/today
      → stores assigned today, sorted by (risk_score DESC, distance ASC).
-       Response includes last_osa, days_since_last_visit, risk_band.
+       Response includes last_osa, days_since_last_visit, risk_band, and
+       last_osa_phase / last_osa_category / last_osa_at — which photograph the
+       last_osa came from, so a screen can label it (see docs/ui.md §1.6).
 
 POST /v1/visits
      Body: {store_id, gps_lat, gps_lng, photo_consent_confirmed}
