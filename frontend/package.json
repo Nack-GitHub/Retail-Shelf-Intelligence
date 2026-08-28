@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:mobile": "next dev --experimental-https -H 0.0.0.0"
+    "dev:mobile": "next dev --experimental-https -H 0.0.0.0",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "motion": "^13.1.1",
@@ -17,6 +18,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
