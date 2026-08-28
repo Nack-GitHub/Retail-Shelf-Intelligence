@@ -1,5 +1,5 @@
 import { request, toPercent } from "@/lib/api/client";
-import type { RiskBand, Store, StoreFormat } from "@/types";
+import type { OsaPhase, RiskBand, Store, StoreFormat } from "@/types";
 
 /** The wire shape. Ratios, exactly as the API sends them — the conversion to
  *  the percentages every screen renders happens in `toStore` below and
@@ -17,6 +17,9 @@ interface StoreWire {
   photoPolicy: "ALLOWED" | "RESTRICTED" | "FORBIDDEN";
   visitWindow: string;
   lastOsa: number | null;
+  lastOsaPhase: OsaPhase | null;
+  lastOsaCategory: string | null;
+  lastOsaAt: string | null;
   daysSinceLastVisit: number | null;
   riskBand: RiskBand;
   riskScore: number;

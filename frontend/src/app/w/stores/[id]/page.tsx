@@ -9,9 +9,11 @@ import { Sparkline, LineChart } from "@/components/charts/LineChart";
 import { CountUp, Bar } from "@/components/ui/Progress";
 import { RiskBadge, Pill, OsaStatusPill } from "@/components/ui/Badge";
 import { osaStatusOf } from "@/lib/osa";
+import { OsaSource } from "@/components/ui/OsaSource";
 import { Button } from "@/components/ui/Button";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { fetchStore } from "@/lib/api/routes";
+import { fetchCategories } from "@/lib/api/catalog";
 import { fetchOsaTrend, fetchStoreHistory, type VisitCapture } from "@/lib/api/analytics";
 import { useResource } from "@/lib/api/useResource";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
@@ -34,6 +36,10 @@ export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
 
   const store = useResource(() => fetchStore(id), [id]);
+  /* Only so the figure above can name the shelf it came from. A manager
+     comparing stores needs to know they are not comparing the coffee bay in
+     one with the milk bay in another. */
+  const categories = useResource(() => fetchCategories(id), [id]);
   const history = useResource(() => fetchStoreHistory(id), [id]);
   const trend = useResource(() => fetchOsaTrend({ storeId: id, days: 84 }), [id]);
 
@@ -56,6 +62,8 @@ export default function StoreDetail() {
 
   const s = store.data;
   const osa = s?.lastOsa ?? null;
+  const measuredShelf =
+    (categories.data ?? []).find((c) => c.id === s?.lastOsaCategory)?.name ?? null;
 
   if (store.state === "LOADING") return <LoadingBlock label="กำลังโหลดข้อมูลร้าน…" />;
   if (store.state === "ERROR" || !s) {
@@ -88,10 +96,13 @@ export default function StoreDetail() {
                 {osa === null ? (
                   <p className="mt-2 text-[15px] font-semibold text-muted">ยังไม่เคยตรวจ</p>
                 ) : (
-                  <p className="mt-1 flex items-baseline gap-1">
-                    <CountUp to={osa} className="text-[40px] font-bold leading-none tracking-tight" />
-                    <span className="text-[20px] font-bold text-muted">%</span>
-                  </p>
+                  <>
+                    <p className="mt-1 flex items-baseline gap-1">
+                      <CountUp to={osa} className="text-[40px] font-bold leading-none tracking-tight" />
+                      <span className="text-[20px] font-bold text-muted">%</span>
+                    </p>
+                    <OsaSource store={s} categoryName={measuredShelf} className="mt-1" />
+                  </>
                 )}
               </div>
               {osa !== null && <OsaStatusPill status={osaStatusOf(osa)} />}

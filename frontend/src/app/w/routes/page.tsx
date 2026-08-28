@@ -14,6 +14,7 @@ import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { fadeUp, easeOut, springSoft } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { osaTone } from "@/lib/osa";
+import { OsaSource } from "@/components/ui/OsaSource";
 
 /* Sorting by distance is deliberately not offered: a weekly plan has no
    "current position" to measure from, and the only honest second axis is how
@@ -137,15 +138,18 @@ export default function RoutePlanning() {
                       {s.lastOsa === null ? (
                         <p className="mt-1 text-[13px] text-muted">ยังไม่เคยตรวจ</p>
                       ) : (
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="tnum text-[14px] font-semibold">{s.lastOsa}%</span>
-                          <Bar
-                            value={s.lastOsa}
-                            tone={osaTone(s.lastOsa)}
-                            className="flex-1"
-                            height={5}
-                          />
-                        </div>
+                        <>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="tnum text-[14px] font-semibold">{s.lastOsa}%</span>
+                            <Bar
+                              value={s.lastOsa}
+                              tone={osaTone(s.lastOsa)}
+                              className="flex-1"
+                              height={5}
+                            />
+                          </div>
+                          <OsaSource store={s} className="mt-0.5" />
+                        </>
                       )}
                     </div>
 

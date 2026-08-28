@@ -26,6 +26,7 @@ import { useResource } from "@/lib/api/useResource";
 import { isAvailable, list as queueList } from "@/lib/offline/queue";
 import { useOnline } from "@/lib/offline/useOnline";
 import { osaTone } from "@/lib/osa";
+import { OsaSource } from "@/components/ui/OsaSource";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import type { Store } from "@/types";
 
@@ -212,18 +213,25 @@ export default function TodayRouteScreen() {
                         {s.lastOsa === null ? (
                           <p className="mt-3 text-[13px] text-muted">ยังไม่เคยตรวจชั้นวางที่ร้านนี้</p>
                         ) : (
-                          <div className="mt-3 flex items-center gap-3">
-                            <span className="text-[13px] text-muted">OSA ครั้งก่อน</span>
-                            <Bar
-                              value={s.lastOsa}
-                              tone={osaTone(s.lastOsa)}
-                              className="flex-1"
-                              delay={0.12 + i * 0.05}
-                            />
-                            <span className="tnum w-10 text-right text-[14px] font-semibold">
-                              {s.lastOsa}%
-                            </span>
-                          </div>
+                          <>
+                            <div className="mt-3 flex items-center gap-3">
+                              <span className="text-[13px] text-muted">OSA ล่าสุด</span>
+                              <Bar
+                                value={s.lastOsa}
+                                tone={osaTone(s.lastOsa)}
+                                className="flex-1"
+                                delay={0.12 + i * 0.05}
+                              />
+                              <span className="tnum w-10 text-right text-[14px] font-semibold">
+                                {s.lastOsa}%
+                              </span>
+                            </div>
+                            {/* It used to read "OSA ครั้งก่อน" whatever the figure was.
+                                A rep who photographs a shelf, restocks it and comes
+                                straight back here is looking at the before-photo's
+                                score, and had no way to tell. */}
+                            <OsaSource store={s} className="mt-1" />
+                          </>
                         )}
                       </div>
                     </div>

@@ -15,13 +15,18 @@
  * screen and LOW on the check-out screen of the same visit.
  */
 
-import type { OsaStatus } from "@/types";
+import type { OsaPhase, OsaStatus } from "@/types";
 
 /** Percentages, mirroring `critical_threshold` and `low_threshold` (0..1). */
 export const OSA_THRESHOLDS = {
   critical: 75,
   low: 90,
 } as const;
+
+const PHASE_LABEL: Record<OsaPhase, string> = {
+  BEFORE: "ก่อนเติมของ",
+  AFTER: "หลังเติมของ",
+};
 
 export type OsaTone = "ok" | "warn" | "danger";
 
@@ -40,4 +45,49 @@ export function osaStatusOf(osa: number): OsaStatus {
 
 export function osaTone(osa: number): OsaTone {
   return OSA_TONE[osaStatusOf(osa)];
+}
+
+/** Which photograph a store's `lastOsa` came from, in the words a rep uses.
+ *
+ *  The figure is the store's most recent analysis — any shelf, either side of
+ *  a restock, any visit — which is the right number for ranking risk and an
+ *  ambiguous one to print on a card. A rep who photographs a shelf, restocks
+ *  it and comes back to the route list is looking at the before-figure, and
+ *  the card used to call it "OSA ครั้งก่อน" either way.
+ *
+ *  Returns null when there is nothing to describe, so callers can drop the
+ *  line entirely rather than render an empty one. */
+export function osaSourceNote(
+  store: {
+    lastOsa: number | null;
+    lastOsaPhase: OsaPhase | null;
+    lastOsaAt: string | null;
+    daysSinceLastVisit: number | null;
+  },
+  categoryName?: string | null,
+): string | null {
+  if (store.lastOsa === null || store.lastOsaPhase === null) return null;
+
+  const parts = [PHASE_LABEL[store.lastOsaPhase]];
+  if (categoryName) parts.push(categoryName);
+
+  // Only worth saying when the reading is older than the last time anyone was
+  // in the shop — otherwise "เข้าล่าสุด N วันก่อน" on the same card says it.
+  const measuredDaysAgo = daysSince(store.lastOsaAt);
+  if (
+    measuredDaysAgo !== null &&
+    store.daysSinceLastVisit !== null &&
+    measuredDaysAgo > store.daysSinceLastVisit
+  ) {
+    parts.push(`วัดเมื่อ ${measuredDaysAgo} วันก่อน`);
+  }
+
+  return parts.join(" · ");
+}
+
+function daysSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  return Math.floor((Date.now() - at) / 86_400_000);
 }

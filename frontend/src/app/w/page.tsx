@@ -17,6 +17,7 @@ import { useArea } from "@/components/web/WebShell";
 import { listItem, stagger, fadeUp, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 import { osaTone } from "@/lib/osa";
+import { OsaSource } from "@/components/ui/OsaSource";
 
 type Range = "4W" | "12W" | "26W";
 
@@ -275,16 +276,19 @@ export default function AreaDashboard() {
                         {r.lastOsa === null ? (
                           <span className="text-[13px] text-muted">ยังไม่เคยตรวจ</span>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="tnum text-[15px] font-semibold">{r.lastOsa}%</span>
-                            <Bar
-                              value={r.lastOsa}
-                              tone={osaTone(r.lastOsa)}
-                              className="w-16"
-                              height={5}
-                              delay={0.45 + i * 0.03}
-                            />
-                          </div>
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="tnum text-[15px] font-semibold">{r.lastOsa}%</span>
+                              <Bar
+                                value={r.lastOsa}
+                                tone={osaTone(r.lastOsa)}
+                                className="w-16"
+                                height={5}
+                                delay={0.45 + i * 0.03}
+                              />
+                            </div>
+                            <OsaSource store={r} className="mt-0.5" />
+                          </>
                         )}
                       </td>
                       <td className="tnum px-4 py-3 text-[14px]">{r.repeatGapSkus}</td>

@@ -36,3 +36,16 @@ test("an after-restock figure below the API's floor reads as critical, not low",
   await expect(page.getByText("วิกฤต", { exact: true })).toBeVisible();
   await expect(page.getByText("ต่ำ", { exact: true })).toBeHidden();
 });
+
+test("the route list says which photograph each store's figure came from", async ({ page }) => {
+  await seedSession(page);
+
+  // The stubbed stores were last read before a restock, eleven days ago, while
+  // the last visit was four days ago — a figure from a shelf nobody has
+  // photographed since, which the card used to present as "OSA ครั้งก่อน".
+  await page.goto("/m");
+
+  await expect(page.getByText("OSA ล่าสุด").first()).toBeVisible();
+  await expect(page.getByText("ก่อนเติมของ").first()).toBeVisible();
+  await expect(page.getByText("OSA ครั้งก่อน")).toBeHidden();
+});

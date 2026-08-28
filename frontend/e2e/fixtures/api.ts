@@ -32,6 +32,11 @@ function storeWire(id: string, name: string, distanceKm: number) {
     photoPolicy: "ALLOWED",
     visitWindow: "09:00–11:00",
     lastOsa: 0.78,
+    // Read before the restock, and older than the last visit: the two things
+    // that make a bare percentage on a card misleading.
+    lastOsaPhase: "BEFORE",
+    lastOsaCategory: "cat-coffee",
+    lastOsaAt: new Date(Date.now() - 11 * 86_400_000).toISOString(),
     daysSinceLastVisit: 4,
     riskBand: "HIGH",
     riskScore: 0.82,

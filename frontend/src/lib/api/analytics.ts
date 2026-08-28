@@ -1,5 +1,5 @@
 import { request, toPercent } from "@/lib/api/client";
-import type { RiskBand } from "@/types";
+import type { OsaPhase, RiskBand } from "@/types";
 
 /* Manager reporting.
  *
@@ -77,6 +77,10 @@ export interface RiskRow {
   storeFormat: string;
   areaId: string;
   lastOsa: number | null;
+  /** which photograph `lastOsa` came from — see the Store type */
+  lastOsaPhase: OsaPhase | null;
+  lastOsaCategory: string | null;
+  lastOsaAt: string | null;
   daysSinceLastVisit: number | null;
   repeatGapSkus: number;
   riskScore: number;

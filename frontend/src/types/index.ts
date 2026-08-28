@@ -4,6 +4,8 @@
 
 export type RiskBand = "HIGH" | "MEDIUM" | "LOW";
 export type OsaStatus = "OK" | "LOW" | "CRITICAL";
+/** Which side of a restock a photograph was taken on. */
+export type OsaPhase = "BEFORE" | "AFTER";
 export type SemanticType = "PRODUCT" | "GAP" | "PRICE_TAG" | "PROMO_TAG";
 export type StoreFormat = "HYPER" | "SUPER" | "CVS" | "TRAD";
 
@@ -18,8 +20,16 @@ export interface Store {
   /** absent on a plain store lookup — only a route stop knows how far away it is */
   distanceKm: number | null;
   /** percent 0-100. `null` means never measured, which is NOT zero: rendering
-   *  an unvisited store as 0% shows a healthy shelf as a catastrophe. */
+   *  an unvisited store as 0% shows a healthy shelf as a catastrophe.
+   *
+   *  It is ONE photograph's reading — the store's most recent analysis, any
+   *  shelf, either side of a restock — so the three fields below say which
+   *  photograph, and no screen may show the figure without saying so. */
   lastOsa: number | null;
+  lastOsaPhase: OsaPhase | null;
+  /** the shelf category id, not its name — resolve it where names are loaded */
+  lastOsaCategory: string | null;
+  lastOsaAt: string | null;
   daysSinceLastVisit: number | null;
   riskBand: RiskBand;
   /** percent 0-100, converted from the API's 0..1 ratio at the api boundary */
