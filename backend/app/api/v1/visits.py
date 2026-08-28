@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import current_user, get_db
 from app.api.v1.schemas import CheckoutResponse, VisitCreate, VisitOut
 from app.core.config import settings
-from app.db.models import Capture, ShelfAnalysisRow, Store, TaskRow, User, Visit
-from app.domain.enums import PhotoPolicy, TaskStatus, VisitStatus
+from app.db.models import Capture, InferenceJob, ShelfAnalysisRow, Store, TaskRow, User, Visit
+from app.domain.enums import JobStatus, PhotoPolicy, TaskStatus, VisitStatus
 from app.services.risk import haversine_km
 
 router = APIRouter(tags=["visits"])
@@ -80,6 +80,22 @@ async def check_out(
         )
     ).scalar()
 
+    # A photograph that is still with the model is not a photograph that was
+    # never taken, and the two produce the same osa_after of None. Saying which
+    # one this is lets the client wait for the figure instead of reporting to
+    # the rep that they skipped a step they did not skip.
+    analysis_pending = (
+        await db.execute(
+            select(func.count())
+            .select_from(InferenceJob)
+            .join(Capture, Capture.id == InferenceJob.capture_id)
+            .where(
+                Capture.visit_id == visit.id,
+                InferenceJob.status.in_((JobStatus.QUEUED.value, JobStatus.RUNNING.value)),
+            )
+        )
+    ).scalar_one() > 0
+
     counts = dict(
         (
             await db.execute(
@@ -105,6 +121,7 @@ async def check_out(
         visit_id=visit.id,
         osa_before=float(visit.osa_before) if visit.osa_before is not None else None,
         osa_after=float(visit.osa_after) if visit.osa_after is not None else None,
+        analysis_pending=analysis_pending,
         tasks_total=sum(counts.values()),
         tasks_fixed=counts.get(TaskStatus.FIXED.value, 0),
         tasks_blocked=counts.get(TaskStatus.BLOCKED.value, 0),

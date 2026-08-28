@@ -316,6 +316,117 @@ def test_checkout_computes_osa_after_from_after_phase_captures(
     assert summary["checkedOutAt"]
 
 
+def _queue_an_unanalysed_after_capture(visit_id: str) -> str:
+    """A photograph that has been sent but not yet read by the model.
+
+    Celery runs eagerly under test, so an upload is finished before the request
+    that made it returns — the state a rep on a real connection spends seconds
+    in never occurs on its own.
+    """
+    import uuid as _uuid
+
+    from app.db.models import Capture, InferenceJob
+    from app.domain.enums import JobStatus
+    from app.workers.session import SyncSessionFactory
+
+    with SyncSessionFactory() as session:
+        capture = Capture(
+            visit_id=_uuid.UUID(visit_id),
+            category="coffee",
+            shelf_bay_label="BAY_full",
+            phase="AFTER",
+            object_key=f"pending/{_uuid.uuid4()}.jpg",
+        )
+        session.add(capture)
+        session.flush()
+        session.add(InferenceJob(capture_id=capture.id, status=JobStatus.QUEUED))
+        session.commit()
+        return str(capture.id)
+
+
+def _finish_the_job(capture_id: str) -> None:
+    """Let the model catch up: the analysis lands and the job goes terminal."""
+    import uuid as _uuid
+
+    from app.db.models import InferenceJob, ShelfAnalysisRow
+    from app.domain.enums import JobStatus, OsaStatus
+    from app.workers.session import SyncSessionFactory
+
+    with SyncSessionFactory() as session:
+        job = (
+            session.query(InferenceJob)
+            .filter(InferenceJob.capture_id == _uuid.UUID(capture_id))
+            .one()
+        )
+        job.status = JobStatus.DONE
+        session.add(
+            ShelfAnalysisRow(
+                capture_id=_uuid.UUID(capture_id),
+                run_id=_uuid.uuid4(),
+                model_version="test-pending",
+                row_count=1,
+                total_shelf_area=100.0,
+                gap_area=10.0,
+                gap_ratio=0.1,
+                osa_score=0.9,
+                status=OsaStatus.OK.value,
+                low_confidence_count=0,
+                config_version="v1",
+            )
+        )
+        session.commit()
+
+
+def test_checkout_says_when_an_after_photo_is_still_being_read(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Silence and "no after-photo" look identical to the rep, and are not.
+
+    The summary that says nothing was photographed is the one a rep sees right
+    after photographing the shelf, and the route list contradicts it seconds
+    later. The visit still closes — a worker that never finishes must not trap
+    a rep in a shop.
+    """
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="BEFORE")
+    _queue_an_unanalysed_after_capture(visit["id"])
+
+    summary = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    assert summary["analysisPending"] is True
+    assert summary["osaAfter"] is None
+    assert client.get(f"/v1/visits/{visit['id']}", headers=rep_auth).json()["status"] == "CLOSED"
+
+
+def test_checking_out_again_picks_up_the_analysis_that_landed(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Asking again is how the figure arrives, so asking again must be safe."""
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="BEFORE")
+    capture_id = _queue_an_unanalysed_after_capture(visit["id"])
+
+    first = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+    _finish_the_job(capture_id)
+    second = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    assert second["analysisPending"] is False
+    assert second["osaAfter"] == pytest.approx(0.9)
+    assert second["checkedOutAt"] == first["checkedOutAt"], (
+        "waiting for the analysis stretched the recorded visit duration"
+    )
+
+
+def test_a_visit_with_no_after_photo_is_not_reported_as_pending(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """Nothing to wait for is not the same as something still coming."""
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="BEFORE")
+
+    summary = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    assert summary["analysisPending"] is False
+    assert summary["osaAfter"] is None
+
+
 def test_sync_batch_is_safe_to_replay(client: TestClient, rep_auth: dict[str, str]) -> None:
     payload = {
         "operations": [

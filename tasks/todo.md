@@ -123,7 +123,7 @@
   - Files: `frontend/src/app/m/store/[id]/compare/page.tsx`
   - Scope: **S**
 
-- [ ] **Task 5: `analysisPending` ใน `CheckoutResponse`**
+- [x] **Task 5: `analysisPending` ใน `CheckoutResponse`**
 
   Task 4 ปิดช่องฝั่ง UI แต่ไม่ปิดช่องจริง: อัปโหลดเสร็จไม่ได้แปลว่าวิเคราะห์เสร็จ
   งานเป็น Celery job ([captures.py:144-149](../backend/app/api/v1/captures.py#L144-L149))
@@ -131,16 +131,16 @@
   client จึงต้องรู้ว่า "ค่าที่ได้ไปนี้ยังไม่ครบ"
 
   - Acceptance:
-    - [ ] `CheckoutResponse` มีฟิลด์ `analysis_pending: bool` — true เมื่อมี `InferenceJob`
+    - [x] `CheckoutResponse` มีฟิลด์ `analysis_pending: bool` — true เมื่อมี `InferenceJob`
           สถานะ QUEUED หรือ RUNNING ของ capture ใน visit นี้
-    - [ ] visit ยังถูกปิดตามปกติเสมอ แม้มี job ค้าง (ตาม AD2 — ห้ามให้ server รอ job)
-    - [ ] เรียก checkout ซ้ำหลัง job เสร็จ → `osa_after` ได้ค่า และ `checked_out_at`
+    - [x] visit ยังถูกปิดตามปกติเสมอ แม้มี job ค้าง (ตาม AD2 — ห้ามให้ server รอ job)
+    - [x] เรียก checkout ซ้ำหลัง job เสร็จ → `osa_after` ได้ค่า และ `checked_out_at`
           **ไม่ขยับ** จากครั้งแรก
-    - [ ] ไม่มีภาพ AFTER และไม่มี job ค้าง → `analysis_pending=false`, `osa_after=null`
+    - [x] ไม่มีภาพ AFTER และไม่มี job ค้าง → `analysis_pending=false`, `osa_after=null`
           เหมือนเดิมทุกประการ
   - Verify:
-    - [ ] integration test ครอบ 3 เคส: มี job ค้าง / เรียกซ้ำหลัง job เสร็จ / ไม่มีภาพ AFTER
-    - [ ] `pytest` เขียวทั้งชุด (39 เดิมต้องไม่แดง)
+    - [x] integration test ครอบ 3 เคส: มี job ค้าง / เรียกซ้ำหลัง job เสร็จ / ไม่มีภาพ AFTER
+    - [x] `pytest` เขียวทั้งชุด (39 เดิมต้องไม่แดง)
   - Dependencies: None
   - Files: `backend/app/api/v1/visits.py`, `backend/app/api/v1/schemas.py`,
     `backend/tests/integration/test_golden_path.py`

@@ -276,9 +276,19 @@ class TaskPatch(ApiModel):
 
 
 class CheckoutResponse(ApiModel):
+    """The visit is closed by the time this is returned, always.
+
+    `analysis_pending` says a photograph from this visit is still with the
+    model, so `osa_after` is the average of what has been read so far and will
+    change when the rest lands. It is not an error and it is not a reason to
+    keep the visit open — a worker that never finishes must not trap a rep in
+    a shop. Asking again is how a client picks up the finished figure.
+    """
+
     visit_id: UUID
     osa_before: float | None
     osa_after: float | None
+    analysis_pending: bool
     tasks_total: int
     tasks_fixed: int
     tasks_blocked: int
