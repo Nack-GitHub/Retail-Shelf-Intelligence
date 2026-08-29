@@ -115,7 +115,19 @@ async def relabel_queue(
     user: User = Depends(data_team_only),
 ) -> dict:
     """Findings worth a second look: the ones reps rejected, and the ones the
-    model itself was unsure about.
+    model itself was unsure about AND nobody has answered yet.
+
+    The `PENDING` half of that second condition is what gives the queue an end.
+    A low-confidence finding a rep stood in front of and CONFIRMED has already
+    had its question answered by a human at the shelf; leaving it here meant
+    every uncertain detection the system ever made stayed "waiting for review"
+    forever, and the queue only ever grew. It is still training data — the
+    labels live in `gap_findings` and a training run reads them from there —
+    but it is not waiting on a reviewer, and a queue that cannot be emptied
+    stops being used to decide what to label next.
+
+    A REJECTED finding stays regardless of when it was verified: the rejection
+    IS the disagreement this queue exists to collect.
 
     ⛔ `GapFindingRow.verified_by` is deliberately not selected. Do not add it.
     """
@@ -129,7 +141,10 @@ async def relabel_queue(
                 .outerjoin(DetectionRow, DetectionRow.id == GapFindingRow.detection_id)
                 .where(
                     (GapFindingRow.verification_status == "REJECTED")
-                    | (GapFindingRow.is_low_confidence.is_(True))
+                    | (
+                        GapFindingRow.is_low_confidence.is_(True)
+                        & (GapFindingRow.verification_status == "PENDING")
+                    )
                 )
                 .order_by(GapFindingRow.created_at.desc())
                 .limit(limit)
@@ -154,6 +169,10 @@ async def relabel_queue(
                 "rejectedReason": finding.rejected_reason,
                 "confidence": round(finding.confidence, 4),
                 "isLowConfidence": finding.is_low_confidence,
+                # The store id travels with the row so the review screen can
+                # open the photograph it is asking about. A reviewer judging a
+                # 200px crop with no way to see the shelf around it is guessing.
+                "storeId": str(store.id),
                 "storeName": store.name,
                 "category": capture.category,
                 "capturedAt": capture.captured_at.isoformat() if capture.captured_at else None,

@@ -12,6 +12,7 @@ import { Segmented } from "@/components/ui/Controls";
 import { Button } from "@/components/ui/Button";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { useResource } from "@/lib/api/useResource";
+import { fillWeeklyGaps, measuredWeeks } from "@/lib/trend";
 import { fetchKpis, fetchOsaTrend, fetchRiskRanking } from "@/lib/api/analytics";
 import { useArea } from "@/components/web/WebShell";
 import { listItem, stagger, fadeUp, easeOut } from "@/lib/motion";
@@ -23,6 +24,11 @@ type Range = "4W" | "12W" | "26W";
 
 const RANGE_DAYS: Record<Range, number> = { "4W": 28, "12W": 84, "26W": 182 };
 
+/* Passed explicitly rather than left to the API's default, because the screen
+   has to be able to say whether it is showing every store or only the worst
+   ones. A bare row count read as "this area has 20 stores". */
+const RISK_ROW_LIMIT = 20;
+
 export default function AreaDashboard() {
   const router = useRouter();
   const [range, setRange] = useState<Range>("12W");
@@ -31,11 +37,17 @@ export default function AreaDashboard() {
 
   const kpis = useResource(async () => (ready ? fetchKpis(areaId, days) : null), [areaId, days, ready]);
   const osa = useResource(async () => (ready ? fetchOsaTrend({ areaId, days }) : null), [areaId, days, ready]);
-  const risk = useResource(async () => (ready ? fetchRiskRanking(areaId) : null), [areaId, ready]);
+  const risk = useResource(
+    async () => (ready ? fetchRiskRanking(areaId, RISK_ROW_LIMIT) : null),
+    [areaId, ready],
+  );
 
+  /* Weeks with no photograph anywhere in the area are drawn as breaks rather
+     than skipped, so the spacing on the axis matches the passage of time. */
+  const weeks = useMemo(() => fillWeeklyGaps(osa.data ?? []), [osa.data]);
   const trend = useMemo(
     () =>
-      (osa.data ?? []).map((p) => ({
+      weeks.map((p) => ({
         // "2026-08-17" → "17 ส.ค." — the axis has no room for a full date
         label: new Date(p.bucket).toLocaleDateString("th-TH", {
           day: "numeric",
@@ -43,8 +55,9 @@ export default function AreaDashboard() {
         }),
         value: p.osa,
       })),
-    [osa.data],
+    [weeks],
   );
+  const measured = measuredWeeks(weeks);
 
   const rows = risk.data ?? [];
 
@@ -182,8 +195,13 @@ export default function AreaDashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
               <h2 className="text-[16px] font-semibold">แนวโน้ม OSA ของพื้นที่</h2>
+              {/* This read "ค่าเฉลี่ยถ่วงน้ำหนักตามจำนวนร้านที่ตรวจ". The query is a
+                  plain AVG over analysis rows, so the weight is per PHOTOGRAPH,
+                  and it spans both sides of a restock. Both facts change how the
+                  line should be read, and neither was on the screen. */}
               <p className="mt-0.5 text-[13px] text-muted">
-                ค่าเฉลี่ยถ่วงน้ำหนักตามจำนวนร้านที่ตรวจในแต่ละสัปดาห์
+                ค่าเฉลี่ยของทุกภาพที่วิเคราะห์ในสัปดาห์นั้น ทั้งก่อนและหลังเติมของ ·
+                หนึ่งจุดคือหนึ่งสัปดาห์
               </p>
             </div>
             <div className="flex items-center gap-4 text-[13px]">
@@ -196,7 +214,7 @@ export default function AreaDashboard() {
               <LoadingBlock label="กำลังโหลดแนวโน้ม…" />
             ) : osa.state === "ERROR" ? (
               <ErrorBlock message={osa.error ?? ""} onRetry={osa.reload} />
-            ) : trend.length < 2 ? (
+            ) : measured < 2 ? (
               /* One point is not a trend. Drawing a line through it would
                  imply a direction the data cannot support. */
               <p className="px-2 py-14 text-center text-[14px] leading-relaxed text-muted">
@@ -208,6 +226,13 @@ export default function AreaDashboard() {
               <LineChart data={trend} target={90} targetLabel="เป้าหมาย 90%" height={260} />
             )}
           </div>
+          {measured >= 2 && (
+            <p className="border-t border-line px-5 py-3.5 text-[12px] leading-relaxed text-faint">
+              ร้านที่ถ่ายภาพมากกว่าจะมีน้ำหนักในค่าเฉลี่ยมากกว่า และภาพหลังเติมของจะดึงค่าขึ้น
+              เส้นนี้จึงอ่านว่า “ชั้นวางที่ถูกถ่ายในสัปดาห์นั้นเป็นอย่างไร”
+              ไม่ใช่ “ร้านในพื้นที่โดยเฉลี่ยเป็นอย่างไร”
+            </p>
+          )}
         </motion.section>
 
         {/* ---------- risk table ---------- */}
@@ -226,7 +251,15 @@ export default function AreaDashboard() {
               </p>
             </div>
             <Pill tone="neutral">
-              <span className="tnum">{rows.length}</span> ร้าน
+              {rows.length < RISK_ROW_LIMIT ? (
+                <>
+                  <span className="tnum">{rows.length}</span> ร้าน
+                </>
+              ) : (
+                <>
+                  <span className="tnum">{RISK_ROW_LIMIT}</span> ร้านที่เสี่ยงที่สุด
+                </>
+              )}
             </Pill>
           </div>
 
@@ -343,7 +376,7 @@ export default function AreaDashboard() {
             ไม่มีการจัดอันดับหรือให้คะแนนพนักงานรายบุคคลในทุกหน้าจอ
             เพราะจะทำให้ข้อมูลถูกบิดเบือนและไม่สามารถนำไปใช้ปรับปรุงงานได้
             <Link href="/w/model-health" className="ml-1 font-medium text-primary underline-offset-2 hover:underline">
-              ดูหลักการวัดผล
+              ดูสุขภาพของโมเดลที่ผลิตตัวเลขเหล่านี้
             </Link>
           </span>
         </motion.p>

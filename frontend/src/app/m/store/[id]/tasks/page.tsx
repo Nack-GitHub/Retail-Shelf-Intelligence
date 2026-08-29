@@ -38,7 +38,6 @@ export default function TaskListScreen() {
   const loadTasks = useDemo((s) => s.loadTasks);
   const setTask = useDemo((s) => s.setTask);
   const visitId = useDemo((s) => s.visitId);
-  const findings = useDemo((s) => s.findings);
   const requests = useDemo((s) => s.replenishmentRequests);
   const stats = useVisitStats();
 
@@ -91,6 +90,21 @@ export default function TaskListScreen() {
       />
 
       <Scroll className="px-4 pt-4 pb-5">
+        {/* `change` has always recorded this and nothing ever rendered it, so a
+            tap that failed to reach the server looked exactly like one that
+            worked — the rep walks out believing the shelf is logged. */}
+        {error && (
+          <div
+            role="alert"
+            className="mb-3 flex items-start gap-2 rounded-card border border-danger/25 bg-danger-soft px-3.5 py-3 text-[13px] leading-relaxed text-[#a52218]"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" className="mt-0.5 shrink-0" aria-hidden>
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+              <path d="M12 7.5v5M12 16.2h.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+            <span>บันทึกผลไม่สำเร็จ — {error} ลองอีกครั้ง</span>
+          </div>
+        )}
         {showEmpty ? (
           <PerfectState />
         ) : (

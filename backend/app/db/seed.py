@@ -38,8 +38,8 @@ ARTIFACT_DIR = (
 AREA_ID = "area-bke"
 
 USERS = [
-    ("rep@shelfeye.demo", "demo1234", "สมชาย ใจดี", Role.REP),
-    ("manager@shelfeye.demo", "demo1234", "ปรียา วงศ์สุข", Role.MANAGER),
+    ("rep@shelfeye.demo", "demo1234", "นายทดสอบ รอดเกือบทุกรอบ", Role.REP),
+    ("manager@shelfeye.demo", "demo1234", "นายสมมุติ สุดหล่อ", Role.MANAGER),
     ("admin@shelfeye.demo", "demo1234", "ผู้ดูแลระบบ", Role.ADMIN),
     ("data@shelfeye.demo", "demo1234", "ทีมข้อมูล", Role.DATA),
 ]
@@ -50,64 +50,81 @@ def store_uuid(slug: str) -> uuid.UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"shelfeye:store:{slug}")
 
 
+# ⛔ Every chain here is invented. Not one is a real Thai retailer, and that is
+# deliberate: this table is read alongside fabricated OSA figures — one of these
+# stores is seeded at 61% shelf availability with work left undone — and a
+# screenshot of "โลตัส บางกะปิ 61%" travels a great deal further than the
+# caption explaining it was demo data. The districts and roads ARE real, because
+# geography is not a brand and the map snippet has to land somewhere plausible.
+#
+# The slug is what generates the store's UUID (`store_uuid`), so renaming a
+# store is safe but re-slugging one is not: `seed_history.PLAN` addresses stores
+# by slug, and every seeded visit, capture and finding hangs off that id.
 STORES = [
     (
         "st-101",
-        "QS-1042",
-        "ควิกช้อป อ่อนนุช 17",
-        "ควิกช้อป",
+        "DG-1042",
+        "เดลี่โก อารีย์",
+        "เดลี่โก",
         StoreFormat.CVS,
-        "ถ.สุขุมวิท 77 แขวงสวนหลวง",
-        13.7051,
-        100.6012,
+        "ซ.พหลโยธิน 7 แขวงสามเสนใน เขตพญาไท",
+        13.7795,
+        100.5443,
         PhotoPolicy.ALLOWED,
         "09:00 – 11:00",
     ),
     (
         "st-102",
-        "FM-2210",
-        "เฟรชมาร์ท ทองหล่อ 25",
-        "เฟรชมาร์ท",
+        "GL-2210",
+        "กรีนเลน มาร์เก็ต ทองหล่อ",
+        "กรีนเลน มาร์เก็ต",
         StoreFormat.SUPER,
-        "ซ.ทองหล่อ 25 แขวงคลองตันเหนือ",
+        "ซ.สุขุมวิท 55 แขวงคลองตันเหนือ เขตวัฒนา",
         13.7368,
         100.5847,
         PhotoPolicy.ALLOWED,
         "11:00 – 13:00",
     ),
     (
+        # Premium food hall inside a shopping centre. RESTRICTED is the whole
+        # point of this row: mall tenancy agreements are where photo policies
+        # actually come from, and it is why seed_history visits this store
+        # three times in twelve weeks while others get twelve.
         "st-103",
-        "MB-0788",
-        "มินิบิ๊ก พระราม 9 ซอย 41",
-        "มินิบิ๊ก",
-        StoreFormat.CVS,
-        "ถ.พระราม 9 แขวงสวนหลวง",
-        13.7539,
-        100.6221,
+        "SV-0788",
+        "ซาวารี่ กูร์เมต์ สุขุมวิท 24",
+        "ซาวารี่ กูร์เมต์",
+        StoreFormat.SUPER,
+        "ถ.สุขุมวิท แขวงคลองตัน เขตคลองเตย · ชั้น G ศูนย์การค้า",
+        13.7305,
+        100.5698,
         PhotoPolicy.RESTRICTED,
         "13:30 – 15:00",
     ),
     (
+        # The worst store in the area, and the furthest out — which is most of
+        # why it is the worst. A big suburban hypermarket at the end of the
+        # route is the one that gets dropped when a day runs late.
         "st-104",
-        "TD-3391",
-        "ร้านลุงสมชาย ซอยรามคำแหง 24",
-        "ร้านค้าดั้งเดิม",
-        StoreFormat.TRAD,
-        "ซ.รามคำแหง 24 แขวงหัวหมาก",
-        13.7644,
-        100.6293,
+        "MV-3391",
+        "เมกะแวลู บางกะปิ",
+        "เมกะแวลู",
+        StoreFormat.HYPER,
+        "ถ.ลาดพร้าว แขวงคลองจั่น เขตบางกะปิ",
+        13.7648,
+        100.6432,
         PhotoPolicy.ALLOWED,
         "15:00 – 16:30",
     ),
     (
         "st-105",
-        "QS-1119",
-        "ควิกช้อป ศรีนครินทร์ 42",
-        "ควิกช้อป",
+        "DG-1119",
+        "เดลี่โก พระราม 9",
+        "เดลี่โก",
         StoreFormat.CVS,
-        "ถ.ศรีนครินทร์ แขวงหนองบอน",
-        13.6889,
-        100.6455,
+        "ถ.พระราม 9 แขวงห้วยขวาง เขตห้วยขวาง",
+        13.7580,
+        100.5665,
         PhotoPolicy.ALLOWED,
         "16:30 – 18:00",
     ),

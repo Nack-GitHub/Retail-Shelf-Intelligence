@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, Reorder, AnimatePresence } from "motion/react";
 import { PageHeader } from "@/components/web/WebShell";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,17 @@ import { OsaSource } from "@/components/ui/OsaSource";
    long a store has gone unvisited. */
 type Sort = "RISK" | "STALENESS";
 
+/** One ordering rule, used both when the data arrives and when the reader
+ *  switches the control. Two copies meant a reload re-sorted by risk while the
+ *  control still read "ตามวันที่ไม่ได้เข้า". */
+function sortStops(stops: PlannedStop[], by: Sort): PlannedStop[] {
+  return [...stops].sort((a, b) =>
+    by === "RISK"
+      ? b.riskScore - a.riskScore
+      : (b.daysSinceLastVisit ?? Infinity) - (a.daysSinceLastVisit ?? Infinity),
+  );
+}
+
 export default function RoutePlanning() {
   const { areaId, areaName, ready } = useArea();
   const plan = useResource(async () => (ready ? fetchRoutePlan(areaId) : null), [areaId, ready]);
@@ -30,10 +41,20 @@ export default function RoutePlanning() {
   const [sort, setSort] = useState<Sort>("RISK");
   const [approved, setApproved] = useState(false);
 
-  // The list is reorderable, so it becomes local state once it arrives.
-  useEffect(() => {
-    if (plan.data) setStops(plan.data);
-  }, [plan.data]);
+  /* The list is reorderable, so it becomes local state once it arrives — in
+     whichever order the control is currently showing. Deriving it from one
+     place is what keeps the two in step: a reload used to re-sort by risk
+     while the control still read "ตามวันที่ไม่ได้เข้า".
+
+     A manual reorder is discarded when the data reloads or the criterion
+     changes, which is the same thing the notice under the button already says
+     happens on refresh. Done during render rather than in an effect so the
+     list never paints in the previous order first. */
+  const [sortedFrom, setSortedFrom] = useState<{ data: PlannedStop[]; sort: Sort } | null>(null);
+  if (plan.data && (plan.data !== sortedFrom?.data || sort !== sortedFrom.sort)) {
+    setSortedFrom({ data: plan.data, sort });
+    setStops(sortStops(plan.data, sort));
+  }
 
   const active = stops.filter((s) => !excluded.includes(s.storeId));
   // Only stores with a measured average contribute; a null is skipped rather
@@ -45,17 +66,6 @@ export default function RoutePlanning() {
   // No high-risk stores means nothing can be missed. Dividing by a clamped 1
   // reported 0% coverage and warned about excluded stores that did not exist.
   const coverage = highRiskTotal === 0 ? 100 : Math.round((highRisk / highRiskTotal) * 100);
-
-  function applySort(next: Sort) {
-    setSort(next);
-    setStops((prev) =>
-      [...prev].sort((a, b) =>
-        next === "RISK"
-          ? b.riskScore - a.riskScore
-          : (b.daysSinceLastVisit ?? Infinity) - (a.daysSinceLastVisit ?? Infinity),
-      ),
-    );
-  }
 
   function toggle(id: string) {
     setExcluded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -71,7 +81,7 @@ export default function RoutePlanning() {
           <Segmented
             ariaLabel="เกณฑ์การจัดลำดับ"
             value={sort}
-            onChange={applySort}
+            onChange={setSort}
             options={[
               { value: "RISK", label: "ตามความเสี่ยง" },
               { value: "STALENESS", label: "ตามวันที่ไม่ได้เข้า" },

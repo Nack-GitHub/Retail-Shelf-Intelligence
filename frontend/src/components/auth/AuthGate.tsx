@@ -62,10 +62,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isLoginScreen) {
-      setState("READY");
-      return;
-    }
+    // The login screen returns its own tree below without ever reading
+    // `state`, so marking it READY here changed nothing on screen — and left
+    // the gate believing it had checked a session it never looked at once the
+    // rep navigated away.
+    if (isLoginScreen) return;
     if (!hasValidToken()) {
       router.replace(LOGIN_PATH);
       return;
@@ -75,6 +76,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     // on each screen change would be a request per tap for an answer that
     // cannot have changed.
     if (user) return;
+    // `refresh` sets nothing synchronously — its first act is `await me()`, so
+    // every setState in it happens in a promise callback, which is exactly the
+    // shape this rule asks for. The rule cannot see past the call, and there is
+    // no way to fetch an identity on mount without an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [isLoginScreen, pathname, refresh, router, user]);
 

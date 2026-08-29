@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { PageHeader } from "@/components/web/WebShell";
@@ -8,6 +8,7 @@ import { LineChart } from "@/components/charts/LineChart";
 import { Bar, CountUp } from "@/components/ui/Progress";
 import { Pill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Controls";
 import { ErrorBlock, LoadingBlock } from "@/components/ui/AsyncState";
 import { fetchModelHealth, type ModelMetrics, type ModelVersion } from "@/lib/api/model";
 import { useResource } from "@/lib/api/useResource";
@@ -27,6 +28,13 @@ import { cn } from "@/lib/cn";
    written for the ML team — and every other word on this screen is Thai, so
    they are translated here rather than shown raw. An unknown gate falls back
    to whatever the pipeline wrote, which is better than showing nothing. */
+/** `mlClient` is an env value ("mock" / "http"), and it was being printed raw
+ *  in the middle of a Thai sentence. */
+const MODE_LABELS: Record<string, string> = {
+  mock: "จำลอง (mock)",
+  http: "โมเดลจริง (http)",
+};
+
 const GATE_LABELS: Record<string, string> = {
   recall_empty_shelf: "Recall — คลาสช่องว่าง",
   precision_empty_shelf: "Precision — คลาสช่องว่าง",
@@ -50,11 +58,26 @@ const GATE_RATIONALES: Record<string, string> = {
   map50_overall: "คุณภาพการตรวจจับโดยรวมของโมเดล",
 };
 
+/* The API accepts 1–52 weeks; the screen used to ask for 12 and never say so,
+   which left a reader unable to tell a quiet fortnight from the end of the
+   window. */
+type Range = "8W" | "12W" | "26W";
+const RANGE_WEEKS: Record<Range, number> = { "8W": 8, "12W": 12, "26W": 26 };
+
 export default function ModelHealth() {
-  const health = useResource(() => fetchModelHealth(12), []);
+  const [range, setRange] = useState<Range>("12W");
+  const health = useResource(() => fetchModelHealth(RANGE_WEEKS[range]), [range]);
 
   const versions = useMemo(() => health.data?.versions ?? [], [health.data]);
-  const scored = versions.find((v) => v.metrics);
+  /* The gates that matter are the SERVING model's. Taking the first scored
+     version in promotion order showed whichever model happened to sort first,
+     which on a machine with two scored artifacts is not necessarily the one
+     producing the numbers everywhere else in the app. Falling back is still
+     right — a mock has no metrics to show — but the screen then has to say
+     that the gates below are not the live model's. */
+  const activeVersion = versions.find((v) => v.isActive);
+  const scored = activeVersion?.metrics ? activeVersion : versions.find((v) => v.metrics);
+  const scoredIsServing = Boolean(scored?.isActive);
   const gates = scored?.metrics?.gates ?? {};
   const failing = Object.values(gates).filter((g) => !g.passed).length;
 
@@ -68,27 +91,60 @@ export default function ModelHealth() {
   );
   const latestOverride = override.at(-1)?.value ?? null;
 
-  if (health.state === "LOADING") return <LoadingBlock label="กำลังโหลดสุขภาพของโมเดล…" />;
+  const active = activeVersion;
+
+  /* The header carries the range control, so it has to survive the loading and
+     error states — a control that vanishes while its own request is in flight
+     cannot be used to change the range back. */
+  const header = (
+    <PageHeader
+      title="สุขภาพของโมเดล"
+      subtitle={
+        health.state !== "READY"
+          ? "กำลังอ่านผลประเมินและอัตราการตีกลับ…"
+          : active
+            ? `ใช้งานอยู่: ${active.version} · โหมดอนุมาน ${
+                MODE_LABELS[health.data?.mlClient ?? ""] ?? health.data?.mlClient ?? "—"
+              }`
+            : "ยังไม่มีโมเดลที่ถูกอนุมัติให้ใช้งาน"
+      }
+      actions={
+        <Segmented
+          ariaLabel="ช่วงเวลาของอัตราการตีกลับ"
+          value={range}
+          onChange={setRange}
+          options={[
+            { value: "8W", label: "8 สัปดาห์" },
+            { value: "12W", label: "12 สัปดาห์" },
+            { value: "26W", label: "26 สัปดาห์" },
+          ]}
+        />
+      }
+    />
+  );
+
+  if (health.state === "LOADING") {
+    return (
+      <>
+        {header}
+        <LoadingBlock label="กำลังโหลดสุขภาพของโมเดล…" />
+      </>
+    );
+  }
   if (health.state === "ERROR") {
     return (
-      <div className="p-8">
-        <ErrorBlock message={health.error ?? ""} onRetry={health.reload} />
-      </div>
+      <>
+        {header}
+        <div className="p-8">
+          <ErrorBlock message={health.error ?? ""} onRetry={health.reload} />
+        </div>
+      </>
     );
   }
 
-  const active = versions.find((v) => v.isActive);
-
   return (
     <>
-      <PageHeader
-        title="สุขภาพของโมเดล"
-        subtitle={
-          active
-            ? `ใช้งานอยู่: ${active.version} · โหมดอนุมาน ${health.data?.mlClient ?? "—"}`
-            : "ยังไม่มีโมเดลที่ถูกอนุมัติให้ใช้งาน"
-        }
-      />
+      {header}
 
       <div className="px-6 py-6 lg:px-8">
         {/* ---- gate failures ---- */}
@@ -104,14 +160,34 @@ export default function ModelHealth() {
               <path d="M12 3l9.5 16.5h-19L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
               <path d="M12 9.5v4.2M12 16.8h.01" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
             </svg>
+            {/* Two different situations, and the wording used to describe only
+                one of them. With ML_CLIENT=http — the default — the failing
+                model IS the one serving traffic, and this banner claimed the
+                opposite three lines under a heading naming it as active. */}
             <div className="min-w-[240px] flex-1">
-              <p className="text-[15px] font-semibold text-[#a52218]">
-                <span className="tnum">{failing}</span> เกณฑ์ยังไม่ผ่าน — {scored.version} จึงยังไม่ถูกนำขึ้นใช้งานจริง
-              </p>
-              <p className="mt-1 text-[13px] leading-relaxed text-[#a52218]/85">
-                ระบบยังอนุมานด้วยโหมด <span className="font-semibold">{health.data?.mlClient}</span>{" "}
-                จนกว่าโมเดลจะผ่านเกณฑ์ทั้งหมด
-              </p>
+              {scoredIsServing ? (
+                <>
+                  <p className="text-[15px] font-semibold text-[#a52218]">
+                    <span className="tnum">{failing}</span> เกณฑ์ยังไม่ผ่าน — และ {scored.version}{" "}
+                    คือโมเดลที่ให้บริการอยู่ตอนนี้
+                  </p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-[#a52218]/85">
+                    เป็นการตัดสินใจโดยตั้งใจ เพื่อให้ทดสอบกับภาพจริงได้ ผลตรวจทุกรายการจึงมาจากโมเดลที่ยังไม่ผ่านเกณฑ์
+                    — ช่องว่างที่ตรวจไม่เจอและที่แจ้งเกินเป็นเรื่องที่ต้องคาดไว้ ไม่ใช่ข้อผิดพลาดของแอป
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-semibold text-[#a52218]">
+                    <span className="tnum">{failing}</span> เกณฑ์ยังไม่ผ่าน — {scored.version} จึงยังไม่ถูกนำขึ้นใช้งานจริง
+                  </p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-[#a52218]/85">
+                    ระบบยังอนุมานด้วยโหมด{" "}
+                    <span className="font-semibold">{MODE_LABELS[health.data?.mlClient ?? ""] ?? health.data?.mlClient}</span>{" "}
+                    จนกว่าโมเดลจะผ่านเกณฑ์ทั้งหมด
+                  </p>
+                </>
+              )}
             </div>
             <Link href="/w/relabel">
               <Button size="sm">ไปที่คิวตรวจภาพ</Button>
@@ -120,6 +196,13 @@ export default function ModelHealth() {
         )}
 
         {/* ---- gate cards ---- */}
+        {scored && !scoredIsServing && (
+          <p className="mb-3 text-[13px] leading-relaxed text-muted">
+            เกณฑ์ด้านล่างเป็นของ <span className="font-semibold text-text">{scored.version}</span>{" "}
+            ซึ่งไม่ใช่โมเดลที่ให้บริการอยู่ตอนนี้
+            {active ? <> — ตอนนี้ระบบใช้ {active.version} ซึ่งไม่มีผลประเมินให้แสดง</> : null}
+          </p>
+        )}
         {scored ? (
           <motion.ul
             variants={stagger(0.06)}
@@ -287,14 +370,21 @@ export default function ModelHealth() {
                           })
                         : "—"}
                     </td>
+                    {/* Two independent facts, and they used to share one slot:
+                        "ใช้งานอยู่" won, so the model that is BOTH live and
+                        failing its gates showed a green pill and nothing else.
+                        That is precisely the combination a reader needs to see. */}
                     <td className="px-4 py-3">
-                      {v.isActive ? (
-                        <Pill tone="ok">ใช้งานอยู่</Pill>
-                      ) : v.metrics && !v.metrics.all_gates_passed ? (
-                        <Pill tone="danger">ไม่ผ่านเกณฑ์</Pill>
-                      ) : (
-                        <Pill tone="neutral">เก็บไว้อ้างอิง</Pill>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {v.isActive ? (
+                          <Pill tone="ok">ใช้งานอยู่</Pill>
+                        ) : (
+                          <Pill tone="neutral">เก็บไว้อ้างอิง</Pill>
+                        )}
+                        {v.metrics && !v.metrics.all_gates_passed && (
+                          <Pill tone="danger">ไม่ผ่านเกณฑ์</Pill>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

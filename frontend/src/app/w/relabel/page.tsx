@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { PageHeader } from "@/components/web/WebShell";
 import { CropView } from "@/components/shelf/CropView";
@@ -51,7 +52,7 @@ export default function RelabelQueue() {
     <>
       <PageHeader
         title="คิวตรวจภาพเพื่อปรับปรุงโมเดล"
-        subtitle="ภาพที่โมเดลไม่มั่นใจ และภาพที่พนักงานตีกลับ — ตรวจแล้วส่งเข้ารอบเทรนถัดไป"
+        subtitle="ภาพที่พนักงานตีกลับ และภาพที่โมเดลไม่มั่นใจโดยยังไม่มีใครยืนยัน — ตรวจแล้วส่งเข้ารอบเทรนถัดไป"
         actions={
           <Segmented
             ariaLabel="ตัวกรองที่มาของภาพ"
@@ -79,7 +80,10 @@ export default function RelabelQueue() {
           animate="show"
           className="mb-5 grid gap-4 sm:grid-cols-3"
         >
-          <Tile label="รอตรวจทั้งหมด" value={items.length} tone="neutral" />
+          {/* `pending`, not `items`: this tile says "ทั้งหมด", so counting the
+              FILTERED list made it echo whichever filter was open — pick
+              "ถูกตีกลับ" and the total silently became the rejected count. */}
+          <Tile label="รอตรวจทั้งหมด" value={pending.length} tone="neutral" />
           <Tile label="ถูกพนักงานตีกลับ" value={rejectedCount} tone="warn" />
           <Tile label="โมเดลไม่มั่นใจ" value={lowConfCount} tone="uncertain" />
         </motion.div>
@@ -100,7 +104,7 @@ export default function RelabelQueue() {
             <h2 className="mt-4 text-[18px] font-semibold">ไม่มีภาพรอตรวจในคิว</h2>
             <p className="mt-1.5 max-w-[360px] text-[14px] leading-relaxed text-muted">
               ภาพจะเข้าคิวอัตโนมัติเมื่อพนักงานตีกลับผลการตรวจ
-              หรือเมื่อโมเดลไม่มั่นใจในจุดที่ตรวจพบ
+              หรือเมื่อโมเดลไม่มั่นใจในจุดที่ตรวจพบและยังไม่มีใครยืนยัน
             </p>
           </motion.div>
         ) : (
@@ -269,6 +273,21 @@ function RelabelCard({
             <span className="text-[12px] text-muted">ความมั่นใจของโมเดล</span>
             <span className="tnum text-[13px] font-semibold">{Math.round(item.confidence * 100)}%</span>
           </div>
+
+          {/* The crop alone is not enough to relabel from: a reviewer has to
+              see the shelf around it. This opens the same photograph in the
+              evidence viewer, with the model's boxes on it — the guarantee
+              ui.md §1.5 ข้อ 5 makes about every number on these screens. */}
+          <Link
+            href={`/w/stores/${item.storeId}?capture=${item.captureId}`}
+            className="mt-3 inline-flex items-center gap-1 rounded-btn text-[13px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            ดูภาพเต็มพร้อมกรอบ
+            <span className="sr-only"> ของ {item.storeName}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
         </div>
       </div>
     </motion.li>

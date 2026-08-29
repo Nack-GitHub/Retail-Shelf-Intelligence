@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { MobileHeader, BottomBar, Scroll } from "@/components/mobile/Chrome";
@@ -30,17 +30,22 @@ export default function CategoryScreen() {
   const [catId, setCatId] = useState<string | null>(null);
   const [bay, setBay] = useState<string | null>(null);
 
-  // Preselect the first shelf once the catalogue arrives, so the rep taps
-  // "open camera" rather than choosing before there is anything to choose.
-  // The first SUPPORTED one: preselecting a shelf the model cannot read would
-  // put the rep one tap from a disabled button with no explanation.
-  useEffect(() => {
-    if (catId || categories.length === 0) return;
+  /* Preselect the first shelf once the catalogue arrives, so the rep taps
+     "open camera" rather than choosing before there is anything to choose.
+     The first SUPPORTED one: preselecting a shelf the model cannot read would
+     put the rep one tap from a disabled button with no explanation.
+
+     During render, not in an effect — it is a choice derived from the
+     catalogue, and an effect made the screen paint once with nothing selected.
+     It cannot loop: setting `catId` is what stops the condition holding, and a
+     catalogue with no supported shelf sets nothing at all. */
+  if (!catId && categories.length > 0) {
     const first = categories.find((c) => c.supported);
-    if (!first) return;
-    setCatId(first.id);
-    setBay(first.bays[0] ?? null);
-  }, [categories, catId]);
+    if (first) {
+      setCatId(first.id);
+      setBay(first.bays[0] ?? null);
+    }
+  }
 
   const cat = categories.find((c) => c.id === catId) ?? null;
   const ready = !!cat && !!bay;

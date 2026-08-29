@@ -58,9 +58,11 @@ export default function ProcessingScreen() {
     if (!photo || !visitId || !categoryId || !bay) return;
     running.current = true;
 
-    setPhase("UPLOADING");
-    setStep(0);
-    setFailure(null);
+    /* The reset that used to live here — phase, step, failure — moved to the
+       retry button. On the first run it set the three values they already
+       hold, and doing it from inside the effect meant this screen reset itself
+       on mount for no visible reason. Retry is a tap, and a tap is the right
+       place to clear the previous attempt. */
 
     try {
       const job = await uploadCapture({
@@ -125,6 +127,11 @@ export default function ProcessingScreen() {
   }, [photo, visitId, categoryId, bay, setAnalysis, consumeCapture, go, id]);
 
   useEffect(() => {
+    // With the reset moved to the retry tap, `run` sets nothing synchronously:
+    // it guards, flips a ref, then awaits the upload, so every setState in it
+    // runs in a promise callback. The rule cannot see past the call, and
+    // starting the upload on mount has to be an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void run();
   }, [run, attempt]);
 
@@ -239,7 +246,12 @@ export default function ProcessingScreen() {
                   variant="outlineDark"
                   size="lg"
                   full
-                  onClick={() => setAttempt((n) => n + 1)}
+                  onClick={() => {
+                  setPhase("UPLOADING");
+                  setStep(0);
+                  setFailure(null);
+                  setAttempt((n) => n + 1);
+                }}
                 >
                   ลองวิเคราะห์ภาพเดิมอีกครั้ง
                 </Button>

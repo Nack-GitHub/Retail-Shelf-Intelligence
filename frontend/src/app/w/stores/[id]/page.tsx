@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { PageHeader } from "@/components/web/WebShell";
 import { EvidenceViewer } from "@/components/web/EvidenceViewer";
@@ -16,6 +16,7 @@ import { fetchStore } from "@/lib/api/routes";
 import { fetchCategories } from "@/lib/api/catalog";
 import { fetchOsaTrend, fetchStoreHistory, type VisitCapture } from "@/lib/api/analytics";
 import { useResource } from "@/lib/api/useResource";
+import { fillWeeklyGaps, measuredWeeks } from "@/lib/trend";
 import { fadeUp, listItem, stagger, easeOut } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -34,6 +35,10 @@ const POLICY_LABELS: Record<string, string> = {
 
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
+  /* `?capture=<id>` — how the relabel queue hands a reviewer the photograph
+     behind a crop. Without it that screen could only show a 200px cut-out of a
+     shelf and no way to see the shelf. */
+  const requestedCapture = useSearchParams().get("capture");
 
   const store = useResource(() => fetchStore(id), [id]);
   /* Only so the figure above can name the shelf it came from. A manager
@@ -51,14 +56,47 @@ export default function StoreDetail() {
   } | null>(null);
 
   const visits = useMemo(() => history.data ?? [], [history.data]);
+
+  /* Open the requested capture once the timeline it lives in has arrived.
+     Adjusted during render rather than in an effect, the same way the viewer
+     itself resets when it is handed a different capture — an effect would
+     paint the page once without the panel and then again with it.
+
+     Marked as handled exactly once, even when the id matches nothing: a
+     capture belonging to another store must leave the page rendering
+     normally, and reopening the panel after the reader closes it would trap
+     them on the photograph they just dismissed. */
+  const [openedFromUrl, setOpenedFromUrl] = useState<string | null>(null);
+  if (requestedCapture && requestedCapture !== openedFromUrl && visits.length > 0) {
+    setOpenedFromUrl(requestedCapture);
+    for (const v of visits) {
+      const capture = v.captures.find((c) => c.captureId === requestedCapture);
+      if (capture) {
+        setEvidence({
+          capture,
+          visitedAt: v.checkedInAt,
+          gapsFound: v.gapsFound,
+          gapsFixed: v.gapsFixed,
+        });
+        break;
+      }
+    }
+  }
+
+  /* Gap-filled, so the x axis is a week apart everywhere. A store photographed
+     on 29 มิ.ย., 3 ส.ค. and 24 ส.ค. used to draw its five-week gap and its
+     three-week gap at the same width. */
+  const weeks = useMemo(() => fillWeeklyGaps(trend.data ?? []), [trend.data]);
   const points = useMemo(
     () =>
-      (trend.data ?? []).map((p) => ({
+      weeks.map((p) => ({
         label: new Date(p.bucket).toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
         value: p.osa,
       })),
-    [trend.data],
+    [weeks],
   );
+  // The "enough data" guard counts real readings, never the blanks.
+  const measured = measuredWeeks(weeks);
 
   const s = store.data;
   const osa = s?.lastOsa ?? null;
@@ -108,7 +146,7 @@ export default function StoreDetail() {
               {osa !== null && <OsaStatusPill status={osaStatusOf(osa)} />}
             </div>
 
-            {points.length >= 2 && (
+            {measured >= 2 && (
               <div className="mt-4 border-t border-line pt-4">
                 <p className="text-[12px] text-muted">แนวโน้มรายสัปดาห์</p>
                 <Sparkline
@@ -143,7 +181,8 @@ export default function StoreDetail() {
             <div className="border-b border-line px-5 py-4">
               <h2 className="text-[16px] font-semibold">ประวัติ OSA ของร้านนี้</h2>
               <p className="mt-0.5 text-[13px] text-muted">
-                ทุกจุดบนกราฟกดเข้าไปดูภาพต้นฉบับได้จากไทม์ไลน์ด้านล่าง
+                หนึ่งจุดคือหนึ่งสัปดาห์ · แถบเทาคือสัปดาห์ที่ไม่มีการตรวจ เส้นจึงขาดตอน
+                ไม่ลากข้ามไปเอง
               </p>
             </div>
             <div className="px-3 py-4 sm:px-5">
@@ -151,7 +190,7 @@ export default function StoreDetail() {
                 <LoadingBlock label="กำลังโหลดประวัติ…" />
               ) : trend.state === "ERROR" ? (
                 <ErrorBlock message={trend.error ?? ""} onRetry={trend.reload} />
-              ) : points.length < 2 ? (
+              ) : measured < 2 ? (
                 <p className="px-2 py-12 text-center text-[14px] leading-relaxed text-muted">
                   ยังมีข้อมูลไม่พอสำหรับกราฟ
                   <br />

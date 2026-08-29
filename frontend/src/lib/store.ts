@@ -110,8 +110,6 @@ export interface DemoState {
  *  the previous shop's answer. */
 let closingRequest: { visitId: string; promise: Promise<CheckoutSummary | null> } | null = null;
 
-const PRIORITY_ORDER = { 1: 0, 2: 1, 3: 2 } as const;
-
 /** The one condition the server raises a replenishment request on — see
  *  `PATCH /v1/tasks/{id}` in backend/app/api/v1/tasks.py. */
 function raisesRequest(status: Task["status"], reason?: BlockedReason): boolean {

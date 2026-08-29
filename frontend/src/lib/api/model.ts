@@ -64,6 +64,8 @@ export interface RelabelItem {
   rejectedReason: string | null;
   confidence: number;
   isLowConfidence: boolean;
+  /** so a card can open the photograph it is asking about — see the store detail screen */
+  storeId: string;
   storeName: string;
   category: string;
   capturedAt: string | null;

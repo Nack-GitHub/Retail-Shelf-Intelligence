@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /** The browser's own view of connectivity.
  *
@@ -9,22 +9,26 @@ import { useEffect, useState } from "react";
  *  true. That is fine here: the queue is driven by requests actually failing,
  *  and this flag only decides what the UI says while they do.
  *
- *  The initial value is `true` rather than a read of navigator, because the
- *  server render has no navigator and a mismatch would hydrate wrong. */
+ *  Connectivity is an external store, so it is read as one. The previous
+ *  version held it in state and seeded it from an effect, which meant every
+ *  consumer rendered once with a hardcoded `true` before the effect corrected
+ *  it — a rep opening the sync screen with no signal saw "ออนไลน์" flash first.
+ *  The server snapshot keeps that `true` because there is no navigator during
+ *  the server render and a mismatch would hydrate wrong. */
+
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
 export function useOnline(): boolean {
-  const [online, setOnline] = useState(true);
-
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const goOnline = () => setOnline(true);
-    const goOffline = () => setOnline(false);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
-
-  return online;
+  return useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine,
+    () => true,
+  );
 }

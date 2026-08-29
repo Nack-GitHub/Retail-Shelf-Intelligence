@@ -436,21 +436,75 @@ class PlannedVisit:
 # visit publishes the restocked score as that store's standing state and drops
 # it down the risk ranking. Adding `after_osa` to a final visit here is what
 # turns the worst store in the area into a middling one.
+#
+# ## Cadence is part of the plan, not an accident
+#
+# The visits per store are deliberately uneven, because the trend chart draws
+# a week as a week: a store photographed weekly gets an unbroken line, and one
+# photographed twice in three months gets a line with holes in it and a grey
+# band over every week nobody went. Seeding every store at the same cadence
+# would leave both of those behaviours undemonstrated, and the second one is
+# the more useful of the two — "nobody has been to this shop since June" is
+# exactly what a manager opens this screen to find out.
+#
+# So: two stores weekly, one fortnightly, two rarely. Which stores are rare is
+# not free either — they are the same two that must rank worst, because being
+# unvisited is most of why they do.
 PLAN: tuple[PlannedVisit, ...] = (
-    # Healthy. Its first visit found nothing at all, which is a real outcome
-    # for half the images in this dataset and a screen state worth showing.
-    PlannedVisit("st-101", 70, 1.00, 0, "clean"),
-    PlannedVisit("st-101", 40, 0.97, 1, "fixed"),
-    PlannedVisit("st-101", 12, 0.98, 1, "fixed"),
-    # Dipped once, recovered. The dip is the visit with an after-photo.
-    PlannedVisit("st-102", 66, 0.95, 1, "fixed"),
-    PlannedVisit("st-102", 35, 0.91, 3, "mixed", after_osa=0.98),
-    PlannedVisit("st-102", 6, 0.96, 1, "fixed", gps_off=True),
-    # Photo-restricted, so it is visited rarely and sits at a persistent low.
+    # ── st-101 เดลี่โก อารีย์ · weekly, and it shows ─────────────────────────
+    # The line that should look boring: a well-run shop, twelve unbroken weeks,
+    # nothing dramatic. Its first visit found nothing at all, which is a real
+    # outcome for half the images in this dataset and a screen state worth
+    # showing.
+    PlannedVisit("st-101", 81, 0.97, 0, "clean"),
+    PlannedVisit("st-101", 74, 0.95, 1, "fixed"),
+    PlannedVisit("st-101", 67, 0.98, 1, "fixed"),
+    PlannedVisit("st-101", 60, 1.00, 0, "clean"),
+    PlannedVisit("st-101", 53, 0.96, 2, "fixed"),
+    PlannedVisit("st-101", 46, 0.97, 1, "fixed"),
+    PlannedVisit("st-101", 39, 0.99, 0, "clean"),
+    PlannedVisit("st-101", 32, 0.96, 2, "fixed"),
+    PlannedVisit("st-101", 25, 0.98, 1, "fixed"),
+    PlannedVisit("st-101", 18, 0.97, 1, "fixed"),
+    PlannedVisit("st-101", 11, 0.99, 0, "clean"),
+    PlannedVisit("st-101", 4, 0.98, 1, "fixed"),
+    # ── st-105 เดลี่โก พระราม 9 · weekly, recovering ─────────────────────────
+    # The story a manager wants the ranking to reward, told across twelve
+    # points instead of three: 0.78 in June to 0.96 now. Three of the middle
+    # visits carry an after-photo so before/after has somewhere to be seen —
+    # never the last one, for the reason above.
+    PlannedVisit("st-105", 81, 0.78, 5, "mixed"),
+    PlannedVisit("st-105", 74, 0.80, 4, "mixed", after_osa=0.92),
+    PlannedVisit("st-105", 67, 0.82, 4, "mixed"),
+    PlannedVisit("st-105", 60, 0.85, 3, "mixed"),
+    PlannedVisit("st-105", 53, 0.84, 4, "mixed", after_osa=0.93),
+    PlannedVisit("st-105", 46, 0.87, 3, "mixed"),
+    PlannedVisit("st-105", 39, 0.89, 3, "fixed"),
+    PlannedVisit("st-105", 32, 0.90, 2, "fixed"),
+    PlannedVisit("st-105", 25, 0.92, 2, "fixed", after_osa=0.97),
+    PlannedVisit("st-105", 18, 0.93, 2, "fixed"),
+    PlannedVisit("st-105", 11, 0.95, 1, "fixed"),
+    PlannedVisit("st-105", 4, 0.96, 1, "fixed"),
+    # ── st-102 กรีนเลน มาร์เก็ต · fortnightly — dipped once, recovered ───────
+    # Six points across twelve weeks: dense enough to read as a line, sparse
+    # enough that the axis shows the every-other-week rhythm.
+    PlannedVisit("st-102", 80, 0.95, 1, "fixed"),
+    PlannedVisit("st-102", 66, 0.93, 2, "fixed"),
+    PlannedVisit("st-102", 52, 0.88, 3, "mixed"),
+    PlannedVisit("st-102", 38, 0.79, 5, "mixed", after_osa=0.94),
+    PlannedVisit("st-102", 24, 0.90, 3, "mixed"),
+    PlannedVisit("st-102", 10, 0.96, 1, "fixed"),
+    # ── st-103 ซาวารี่ กูร์เมต์ · photo-restricted, so visited rarely ────────
+    # Three visits in twelve weeks. Its line is mostly grey band, which is the
+    # honest picture of a shop the team cannot get into — and the reason it
+    # sits at a persistent low nobody has fixed.
     PlannedVisit("st-103", 75, 0.85, 4, "mixed"),
     PlannedVisit("st-103", 48, 0.86, 4, "mixed", after_osa=0.92),
     PlannedVisit("st-103", 24, 0.82, 4, "fixed"),
-    # The worst store: declining, stale, and full of work nobody finished.
+    # ── st-104 เมกะแวลู บางกะปิ · worst: declining, stale, work left undone ──
+    # Also three visits, and the gaps between them are the point: five weeks
+    # without a visit while the shelf went from 0.86 to 0.62.
+    #
     # Its `min_gaps` are high on every visit, not just the last one, because
     # the repeat-offender term only counts a SKU confirmed missing across two
     # separate visits — a store whose earlier visits found one gap each cannot
@@ -458,10 +512,6 @@ PLAN: tuple[PlannedVisit, ...] = (
     PlannedVisit("st-104", 80, 0.86, 6, "mixed"),
     PlannedVisit("st-104", 55, 0.74, 7, "mixed", after_osa=0.93),
     PlannedVisit("st-104", 32, 0.62, 8, "stalled", gps_off=True),
-    # Recovering — the story a manager wants the ranking to reward.
-    PlannedVisit("st-105", 58, 0.80, 3, "mixed", after_osa=0.96),
-    PlannedVisit("st-105", 26, 0.88, 2, "fixed"),
-    PlannedVisit("st-105", 4, 0.95, 2, "fixed"),
 )
 
 # Cycled rather than fixed so the relabel queue shows more than one failure

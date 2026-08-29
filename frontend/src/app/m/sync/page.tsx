@@ -58,6 +58,10 @@ export default function SyncQueueScreen() {
   }, []);
 
   useEffect(() => {
+    // `refresh` sets nothing synchronously — it awaits `queue.isAvailable()`
+    // before it touches state, so `setItems` already runs in a promise
+    // callback. Reading the queue on mount has to be an effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [refresh]);
 

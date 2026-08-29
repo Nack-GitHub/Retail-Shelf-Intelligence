@@ -31,16 +31,32 @@ export function useResource<T>(load: () => Promise<T>, deps: unknown[] = []): Re
   // The latest load wins. Without this, a slow first request can resolve after
   // a fast second one and overwrite fresher data with staler data.
   const runId = useRef(0);
-  const loadRef = useRef(load);
-  loadRef.current = load;
+
+  /* Going back to LOADING is a reaction to the inputs changing, so it happens
+     during render rather than inside the effect. Doing it in the effect meant
+     one paint in which the deps had already moved on but the screen still
+     showed the previous resource's data as though it were current — the area
+     dashboard briefly showed the old area's numbers under the new area's name.
+     Adjusting state during render is the documented way to reset on a change;
+     React re-runs this component before committing anything. */
+  const inputs = [...deps, nonce];
+  const [lastInputs, setLastInputs] = useState<unknown[]>(inputs);
+  if (
+    inputs.length !== lastInputs.length ||
+    inputs.some((value, i) => !Object.is(value, lastInputs[i]))
+  ) {
+    setLastInputs(inputs);
+    setState("LOADING");
+    setError(null);
+  }
 
   useEffect(() => {
     const id = ++runId.current;
-    setState("LOADING");
-    setError(null);
 
-    loadRef
-      .current()
+    // `load` is read from this render's closure rather than through a ref:
+    // the effect is scheduled by the same render, so the two are the same
+    // function, and a ref written during render is not allowed.
+    load()
       .then((result) => {
         if (id !== runId.current) return;
         setData(result);

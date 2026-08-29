@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { useSession } from "@/components/auth/AuthGate";
 import { fetchAreas, type Area } from "@/lib/api/analytics";
@@ -63,23 +63,28 @@ export function WebShell({ children }: { children: React.ReactNode }) {
   const areasResource = useResource(() => fetchAreas(), []);
   const areas = useMemo(() => areasResource.data ?? [], [areasResource.data]);
   const [areaId, setAreaId] = useState<string | undefined>(undefined);
-  const [ready, setReady] = useState(false);
+  /* `ready` is not a second source of truth for "have we chosen yet" — it IS
+     that choice having been made. Deriving it from this flag rather than
+     setting both from an effect keeps them from disagreeing for a render. */
+  const [chosen, setChosen] = useState(false);
+  const ready = chosen;
 
-  // Default to the manager's own area once it is known, rather than to
-  // whichever area happens to sort first.
-  useEffect(() => {
-    if (ready) return;
-    // An empty area list is still an answer: there is nothing to scope to,
-    // so screens should stop waiting and query unscoped.
-    if (areasResource.state === "ERROR" || (areasResource.state === "READY" && areas.length === 0)) {
-      setReady(true);
-      return;
+  /* Default to the manager's own area once it is known, rather than to
+     whichever area happens to sort first. An empty list or a failed request is
+     still an answer: there is nothing to scope to, so screens stop waiting and
+     query unscoped.
+
+     Adjusted during render because it is a reaction to the request settling,
+     not a side effect of it. */
+  const areasSettled = areasResource.state === "ERROR" || areasResource.state === "READY";
+  if (!chosen && areasSettled) {
+    setChosen(true);
+    if (areas.length > 0) {
+      setAreaId(
+        user?.areaId && areas.some((a) => a.id === user.areaId) ? user.areaId : areas[0].id,
+      );
     }
-    if (areas.length === 0) return;
-    const own = user?.areaId && areas.some((a) => a.id === user.areaId) ? user.areaId : areas[0].id;
-    setAreaId(own);
-    setReady(true);
-  }, [areas, ready, user?.areaId, areasResource.state]);
+  }
 
   const selection: AreaSelection = {
     areaId,

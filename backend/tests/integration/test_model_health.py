@@ -146,6 +146,7 @@ def test_relabel_queue_carries_the_image_and_the_reason(
             "rejectedReason",
             "confidence",
             "isLowConfidence",
+            "storeId",
             "storeName",
             "category",
             "capturedAt",
@@ -156,3 +157,59 @@ def test_relabel_queue_carries_the_image_and_the_reason(
             "modelVersion",
         }
         assert item["reason"] in {"REP_REJECTED", "LOW_CONFIDENCE"}
+
+
+def test_confirming_a_low_confidence_finding_takes_it_out_of_the_queue(
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
+) -> None:
+    """A queue that cannot be emptied stops being a queue.
+
+    Every uncertain detection used to stay here forever, whether or not a rep
+    had already stood at the shelf and answered the question. A REJECTED
+    finding still stays — that disagreement is the whole signal.
+    """
+    # `_lowconf` is the marker the mock reads out of the object key: it puts the
+    # gap's score inside the 0.35-0.55 band. `_gaps` scores 0.72-0.94, so asking
+    # for that bay here made the test pass without exercising anything.
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_lowconf")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+    uncertain = [f for f in result["gapFindings"] if f["isLowConfidence"]]
+    assert uncertain, "the lowconf scenario must produce an uncertain finding to test with"
+
+    finding_id = uncertain[0]["id"]
+    before = client.get("/v1/model/relabel-queue", headers=manager_auth).json()["items"]
+    assert any(i["findingId"] == finding_id for i in before)
+
+    client.post(
+        f"/v1/findings/{finding_id}/verify",
+        headers=rep_auth,
+        json={"verdict": "CONFIRMED"},
+    )
+
+    after = client.get("/v1/model/relabel-queue", headers=manager_auth).json()["items"]
+    assert not any(i["findingId"] == finding_id for i in after)
+
+
+def test_the_queue_links_each_card_to_the_store_it_came_from(
+    client: TestClient, manager_auth: dict[str, str], rep_auth: dict[str, str], visit: dict
+) -> None:
+    """⛔ A store id, never a rep id — the card opens the photograph, not a person."""
+    job = upload_capture(client, rep_auth, visit["id"], bay="A2_gaps")
+    result = client.get(f"/v1/captures/{job['captureId']}/result", headers=rep_auth).json()
+    client.post(
+        f"/v1/findings/{result['gapFindings'][0]['id']}/verify",
+        headers=rep_auth,
+        json={"verdict": "REJECTED", "reason": "OCCLUDED"},
+    )
+
+    # The queue is global and session-scoped fixtures leave findings from other
+    # tests in it, so this asserts on the row it just created rather than on
+    # every row — an earlier version compared every item to this visit's store
+    # and failed the moment a second test had run.
+    items = client.get("/v1/model/relabel-queue", headers=manager_auth).json()["items"]
+    mine = [i for i in items if i["captureId"] == job["captureId"]]
+    assert mine, "the finding just rejected should be in the queue"
+    for item in mine:
+        assert item["storeId"] == visit["storeId"]
+    for item in items:
+        assert item["storeId"], "every card needs a store to open its photograph from"

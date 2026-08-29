@@ -390,7 +390,7 @@ would show:
 
 ```
 2. today's route  (risk DESC, distance ASC)
-  HIGH   score=0.575    0.0km  ควิกช้อป อ่อนนุช 17
+  HIGH   score=0.575    0.0km  เมกะแวลู บางกะปิ
 3. check-in  (GPS ~5km off: flagged, NOT blocked)
   visit 75b3a282  gpsMatch=False  status=OPEN
 8. result

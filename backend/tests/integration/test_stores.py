@@ -12,6 +12,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db.seed import STORES
 from tests.integration.conftest import upload_capture
 
 
@@ -20,9 +21,12 @@ def test_list_returns_the_seeded_stores(client: TestClient, rep_auth: dict[str, 
     assert response.status_code == 200
 
     stores = response.json()
-    assert len(stores) >= 5
+    assert len(stores) >= len(STORES)
+    # Read out of the seed table rather than pinned here. Hardcoding the codes
+    # meant renaming a demo store — a presentation decision with no bearing on
+    # behaviour — turned this suite red for the wrong reason.
     codes = {s["externalCode"] for s in stores}
-    assert {"QS-1042", "FM-2210", "MB-0788", "TD-3391", "QS-1119"} <= codes
+    assert {external_code for _, external_code, *_ in STORES} <= codes
 
 
 def test_list_is_camel_case_and_carries_risk(client: TestClient, rep_auth: dict[str, str]) -> None:

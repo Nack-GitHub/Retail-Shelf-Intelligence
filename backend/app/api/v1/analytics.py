@@ -11,8 +11,8 @@ flattering angles and the entire dataset becomes worthless. This is a
 labour-rights constraint agreed at design stage, not a missing feature. A
 ticket asking for per-rep scoring should be escalated, not implemented.
 
-`tests/integration/test_no_per_rep_analytics.py` enforces this by inspecting
-this module's source.
+`tests/integration/test_prohibitions.py::test_no_analytics_endpoint_aggregates_by_user`
+enforces this by inspecting this module's source.
 """
 
 from __future__ import annotations
