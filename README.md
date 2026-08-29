@@ -976,7 +976,4 @@ convention.
 | :-- | :-- |
 | **[docs/running.md](docs/running.md)** | **คู่มือการรันโปรเจกต์** — setup, การใช้งานประจำวัน, ทดสอบบนมือถือ, แก้ปัญหา |
 | [contracts/inference-v1.yaml](contracts/inference-v1.yaml) | the inference contract — normative |
-| [docs/archive/](docs/archive/) | planning documents for both finished rounds, and why the system is shaped this way |
-| [docs/archive/backend-and-ml/](docs/archive/backend-and-ml/) | Round 1 — contract rules, schema, boundaries, the failing promotion gates |
-| [docs/archive/frontend-integration/](docs/archive/frontend-integration/) | Round 2 — the data layer, the 7 new endpoints, and what two review rounds found |
 | [docs/backend.md](docs/backend.md) · [docs/ui.md](docs/ui.md) | original requirements |

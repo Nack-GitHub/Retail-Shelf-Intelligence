@@ -4,7 +4,12 @@ import { motion } from "motion/react";
 import type { Detection, GapFinding } from "@/types";
 import { easeOut } from "@/lib/motion";
 
-export type OverlayFilter = "ALL" | "GAP" | "PRODUCT" | "LOW_CONF" | "TAG";
+/** LOW_CONF is every box the model was unsure about, whatever it is — the audit
+ *  view a manager wants. LOW_CONF_GAP is the subset a rep can act on, which is
+ *  what the mobile "ต้องตรวจสอบ" chip counts. The two are deliberately separate:
+ *  one screen is asking "what did the model struggle with", the other "what do
+ *  I have to decide before I leave". */
+export type OverlayFilter = "ALL" | "GAP" | "PRODUCT" | "LOW_CONF" | "LOW_CONF_GAP" | "TAG";
 
 /* Stroke widths and badge sizes below are authored against a 1920-wide frame.
    A 4000px phone photo would otherwise get hairline boxes and unreadable
@@ -37,6 +42,7 @@ function matches(d: Detection, f: OverlayFilter, lowConfidence: number) {
     case "GAP": return k === "GAP";
     case "PRODUCT": return k === "PRODUCT";
     case "LOW_CONF": return d.confidence < lowConfidence;
+    case "LOW_CONF_GAP": return k === "GAP" && d.confidence < lowConfidence;
     case "TAG": return k === "TAG";
   }
 }
@@ -144,7 +150,14 @@ export function DetectionOverlay({
                 <path d="M5 5l14 14M19 5L5 19" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" />
               </g>
             )}
-            {showLabels && low && !dimmed && (
+            {/* Gaps only. "ต้องตรวจสอบ" tells the rep to go and decide something,
+                and an uncertain PRODUCT or price tag gives them nothing to decide.
+                On a real bay photo 87% of the boxes under the threshold are those
+                — roughly 3.7 badges per photo where 0.5 are actionable — and the
+                badge is a fixed-width block with no collision avoidance, so they
+                pile up on top of each other. The dashed stroke below still marks
+                every uncertain box. */}
+            {showLabels && low && !dimmed && kind === "GAP" && (
               <g transform={`translate(${x} ${Math.max(30 * pxScale, y - 34 * pxScale)}) scale(${pxScale})`}>
                 <rect width={168} height={30} rx={6} fill={COLORS.LOW} />
                 <text x={10} y={21} fill="#fff" fontSize={19} fontWeight={600}>

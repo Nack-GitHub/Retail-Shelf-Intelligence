@@ -56,10 +56,11 @@ class AnalysisConfig:
     can still be explained with the rules that were in force at the time.
     """
 
-    version: str = "v1"
+    version: str = "v2"
     min_confidence: float = 0.35
     low_confidence_threshold: float = 0.55
-    row_tolerance_ratio: float = 0.6
+    # See config.py for how this number was measured.
+    row_tolerance_ratio: float = 0.75
     critical_threshold: float = 0.75
     low_threshold: float = 0.90
 

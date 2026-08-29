@@ -70,10 +70,16 @@ class Settings(BaseSettings):
     # Bumping analysis_config_version whenever any value below changes is what
     # keeps historic findings explainable: every shelf_analyses row records the
     # version that produced it.
-    analysis_config_version: str = "v1"
+    analysis_config_version: str = "v2"
     min_confidence: float = 0.35
     low_confidence_threshold: float = 0.55
-    row_tolerance_ratio: float = 0.6
+    # 0.75, not 0.6. Measured against the price rails in the validation set —
+    # rails are uniform boxes, so counting them gives an independent read on how
+    # many boards a photo actually shows. At 0.6 the row count came out too high
+    # on 44% of photos, because one board's boxes vary in height enough for the
+    # centres to drift past a tolerance that tight. 0.75 takes that to 9% while
+    # merging adjacent boards on barely more photos than 0.6 did (22% vs 19%).
+    row_tolerance_ratio: float = 0.75
     critical_threshold: float = 0.75
     low_threshold: float = 0.90
 

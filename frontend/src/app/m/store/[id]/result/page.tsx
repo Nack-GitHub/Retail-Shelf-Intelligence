@@ -55,7 +55,7 @@ export default function ResultScreen() {
         { id: "ALL" as const, label: "ทั้งหมด", count: null, dot: null },
         { id: "GAP" as const, label: "ช่องว่าง", count: gapCount, dot: "bg-danger" },
         { id: "PRODUCT" as const, label: "มีสินค้า", count: null, dot: "bg-ok" },
-        { id: "LOW_CONF" as const, label: "ต้องตรวจสอบ", count: lowConf, dot: "bg-uncertain" },
+        { id: "LOW_CONF_GAP" as const, label: "ต้องตรวจสอบ", count: lowConf, dot: "bg-uncertain" },
         { id: "TAG" as const, label: "ป้ายราคา", count: null, dot: "bg-[#7fb0ff]" },
       ] satisfies { id: OverlayFilter; label: string; count: number | null; dot: string | null }[],
     [gapCount, lowConf],

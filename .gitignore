@@ -37,3 +37,6 @@ runs/
 
 # Detached dev-process logs and pid files (devrun.py / devrun_ml.py)
 .logs/
+
+SPEC.md
+tasks/

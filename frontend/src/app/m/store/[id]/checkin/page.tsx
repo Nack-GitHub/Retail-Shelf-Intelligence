@@ -49,12 +49,22 @@ export default function CheckInScreen() {
   const handoff = useRef<number>(0);
   useEffect(() => () => window.clearTimeout(handoff.current), []);
   const [checkInError, setCheckInError] = useState<string | null>(null);
+  // The receipt quotes the time the server wrote down, not the moment this
+  // screen rendered. They are seconds apart at worst, but the rep reads this
+  // line back to a store manager, and the evidence trail holds the other one.
+  const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
   // In a demo build the switcher can force the "GPS ไม่ตรง" view. Everywhere
   // else the banner shows what the server decided from the coordinates we
   // sent — a mismatch is evidence, and evidence a reviewer can fabricate from
   // the screen is not evidence.
   const [serverGpsMatch, setServerGpsMatch] = useState<boolean | null>(null);
   const gpsMatch = DEMO_MODE && view === "GPS_OFF" ? false : (serverGpsMatch ?? true);
+  // Null in a demo build, where the switcher can show this state without a
+  // check-in having happened: the confirmation then simply carries no time
+  // rather than a made-up one.
+  const checkedInTime = checkedInAt
+    ? new Date(checkedInAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   useEffect(() => {
     if (storeId !== id) beginVisit(id);
@@ -85,6 +95,7 @@ export default function CheckInScreen() {
       });
       checkIn(visit.id, visit.gpsMatch);
       setServerGpsMatch(visit.gpsMatch);
+      setCheckedInAt(visit.checkedInAt);
       setView("DONE");
       handoff.current = window.setTimeout(() => flow.go("CATEGORY"), 700);
     } catch (err) {
@@ -249,7 +260,7 @@ export default function CheckInScreen() {
                 <circle cx="12" cy="12" r="10" fill="#12b76a" />
                 <path d="M7.5 12.4l3 3 6-6.4" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
               </motion.svg>
-              เช็คอินเรียบร้อย · 09:04 น.
+              {checkedInTime ? `เช็คอินเรียบร้อย · ${checkedInTime} น.` : "เช็คอินเรียบร้อย"}
             </motion.div>
           ) : (
             <motion.div key="cta" variants={fadeUp} initial="hidden" animate="show">
