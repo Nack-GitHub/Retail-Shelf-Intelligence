@@ -1,8 +1,22 @@
 # ShelfEye — Shelf Gap Detection & Replenishment
 
+<p align="center">
+  <a href="https://universe.roboflow.com/roboflow-ngkro/shelf-product"><img src="https://img.shields.io/badge/Roboflow_Universe-shelf--product-6706CE?style=for-the-badge&logo=roboflow&logoColor=white" alt="Roboflow Universe Dataset"></a>
+  <img src="https://img.shields.io/badge/Model-YOLO26l_%7C_ONNX-00FFFF?style=for-the-badge&logo=yolo&logoColor=black" alt="Model">
+  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/Next.js_16-black?style=for-the-badge&logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
+</p>
+
 A field rep photographs a retail shelf and gets an on-shelf-availability (OSA)
 score back **while still standing in front of it**, with each gap boxed,
 labelled in Thai, and turned into a replenishment task before they walk out.
+
+<p align="center">
+  <img src="docs/assets/shelf-detection-comparison.jpg" alt="ShelfEye Real-Time Detection Comparison" width="100%">
+  <br>
+  <em><strong>AI Shelf Gap Detection:</strong> Raw shelf photograph from <a href="https://universe.roboflow.com/roboflow-ngkro/shelf-product">Roboflow Universe</a> (left) vs. YOLO object detection identifying products, price tags, and out-of-stock empty shelf gaps (right).</em>
+</p>
 
 > **Demo build.** Working end-to-end over production-hardened. What was
 > deliberately left out, and why, is recorded in [docs/archive/](docs/archive/).
@@ -28,7 +42,6 @@ training run, no dataset download. See [Quick start](#quick-start).
 | [API reference](#api-reference) | every endpoint and who may call it |
 | [The mock ML client](#the-mock-ml-client) | driving specific shelf shapes without a model |
 | [Frontend](#frontend) | routes, the data layer, offline queue, camera |
-| [ML pipeline](#ml-pipeline) | dataset → train → evaluate → export → serve |
 | [Switching to the real model](#switching-to-the-real-model) | the one-variable flip |
 | [Testing](#testing) | four suites, what each needs |
 | [Development guide](#development-guide) | how to make the common changes |
@@ -692,89 +705,6 @@ being closed. Every queued operation carries the `Idempotency-Key` it will be
 replayed with, so a drain interrupted halfway cannot double-count a capture.
 Only OFFLINE and TIMEOUT failures are queued — a 403 or a 422 will fail again
 just as hard in ten minutes.
-
----
-
-## ML pipeline
-
-### Dataset
-
-[`roboflow-ngkro/shelf-product`](https://universe.roboflow.com/roboflow-ngkro/shelf-product/dataset/1)
-v1 — 1,349 images, 45 classes, pinned by version and archive SHA.
-
-The 108 MB archive is **not in git** (`model/*.zip` is ignored — committing it is
-effectively irreversible without a history rewrite). Download it from Roboflow in
-YOLOv11 format, place it at `model/shelf-product.v1i.yolov11.zip`, then:
-
-```bash
-make dataset      # extracts to model/data/{train,valid,test}
-```
-
-`model/artifacts/` is ignored too, so a fresh clone has no weights. **None of
-this is needed for mock mode.**
-
-> ⚠️ **These are European coffee aisles.** The source filenames name German
-> retailers (Edeka, REWE, tegut). Lighting, shelf density and packaging differ
-> substantially from Thai convenience and traditional-trade stores. Metrics on
-> this dataset are a **capability proof, not a production-readiness signal** —
-> that requires a held-out set of Thai pilot-store photographs, reported side by
-> side. Every generated model card leads with this warning.
-
-### Train, evaluate, export, serve
-
-```bash
-make train-smoke  # 2 epochs at imgsz 320 — proves the pipeline, measures s/epoch
-make train        # full run, detached (hours)
-make evaluate     # test split against the promotion gates
-make export card  # ONNX opset 17 + model_card.md
-make ml           # inference service on :8001
-```
-
-`model/configs/` holds one YAML per run, each carrying the reasoning behind its
-numbers — including [yolo11n-640.yaml](model/configs/yolo11n-640.yaml), which
-documents two failed attempts: batch 16 exhausted unified memory on a 16 GB M2
-and throughput collapsed from 14 s/it to 119 s/it; batch 8 fixed that, and then
-per-epoch validation became the bottleneck at 193 s/it.
-
-### Promotion gates
-
-The thresholds encode one asymmetry: a **missed gap** is unrecoverable revenue —
-the rep has already left the store — while a **false gap** costs thirty seconds
-of their time. The operating point is chosen for recall on the gap class.
-
-| Gate | Threshold | Rationale |
-| :-- | --: | :-- |
-| `recall_empty_shelf` | ≥ 0.90 | a missed gap is unrecoverable; the rep has already left |
-| `precision_empty_shelf` | ≥ 0.85 | below this, reps stop trusting alerts and adoption collapses |
-| `map50_overall` | ≥ 0.85 | overall detection quality |
-
-In this build the gate **reports rather than blocks**; wiring it into CI as a
-hard gate is outstanding work.
-
-### Where the models actually landed
-
-Recorded honestly, gate failures included — a demo that rounded a failing recall
-up to a passing one would be worse than useless.
-
-| Artifact | imgsz | mAP@50 | Recall | Gap P | Gap R | Gates |
-| :-- | --: | --: | --: | --: | --: | :-- |
-| `shelf-product-v1` (yolo11n) | 640 | 0.373 | 0.471 | 0.466 | 0.411 | ❌ |
-| `shelf-product-yolo11s-960` | 960 | 0.590 | 0.659 | 0.477 | 0.597 | ❌ |
-| `shelf-product-yolo26l-960` | 960 | **0.907** | **0.904** | 0.748 | 0.742 | ❌ |
-
-Overall detection is strong. **The gap class is the bottleneck** — 0.74 recall
-against a 0.90 gate — which is exactly the metric the whole product depends on,
-and exactly why the gate exists.
-
-### The serving path
-
-`s3://` URI → S3 reader (own credentials) → EXIF-correct load → letterbox →
-ONNX Runtime → NMS with per-class thresholds → **un-letterbox back to original
-pixels** → class map → `semantic_type` → contract response.
-
-Serving installs from [requirements-serve.txt](model/requirements-serve.txt) —
-ONNX Runtime only, no torch, no ultralytics, roughly an order of magnitude
-smaller than a training image.
 
 ---
 
