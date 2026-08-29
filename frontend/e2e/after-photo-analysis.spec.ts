@@ -115,3 +115,26 @@ test("a summary that never gets its figure says so rather than blaming the rep",
   // The visit is closed either way: the way on must stay open.
   await expect(page.getByRole("button", { name: /ร้านถัดไป|จบงานวันนี้|กลับหน้าเส้นทาง/ }).first()).toBeEnabled();
 });
+
+test("a check-out held in the offline queue does not blame the rep either", async ({ page }) => {
+  await seedSession(page);
+
+  // No signal at the till: the check-out never reaches the server, so there is
+  // no osa_after and none is coming until the queue drains. The screen used to
+  // read that absence as "no after-photo" and say so to a rep holding one.
+  await page.route(`**/v1/visits/${VISIT_ID}/checkout`, (route) => route.abort("failed"));
+
+  await walkToCompare(page);
+  await page.getByRole("button", { name: "ถ่ายภาพ" }).click();
+  await page.getByRole("button", { name: /^สรุปและเช็คเอาต์/ }).click();
+  await page.waitForURL(`**/m/store/${STORE_ID}/checkout`);
+
+  await expect(page.getByText(/บันทึกการเข้าร้านไว้ในคิวออฟไลน์แล้ว/)).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText("ยังไม่ได้ถ่ายภาพหลังเติมของ")).toBeHidden();
+  // The visit is over for the rep whether or not the server has heard about it.
+  await expect(
+    page.getByRole("button", { name: /ร้านถัดไป|จบงานวันนี้|กลับหน้าเส้นทาง/ }).first(),
+  ).toBeEnabled();
+});

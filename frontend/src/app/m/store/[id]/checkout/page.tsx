@@ -41,17 +41,22 @@ export default function CheckoutScreen() {
   const checkout = useDemo((s) => s.checkout);
   const tasks = useDemo((s) => s.tasks);
   const requests = useDemo((s) => s.replenishmentRequests);
+  const afterCaptured = useDemo((s) => s.afterCaptured);
   const resetVisit = useDemo((s) => s.resetVisit);
   const beginVisit = useDemo((s) => s.beginVisit);
   const osaAfter = useOsaAfter();
   const stats = useVisitStats();
 
   const [closing, setClosing] = useState(true);
-  /* Three states, not two: the after-photo can be missing, still being read,
-     or read. The screen used to collapse the middle one into the first and
-     tell a rep they had not photographed the shelf they had just photographed. */
+  /* Four states, not two: the after-photo can be missing, taken but stuck in
+     the offline queue, taken and still being read, or read. The screen used to
+     collapse the middle ones into the first and tell a rep they had not
+     photographed the shelf they had just photographed. */
   const [waitingForAnalysis, setWaitingForAnalysis] = useState(false);
-  const [analysisUnfinished, setAnalysisUnfinished] = useState(false);
+  /* Check-out went to the offline queue, so there is no server figure yet and
+     none is coming until the queue drains. Without this the screen fell
+     through to "you never took the after photo" — told to a rep who had. */
+  const [queuedOffline, setQueuedOffline] = useState(false);
   const [attempt, setAttempt] = useState(0);
   /* Set the moment the rep chooses to move on. Leaving throws the visit away,
      and the guard below reads the visit — so without this the screen spends the
@@ -60,9 +65,9 @@ export default function CheckoutScreen() {
   const [leaving, setLeaving] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
 
-  // Checkout is what makes the visit real: it closes the row and computes
-  // osa_after from the AFTER-phase captures. The screen waits for it rather
-  // than showing an estimate it would later contradict.
+  // Checkout is what makes the visit real: it closes the row and reads
+  // osa_after off the latest AFTER-phase capture. The screen waits for it
+  // rather than showing an estimate it would later contradict.
   useEffect(() => {
     let cancelled = false;
     const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -80,16 +85,16 @@ export default function CheckoutScreen() {
       }
       if (cancelled) return;
       setClosing(false);
+      // `null` means the request never reached the server: it is queued, and
+      // osa_after will be computed when it drains.
+      setQueuedOffline(summary === null);
 
       // The visit is closed; what may still be running is the model reading
       // the after-photo. Asking again is how the figure arrives — the server
       // recomputes it and keeps the original check-out time.
       const deadline = Date.now() + ANALYSIS_WAIT_MS;
       while (!cancelled && summary?.analysisPending) {
-        if (Date.now() >= deadline) {
-          setAnalysisUnfinished(true);
-          break;
-        }
+        if (Date.now() >= deadline) break;
         setWaitingForAnalysis(true);
         await wait(ANALYSIS_RETRY_MS);
         if (cancelled) return;
@@ -98,7 +103,6 @@ export default function CheckoutScreen() {
         } catch {
           // Nothing the rep can act on: the visit is closed and the summary
           // already on screen still stands.
-          setAnalysisUnfinished(true);
           break;
         }
       }
@@ -116,7 +120,7 @@ export default function CheckoutScreen() {
     // A fresh attempt starts with a clean verdict about the analysis, or a
     // successful retry would still be wearing the last one's copy.
     setWaitingForAnalysis(false);
-    setAnalysisUnfinished(false);
+    setQueuedOffline(false);
     setAttempt((n) => n + 1);
   }, []);
 
@@ -129,6 +133,18 @@ export default function CheckoutScreen() {
     if (!checkedInAt || !checkedOutAt) return null;
     return Math.round((checkedOutAt - checkedInAt) / 60000);
   }, [checkedInAt, checkedOutAt]);
+
+  /* Why there is no "after" figure. Four causes, four sentences — the screen
+     used to have three and no way to tell "not photographed" apart from
+     "photographed, not yet sent", so it accused the rep of skipping a step
+     they had just done. */
+  const missingAfterReason = !afterCaptured
+    ? "ยังไม่ได้ถ่ายภาพหลังเติมของ จึงยังไม่มีค่า OSA หลังการเติม ถ่ายภาพชั้นวางอีกครั้งเพื่อวัดผลที่เกิดขึ้นจริง"
+    : queuedOffline
+      ? "ยังไม่มีสัญญาณ — บันทึกการเข้าร้านไว้ในคิวออฟไลน์แล้ว ค่า OSA หลังการเติมจะคำนวณเมื่อซิงก์สำเร็จ"
+      : waitingForAnalysis
+        ? "กำลังวิเคราะห์ภาพหลังเติมของ… ค่าจะขึ้นเองเมื่อเสร็จ"
+        : "ระบบยังวิเคราะห์ภาพหลังเติมของไม่เสร็จ ค่าจะปรากฏในหน้าเว็บของผู้จัดการเมื่อวิเคราะห์เสร็จ";
 
   const osaBefore = checkout?.osaBefore ?? analysis?.osaScore ?? null;
   const stops = route ?? [];
@@ -185,11 +201,7 @@ export default function CheckoutScreen() {
                 {/* The wait ends by itself, so a screen reader has to be told
                     when the words change under a figure that has not moved. */}
                 <p role="status" className="mt-3 text-[13px] leading-relaxed text-muted">
-                  {waitingForAnalysis
-                    ? "กำลังวิเคราะห์ภาพหลังเติมของ… ค่าจะขึ้นเองเมื่อเสร็จ"
-                    : analysisUnfinished
-                      ? "ระบบยังวิเคราะห์ภาพหลังเติมของไม่เสร็จ ค่าจะปรากฏในหน้าเว็บของผู้จัดการเมื่อวิเคราะห์เสร็จ"
-                      : "ยังไม่ได้ถ่ายภาพหลังเติมของ จึงยังไม่มีค่า OSA หลังการเติม ถ่ายภาพชั้นวางอีกครั้งเพื่อวัดผลที่เกิดขึ้นจริง"}
+                  {missingAfterReason}
                 </p>
               </>
             ) : (

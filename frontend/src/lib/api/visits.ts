@@ -65,8 +65,8 @@ export interface CheckoutSummary {
   osaBefore: number | null;
   osaAfter: number | null;
   /** A photograph from this visit is still with the model, so `osaAfter` is
-   *  the average of what has been read so far. The visit is closed either way;
-   *  asking again is how the finished figure arrives. */
+   *  the latest one READ SO FAR — a later shot can still replace it. The visit
+   *  is closed either way; asking again is how the finished figure arrives. */
   analysisPending: boolean;
   tasksTotal: number;
   tasksFixed: number;

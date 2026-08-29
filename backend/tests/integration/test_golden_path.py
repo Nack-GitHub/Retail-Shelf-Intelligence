@@ -316,6 +316,51 @@ def test_checkout_computes_osa_after_from_after_phase_captures(
     assert summary["checkedOutAt"]
 
 
+def test_the_two_figures_aggregate_differently_and_deliberately(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """`osa_before` is the FIRST before-photo; `osa_after` is the LAST
+    after-photo. The asymmetry is intentional — the before figure is the state
+    the rep walked in on, which a later photograph cannot change, while the
+    after figure is the state they left behind, which every later photograph
+    restates. Both halves are documented in docs/osa.md and read by a rep off
+    one screen, so neither may quietly become a mean of the photos.
+    """
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="BEFORE")
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_full", phase="BEFORE")
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_full", phase="AFTER")
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="AFTER")
+
+    summary = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    # 0.875 first, 1.0 second: the first, not the last (1.0) or the mean (0.9375).
+    assert summary["osaBefore"] == pytest.approx(0.875)
+    # 1.0 first, 0.875 second: the last, not the first (1.0) or the mean (0.9375).
+    # Deliberately the LOWER of the two — a retake that reads worse must be able
+    # to pull the figure down, which is exactly what averaging prevented.
+    assert summary["osaAfter"] == pytest.approx(0.875)
+
+
+def test_retaking_an_after_photo_replaces_the_reading_it_corrects(
+    client: TestClient, rep_auth: dict[str, str], visit: dict
+) -> None:
+    """The reason osa_after is the latest photo rather than the mean.
+
+    A rep whose first after-shot came out badly (blurred, half the bay out of
+    frame) retakes it. The retake is a correction, and a correction that only
+    gets averaged in cannot fully undo what it corrects.
+    """
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="BEFORE")
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_gaps", phase="AFTER")
+    upload_capture(client, rep_auth, visit["id"], bay="BAY_full", phase="AFTER")
+
+    summary = client.post(f"/v1/visits/{visit['id']}/checkout", headers=rep_auth).json()
+
+    assert summary["osaAfter"] == pytest.approx(1.0), (
+        "the discarded first after-shot is still dragging the figure down"
+    )
+
+
 def _queue_an_unanalysed_after_capture(visit_id: str) -> str:
     """A photograph that has been sent but not yet read by the model.
 

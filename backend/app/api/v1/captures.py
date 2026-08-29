@@ -233,8 +233,15 @@ async def get_result(
         (
             await db.execute(
                 select(GapFindingRow)
+                .join(DetectionRow, DetectionRow.id == GapFindingRow.detection_id)
                 .where(GapFindingRow.run_id == analysis.run_id)
-                .order_by(GapFindingRow.shelf_row_index, GapFindingRow.position_label)
+                # Left to right along each row, matching the order the engine
+                # built these in. Ordering by position_label would sort the Thai
+                # words by code point and put every row's middle before its left.
+                .order_by(
+                    GapFindingRow.shelf_row_index,
+                    DetectionRow.bbox_x + DetectionRow.bbox_w / 2,
+                )
             )
         )
         .scalars()

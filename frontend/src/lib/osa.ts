@@ -5,7 +5,7 @@
  * every analysis it returns — a screen holding a server-computed `status` must
  * render that one rather than recompute it here. What this module is for is the
  * figures that arrive as a bare percentage with no status attached: a store's
- * last OSA, a shelf category's, the after-restock average on the check-out
+ * last OSA, a shelf category's, the after-restock figure on the check-out
  * screen.
  *
  * Keeping the numbers below in step with the backend is not left to memory:

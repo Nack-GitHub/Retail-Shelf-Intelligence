@@ -67,16 +67,28 @@ async def get_visit(
 async def check_out(
     visit_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
 ) -> CheckoutResponse:
-    """Close the visit and compute osa_after from AFTER-phase captures."""
+    """Close the visit and read osa_after off the LATEST AFTER-phase capture."""
     visit = (await db.execute(select(Visit).where(Visit.id == visit_id))).scalar_one_or_none()
     if visit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบการเข้าร้าน")
 
+    # The last photograph, not the mean of all of them. A rep who retakes an
+    # after-shot is correcting the first one — averaging kept the discarded
+    # reading alive in the figure, so a good retake could not fully undo a bad
+    # frame. Ordered by when the shutter went, not when the row was written:
+    # the offline queue drains in whatever order it reconnects in, and the
+    # later photograph is the later photograph either way. `computed_at`
+    # breaks the tie when one capture has been analysed more than once.
     osa_after = (
         await db.execute(
-            select(func.avg(ShelfAnalysisRow.osa_score))
+            select(ShelfAnalysisRow.osa_score)
             .join(Capture, Capture.id == ShelfAnalysisRow.capture_id)
             .where(Capture.visit_id == visit.id, Capture.phase == "AFTER")
+            .order_by(
+                func.coalesce(Capture.captured_at, Capture.created_at).desc(),
+                ShelfAnalysisRow.computed_at.desc(),
+            )
+            .limit(1)
         )
     ).scalar()
 

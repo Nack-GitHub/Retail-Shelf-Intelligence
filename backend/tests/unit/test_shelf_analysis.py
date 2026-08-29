@@ -14,7 +14,7 @@ from shelfeye_contracts import SemanticType
 from app.core.exceptions import NoShelfDetectedError
 from app.domain.enums import OsaStatus
 from app.domain.values import AnalysisConfig, BBox, Detection
-from app.services.shelf_analysis import analyse
+from app.services.shelf_analysis import _POSITION_LABELS, analyse
 
 W, H = 1920, 1080
 CONFIG = AnalysisConfig()
@@ -50,6 +50,35 @@ def row_of(count: int, y: float, *, gaps: int = 0, conf: float = 0.9) -> list[De
         )
         for i in range(count)
     ]
+
+
+def shelf_bay(shelf_count: int, *, rails: bool = True, gap_on_shelf: int = 0) -> list[Detection]:
+    """A bay shot head-on, in the shape every photo in the dataset has.
+
+    Products stand on each board; the price rail is mounted on that board's
+    front lip, which puts it below the products it prices and outside their
+    vertical spread. `rails=False` gives the same bay with the rails cropped
+    out, so the two can be compared.
+    """
+    detections: list[Detection] = []
+    for shelf in range(1, shelf_count + 1):
+        top = 100 + (shelf - 1) * 300
+        detections += [
+            det(
+                x=100 + i * 150,
+                y=top,
+                semantic=(
+                    SemanticType.GAP if shelf == gap_on_shelf and i == 4 else SemanticType.PRODUCT
+                ),
+            )
+            for i in range(8)
+        ]
+        if rails:
+            detections += [
+                det(x=100 + i * 200, y=top + 210, w=90, h=45, semantic=SemanticType.PRICE_TAG)
+                for i in range(6)
+            ]
+    return detections
 
 
 # ── Fixture 1: a full shelf ──────────────────────────────────────────────────
@@ -145,6 +174,66 @@ def test_tags_are_excluded_from_area_math() -> None:
     assert with_tags.osa_score == pytest.approx(0.5)
 
 
+# ── Row numbering: only shelves get a number ─────────────────────────────────
+
+
+def test_price_rails_do_not_get_shelf_numbers_of_their_own() -> None:
+    """The defect this fixture exists for: a rep sent to the wrong shelf.
+
+    Clustering every detection together made each board two rows — its products
+    and the rail under them — so a six-shelf bay reported twelve rows and a gap
+    on the fourth shelf was announced as "ชั้นที่ 7".
+    """
+    with_rails = analyse(shelf_bay(6), CONFIG, image_width=W, image_height=H)
+    cropped = analyse(shelf_bay(6, rails=False), CONFIG, image_width=W, image_height=H)
+
+    assert with_rails.row_count == 6
+    assert cropped.row_count == with_rails.row_count
+
+
+def test_a_gap_reports_the_shelf_a_rep_can_count_to() -> None:
+    result = analyse(shelf_bay(6, gap_on_shelf=4), CONFIG, image_width=W, image_height=H)
+
+    assert len(result.findings) == 1
+    assert result.findings[0].shelf_row_index == 4
+    assert "ชั้นที่ 4" in result.findings[0].position_label
+
+
+def test_tag_boxes_do_not_shrink_the_row_tolerance() -> None:
+    """Tags are a quarter the height of a product. Letting them into the median
+    pulled the tolerance down until genuine rows split apart as well."""
+    products = row_of(6, 100) + row_of(6, 340)
+    swarm = [
+        det(x=100 + i * 90, y=305, w=60, h=30, semantic=SemanticType.PRICE_TAG) for i in range(20)
+    ]
+
+    assert analyse(products, CONFIG, image_width=W, image_height=H).row_count == 2
+    assert analyse(products + swarm, CONFIG, image_width=W, image_height=H).row_count == 2
+
+
+def test_a_price_rail_belongs_to_the_shelf_above_it() -> None:
+    """A rail prices the products standing on its own board — the ones above it.
+
+    This rail sits past the midpoint between the two rows, so picking the
+    nearest row by centre distance would answer 2. Physically it is 1.
+    """
+    upper = row_of(4, 100)  # centre y 200
+    lower = row_of(4, 700)  # centre y 800
+    rail = det(x=100, y=500, w=90, h=40, semantic=SemanticType.PRICE_TAG)  # centre y 520
+
+    result = analyse([*upper, *lower, rail], CONFIG, image_width=W, image_height=H)
+
+    assert result.row_count == 2
+    assert result.row_index_by_detection[rail.detection_id] == 1
+
+
+def test_a_header_strip_above_every_shelf_falls_back_to_row_one() -> None:
+    banner = det(x=0, y=10, w=1800, h=60, semantic=SemanticType.PROMO_TAG)
+    result = analyse([*row_of(4, 200), banner], CONFIG, image_width=W, image_height=H)
+
+    assert result.row_index_by_detection[banner.detection_id] == 1
+
+
 # ── Fixture 5: an empty detection list ───────────────────────────────────────
 
 
@@ -207,6 +296,23 @@ def test_position_label_right_edge_does_not_overflow() -> None:
     detections = row_of(4, 100) + [det(x=W - 100, y=100, w=100, semantic=SemanticType.GAP)]
     result = analyse(detections, CONFIG, image_width=W, image_height=H)
     assert "ตำแหน่งขวา" in result.findings[0].position_label
+
+
+def test_findings_run_left_to_right_across_a_row() -> None:
+    """Sorting by the finished label ordered the Thai words by code point —
+    กลาง, ขวา, ซ้าย — handing the rep every row's middle before its left end."""
+    left = det(x=100, y=100, semantic=SemanticType.GAP)  # centre x 150
+    middle = det(x=900, y=100, semantic=SemanticType.GAP)  # centre x 950
+    right = det(x=1700, y=100, semantic=SemanticType.GAP)  # centre x 1750
+
+    result = analyse([*row_of(4, 100), right, middle, left], CONFIG, image_width=W, image_height=H)
+
+    assert [f.detection_id for f in result.findings] == [
+        left.detection_id,
+        middle.detection_id,
+        right.detection_id,
+    ]
+    assert [f.position_label.split(" · ")[1] for f in result.findings] == list(_POSITION_LABELS)
 
 
 # ── Purity ───────────────────────────────────────────────────────────────────

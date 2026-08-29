@@ -285,9 +285,12 @@ class TaskPatch(ApiModel):
 class CheckoutResponse(ApiModel):
     """The visit is closed by the time this is returned, always.
 
+    `osa_after` is the LATEST after-photo of the visit, not a mean of them:
+    retaking a shot replaces the reading rather than being averaged into it.
+
     `analysis_pending` says a photograph from this visit is still with the
-    model, so `osa_after` is the average of what has been read so far and will
-    change when the rest lands. It is not an error and it is not a reason to
+    model, so `osa_after` is the latest one READ SO FAR and can still be
+    replaced when the rest lands. It is not an error and it is not a reason to
     keep the visit open — a worker that never finishes must not trap a rep in
     a shop. Asking again is how a client picks up the finished figure.
     """

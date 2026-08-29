@@ -59,6 +59,10 @@ export interface DemoState {
   findings: GapFinding[];
   tasks: Task[];
   afterCaptured: boolean;
+  /** Task ids that raised a replenishment request. Keyed by TASK, not by SKU,
+   *  because that is how the server dedupes them (`source_task_id`): one SKU
+   *  missing in two places on the shelf is two requests, and counting it as
+   *  one made the summary screen disagree with the supply-chain queue. */
   replenishmentRequests: string[];
 
   beginVisit: (storeId: string) => void;
@@ -107,6 +111,18 @@ export interface DemoState {
 let closingRequest: { visitId: string; promise: Promise<CheckoutSummary | null> } | null = null;
 
 const PRIORITY_ORDER = { 1: 0, 2: 1, 3: 2 } as const;
+
+/** The one condition the server raises a replenishment request on — see
+ *  `PATCH /v1/tasks/{id}` in backend/app/api/v1/tasks.py. */
+function raisesRequest(status: Task["status"], reason?: BlockedReason): boolean {
+  return status === "BLOCKED" && reason === "OUT_OF_BACKSTOCK";
+}
+
+/** Idempotent because the offline queue replays, and because a rep can block
+ *  the same task twice. The server is idempotent per task for the same reason. */
+function addRequest(requests: string[], taskId: string): string[] {
+  return requests.includes(taskId) ? requests : [...requests, taskId];
+}
 
 export const useDemo = create<DemoState>((set, get) => ({
   storeId: null,
@@ -272,28 +288,30 @@ export const useDemo = create<DemoState>((set, get) => ({
         });
         if (queued) {
           // Reflect the rep's decision locally; the server hears it on drain.
+          // That includes the replenishment request: the server raises one
+          // when this drains, so a rep who blocked a task with no signal must
+          // not be shown a summary claiming nothing went to supply chain.
           set((s) => ({
             tasks: s.tasks.map((t) =>
               t.id === taskId ? { ...t, status, blockedReason: reason } : t,
             ),
+            replenishmentRequests: raisesRequest(status, reason)
+              ? addRequest(s.replenishmentRequests, taskId)
+              : s.replenishmentRequests,
           }));
           return;
         }
       }
       throw err;
     }
-    set((s) => {
-      const requests = [...s.replenishmentRequests];
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? updated : t)),
       // Mirrors what the API just did: OUT_OF_BACKSTOCK raises a
       // replenishment request server-side, and the summary screen says so.
-      if (status === "BLOCKED" && reason === "OUT_OF_BACKSTOCK" && !requests.includes(updated.skuCode)) {
-        requests.push(updated.skuCode);
-      }
-      return {
-        tasks: s.tasks.map((t) => (t.id === taskId ? updated : t)),
-        replenishmentRequests: requests,
-      };
-    });
+      replenishmentRequests: raisesRequest(status, reason)
+        ? addRequest(s.replenishmentRequests, taskId)
+        : s.replenishmentRequests,
+    }));
   },
 
   closeOutVisit: async (options) => {

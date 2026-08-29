@@ -4,7 +4,7 @@ import { STORE_ID, VISIT_ID } from "./fixtures/api";
 /* 72% is the value that catches the two sides drifting apart: the API calls it
    CRITICAL (its floor is 75), while the app used to carry a floor of 70 and
    call the same shelf LOW. Any figure the server has not already classified —
-   the after-restock average here — has to land on the API's answer. */
+   the after-restock figure here — has to land on the API's answer. */
 const OSA_AFTER_BETWEEN_THRESHOLDS = 0.72;
 
 test("an after-restock figure below the API's floor reads as critical, not low", async ({

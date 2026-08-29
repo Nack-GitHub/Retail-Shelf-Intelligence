@@ -71,8 +71,8 @@ export default function CompareScreen() {
   /** Sends the AFTER shot through the same path as the BEFORE shot.
    *
    *  This is what makes checkout's osa_after a measurement rather than an
-   *  estimate: the server averages the AFTER-phase analyses for the visit. An
-   *  after-photo that stays on the phone proves nothing. */
+   *  estimate: the server reads it off the latest AFTER-phase analysis for the
+   *  visit. An after-photo that stays on the phone proves nothing. */
   async function uploadAfter(p: CapturedPhoto) {
     if (!visitId || !categoryId || !bay) return;
     setUploading(true);

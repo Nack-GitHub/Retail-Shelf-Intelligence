@@ -656,8 +656,14 @@ def _resolve_findings(
     findings = (
         session.execute(
             select(GapFindingRow)
+            .join(DetectionRow, DetectionRow.id == GapFindingRow.detection_id)
             .where(GapFindingRow.capture_id == capture.id)
-            .order_by(GapFindingRow.shelf_row_index, GapFindingRow.position_label)
+            # Same left-to-right walk the rep does in the app, so the seeded
+            # verification timestamps land in the order the screen offers them.
+            .order_by(
+                GapFindingRow.shelf_row_index,
+                DetectionRow.bbox_x + DetectionRow.bbox_w / 2,
+            )
         )
         .scalars()
         .all()
@@ -846,10 +852,18 @@ def seed_history(session: Session) -> dict[str, int]:
             _analyse(session, client, after, after_image, base + timedelta(minutes=30))
             counts["captures"] += 1
 
+        # Same rule as POST /v1/visits/{id}/checkout: the latest after-photo,
+        # not the mean. Seeded history that aggregates differently from the API
+        # is history no dashboard can be checked against.
         osa_after = session.execute(
-            select(func.avg(ShelfAnalysisRow.osa_score))
+            select(ShelfAnalysisRow.osa_score)
             .join(Capture, Capture.id == ShelfAnalysisRow.capture_id)
             .where(Capture.visit_id == visit.id, Capture.phase == "AFTER")
+            .order_by(
+                func.coalesce(Capture.captured_at, Capture.created_at).desc(),
+                ShelfAnalysisRow.computed_at.desc(),
+            )
+            .limit(1)
         ).scalar()
         if osa_after is not None:
             visit.osa_after = round(float(osa_after), 4)

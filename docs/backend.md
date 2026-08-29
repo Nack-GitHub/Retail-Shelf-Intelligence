@@ -280,8 +280,8 @@ PATCH /v1/tasks/{task_id}
      replenishment_request.
 
 POST /v1/visits/{visit_id}/checkout
-     → computes osa_after from AFTER-phase captures, closes the visit,
-       returns the summary payload.
+     → reads osa_after off the LATEST AFTER-phase capture (not a mean of
+       them), closes the visit, returns the summary payload.
 
 POST /v1/sync/batch
      Offline queue drain. Accepts an array of operations, each with its own
