@@ -1,0 +1,22 @@
+# ABLATION: baseline with ONE variable changed — erasing 0.2 -> 0.0.
+#
+# Hypothesis: random erasing blanks a rectangle on the shelf and does NOT add a
+# label for it. For the 44 SKU classes that is a fair stand-in for a shopper
+# blocking the view. For `Empty Shelf` it is a gap presented as background, on
+# ~20% of draws, for the whole run. If the hypothesis holds, gap recall rises
+# here and nothing else moves much.
+#
+# This is the cheapest informative experiment in the whole plan. Run it first.
+run_name: shelf-product-yolo26l-640-noerasing
+model: yolo26l.pt
+imgsz: 640
+epochs: 150
+batch: 12
+patience: 30
+workers: 8
+seed: 42
+val: true
+val_warmup_epochs: 15
+data: data/splits/holdout/data.yaml
+overrides:
+  erasing: 0.0

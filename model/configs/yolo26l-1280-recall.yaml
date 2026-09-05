@@ -1,0 +1,28 @@
+# Only valid AFTER re-exporting the dataset from Roboflow at "Fit within
+# 1280x1280" (letterbox) or at original resolution. Against the current
+# 640x640 stretched export this config trains on upsampled pixels and is
+# strictly worse than yolo26l-640-recall.yaml at 4x the cost.
+#
+# The re-export needs no re-labelling: YOLO stores normalised coordinates, so
+# every existing box survives a resolution change untouched. It is the single
+# largest amount of real signal available without photographing anything new —
+# and "Stretch" specifically distorts aspect ratio, which is most of what a
+# geometry-only class like `Empty Shelf` has to go on.
+run_name: shelf-product-yolo26l-1280-recall
+model: yolo26l.pt
+imgsz: 1280
+epochs: 150
+batch: 4           # 1280 is memory-hungry; raise if the GPU allows
+patience: 30
+workers: 8
+seed: 42
+val: true
+val_warmup_epochs: 15
+data: data/splits/holdout/data.yaml
+overrides:
+  erasing: 0.0
+  scale: 0.6
+  multi_scale: 0.5
+  close_mosaic: 20
+  cls: 0.7
+  cos_lr: true

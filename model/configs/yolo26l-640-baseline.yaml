@@ -1,0 +1,21 @@
+# CONTROL run. Everything that made the 0.7422 gap-recall result, except the
+# two things that were plainly broken:
+#
+#   * val is on, so `patience` works and best.pt is the best epoch, not the last
+#   * imgsz drops 960 -> 640, because every image in the dataset IS 640x640
+#     (Roboflow "Resize to 640x640 (Stretch)"). Training at 960 upsampled
+#     interpolated pixels and paid 2.25x the compute for zero extra signal.
+#
+# Compare every other run against THIS one, not against the old 960 artifact —
+# the old one was measured on a different split with no model selection.
+run_name: shelf-product-yolo26l-640-baseline
+model: yolo26l.pt
+imgsz: 640
+epochs: 150
+batch: 12          # drop to 8 or 4 if the GPU OOMs; 4 makes BN stats noisy
+patience: 30
+workers: 8
+seed: 42
+val: true
+val_warmup_epochs: 15
+data: data/splits/holdout/data.yaml

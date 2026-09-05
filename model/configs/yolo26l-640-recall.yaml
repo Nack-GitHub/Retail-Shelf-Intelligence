@@ -1,0 +1,34 @@
+# The full recall-first configuration. Only run this AFTER the baseline and the
+# erasing ablation, so you know which of these knobs actually paid.
+#
+# Each override answers a measured property of the `Empty Shelf` class:
+#
+#   erasing 0.0      unlabelled gaps stop being taught as background
+#   scale 0.6        gap sqrt-area spans 47px -> 389px (p10 -> p90), 8x. The
+#                    baseline's 0.4 does not cover that range.
+#   multi_scale 0.5  same reason, applied at the image level
+#   close_mosaic 20  mosaic splices four shelves together, which is exactly the
+#                    context a "what is missing here" class needs intact. 20
+#                    clean epochs at the end instead of 10.
+#   cls 0.7          gap loss is a classification failure, not a localisation
+#                    one: P 0.748 / R 0.742 / mAP50 0.747 move together, which
+#                    is what "the model does not know what counts" looks like.
+#   cos_lr true      softer LR tail; the 960 run's box_loss was flat from ~e96
+run_name: shelf-product-yolo26l-640-recall
+model: yolo26l.pt
+imgsz: 640
+epochs: 150
+batch: 12
+patience: 30
+workers: 8
+seed: 42
+val: true
+val_warmup_epochs: 15
+data: data/splits/holdout/data.yaml
+overrides:
+  erasing: 0.0
+  scale: 0.6
+  multi_scale: 0.5
+  close_mosaic: 20
+  cls: 0.7
+  cos_lr: true
