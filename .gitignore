@@ -21,6 +21,7 @@ model/data/
 model/artifacts/
 model/runs/
 model/*.pt
+*.ses
 
 # The 108MB source archive stays out of git history — committing it is
 # effectively irreversible without a history rewrite, and it is reproducible
